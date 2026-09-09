@@ -1,98 +1,289 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState } from "react";
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Ionicons } from "@expo/vector-icons";
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+export default function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = () => {
+    if (!email.trim()) {
+      Alert.alert("Validation", "Please enter your email address.");
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Validation", "Please enter your password.");
+      return;
+    }
+
+    Alert.alert("Login", `Login request submitted for ${email}`);
+
+    // Later we will connect your FastAPI login API here.
+  };
+
+  const handleForgotPassword = () => {
+    Alert.alert(
+      "Forgot Password",
+      "Password reset functionality will be available here.",
     );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <Image
+              source={require("../../assets/logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+          {/* Heading */}
+          <Text style={styles.title}>Welcome to EduCampus360 ERP</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+          <Text style={styles.subtitle}>
+            Transforming education through smart technology.
+          </Text>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+          <Text style={styles.description}>
+            Login to explore your personalized dashboard.
+          </Text>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email Address</Text>
+
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="mail-outline"
+                size={21}
+                color="#666"
+                style={styles.inputIcon}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor="#999"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          {/* Password */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={21}
+                color="#666"
+                style={styles.inputIcon}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color="#666"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Forgot Password */}
+          <TouchableOpacity
+            style={styles.forgotContainer}
+            onPress={handleForgotPassword}
+          >
+            <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
+          </TouchableOpacity>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLogin}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.loginButtonText}>Sign in to Account</Text>
+
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+
+          {/* Support */}
+          <View style={styles.supportContainer}>
+            <Text style={styles.supportText}>For Support Queries:</Text>
+
+            <TouchableOpacity>
+              <Text style={styles.supportLink}>supportsmartschoolserp.com</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#F8F9FF",
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 25,
+    paddingVertical: 30,
+    justifyContent: "center",
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 15,
   },
+
+  logo: {
+    width: 150,
+    height: 150,
+  },
+
   title: {
-    textAlign: 'center',
+    fontSize: 25,
+    fontWeight: "700",
+    color: "#29235C",
+    textAlign: "center",
+    marginTop: 5,
   },
-  code: {
-    textTransform: 'uppercase',
+
+  subtitle: {
+    fontSize: 15,
+    color: "#555",
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 22,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+
+  description: {
+    fontSize: 14,
+    color: "#777",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 30,
+  },
+
+  inputGroup: {
+    marginBottom: 18,
+  },
+
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+
+  inputContainer: {
+    height: 52,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+
+  inputIcon: {
+    marginRight: 10,
+  },
+
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: "#222",
+  },
+
+  forgotContainer: {
+    alignItems: "flex-end",
+    marginTop: 2,
+    marginBottom: 22,
+  },
+
+  forgotText: {
+    color: "#4B2AAD",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  loginButton: {
+    height: 52,
+    backgroundColor: "#4B2AAD",
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  loginButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  supportContainer: {
+    alignItems: "center",
+    marginTop: 35,
+  },
+
+  supportText: {
+    fontSize: 13,
+    color: "#777",
+    marginBottom: 5,
+  },
+
+  supportLink: {
+    fontSize: 14,
+    color: "#4B2AAD",
+    fontWeight: "600",
   },
 });

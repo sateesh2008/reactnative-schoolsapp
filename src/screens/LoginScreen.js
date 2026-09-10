@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Image,
   Platform,
   Pressable,
   SafeAreaView,
@@ -20,15 +21,15 @@ const accounts = [
 ];
 
 const colors = {
-  navy: '#183B67',
-  blue: '#2574D8',
-  ink: '#13233A',
-  muted: '#718096',
-  line: '#DDE5EF',
-  canvas: '#F7F9FC',
+  navy: '#123B43',
+  blue: '#0D8B82',
+  ink: '#17343B',
+  muted: '#6A7F83',
+  line: '#D9E7E4',
+  canvas: '#F4F8F6',
   white: '#FFFFFF',
-  paleBlue: '#EAF3FF',
-  red: '#C84D52',
+  paleBlue: '#E5F4F0',
+  red: '#C65353',
 };
 
 export default function LoginScreen({ onLogin }) {
@@ -74,20 +75,27 @@ export default function LoginScreen({ onLogin }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.brandMark}>
-            <Ionicons name="school" size={28} color={colors.white} />
+            <Image
+              source={require('../../assets/logo.png')}
+              resizeMode="contain"
+              style={styles.logo}
+            />
           </View>
-          <Text style={styles.kicker}>DEMO SCHOOL</Text>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to access your school account.</Text>
+          <Text style={styles.title}>Welcome to</Text>
+          <Text style={styles.appName}>EduCampus360 ERP</Text>
+          <Text style={styles.subtitle}>
+            Transforming education through smart technology.{`\n`}
+            Login to explore your personalized dashboard.
+          </Text>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Login ID</Text>
+            <Text style={styles.label}>Email Address</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="mail-outline" size={19} color={colors.muted} />
               <TextInput
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Enter your login ID"
+                placeholder="Enter your email address"
                 placeholderTextColor="#9AA7B7"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -116,11 +124,14 @@ export default function LoginScreen({ onLogin }) {
             </View>
 
             {message ? <Text style={styles.error}>{message}</Text> : null}
+            <Pressable style={styles.forgotButton} onPress={() => setMessage('Password recovery is not included in this demo.')}>
+              <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
+            </Pressable>
             <Pressable
               onPress={handleLogin}
               style={({ pressed }) => [styles.button, pressed && styles.pressed]}
             >
-              <Text style={styles.buttonText}>Sign in</Text>
+              <Text style={styles.buttonText}>Sign in to Account</Text>
               <Ionicons name="arrow-forward" size={19} color={colors.white} />
             </Pressable>
           </View>
@@ -159,9 +170,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   content: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  brandMark: { width: 58, height: 58, borderRadius: 17, backgroundColor: colors.navy, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  kicker: { color: colors.blue, fontSize: 11, fontWeight: '900', letterSpacing: 1.8 },
+  brandMark: { width: 72, height: 72, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 18 },
+  logo: { width: 72, height: 72 },
   title: { color: colors.ink, fontSize: 31, fontWeight: '900', marginTop: 7 },
+  appName: { color: colors.blue, fontSize: 25, fontWeight: '900', marginTop: 4 },
   subtitle: { color: colors.muted, fontSize: 14, marginTop: 7, marginBottom: 28 },
   form: { backgroundColor: colors.white, borderRadius: 14, borderWidth: 1, borderColor: colors.line, padding: 18 },
   label: { color: colors.ink, fontSize: 12, fontWeight: '800', marginBottom: 7, marginTop: 3 },
@@ -169,6 +181,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: colors.ink, fontSize: 14 },
   button: { backgroundColor: colors.blue, minHeight: 50, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, marginTop: 4 },
   buttonText: { color: colors.white, fontSize: 15, fontWeight: '800' },
+  forgotButton: { alignSelf: 'flex-end', marginBottom: 14 },
+  forgotText: { color: colors.blue, fontSize: 11, fontWeight: '900' },
   pressed: { opacity: 0.75 },
   error: { color: colors.red, fontSize: 12, fontWeight: '700', marginTop: -5, marginBottom: 12 },
   demoBox: { backgroundColor: colors.paleBlue, borderRadius: 12, padding: 15, marginTop: 16 },

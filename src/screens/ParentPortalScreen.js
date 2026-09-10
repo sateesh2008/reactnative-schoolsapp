@@ -14,19 +14,19 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const colors = {
-  ink: '#13233A',
-  muted: '#718096',
-  line: '#E5EAF0',
-  canvas: '#F7F9FC',
+  ink: '#17343B',
+  muted: '#6A7F83',
+  line: '#D9E7E4',
+  canvas: '#F4F8F6',
   white: '#FFFFFF',
-  navy: '#183B67',
-  blue: '#2574D8',
-  paleBlue: '#EAF3FF',
+  navy: '#123B43',
+  blue: '#0D8B82',
+  paleBlue: '#E5F4F0',
   teal: '#168A7C',
-  paleTeal: '#E4F6F2',
+  paleTeal: '#E2F4EE',
   orange: '#D9822B',
-  paleOrange: '#FFF3E5',
-  red: '#D55252',
+  paleOrange: '#FFF1DF',
+  red: '#C65353',
 };
 
 const navItems = [

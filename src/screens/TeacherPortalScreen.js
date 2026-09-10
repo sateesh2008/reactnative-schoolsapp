@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const colors = { navy: '#183B67', blue: '#2574D8', ink: '#13233A', muted: '#718096', line: '#E3E9F0', canvas: '#F7F9FC', white: '#FFFFFF', paleBlue: '#EAF3FF', paleTeal: '#E4F6F2', paleOrange: '#FFF3E5', teal: '#168A7C', orange: '#D9822B' };
+const colors = { navy: '#123B43', blue: '#0D8B82', ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', canvas: '#F4F8F6', white: '#FFFFFF', paleBlue: '#E5F4F0', paleTeal: '#E2F4EE', paleOrange: '#FFF1DF', teal: '#168A7C', orange: '#D9822B' };
 const actions = [
   ['Mark Attendance', 'calendar-outline', 'Record daily presence and absences'],
   ['Post Homework', 'book-outline', 'Assign daily coursework to students'],

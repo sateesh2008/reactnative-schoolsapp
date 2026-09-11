@@ -12,6 +12,11 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ParentAttendanceScreen from './ParentAttendanceScreen';
+import ParentFeesScreen from './ParentFeesScreen';
+import ParentHomeworkScreen from './ParentHomeworkScreen';
+import ParentExamsScreen from './ParentExamsScreen';
+import ParentTimetableScreen from './ParentTimetableScreen';
 
 const colors = {
   ink: '#17343B',
@@ -47,18 +52,23 @@ const notices = [
   { type: 'General', date: '10 Apr 2026', title: 'Annual Day Celebrations', color: colors.blue },
 ];
 
-const homeworkItems = [
-  { subject: 'Mathematics', title: 'Practice multiplication tables 2 to 10', due: 'Due tomorrow', done: false },
-  { subject: 'English', title: 'Read chapter 4 and write five new words', due: 'Due 12 Sep', done: false },
-  { subject: 'Science', title: 'Complete the plants worksheet', due: 'Submitted', done: true },
-];
-
 const schedule = [
   ['08:30', 'Mathematics', 'Room 204'],
   ['09:20', 'English', 'Room 204'],
   ['10:10', 'Science', 'Lab 1'],
   ['11:30', 'Hindi', 'Room 204'],
   ['12:20', 'Art & Craft', 'Art Studio'],
+];
+
+const attendanceSeed = [
+  { id: 1, roll: '01', name: 'Aarav Sharma', status: 'Present' },
+  { id: 2, roll: '02', name: 'Diya Nair', status: 'Present' },
+  { id: 3, roll: '03', name: 'Kabir Singh', status: 'Late' },
+  { id: 4, roll: '04', name: 'Meera Iyer', status: 'Unmarked' },
+  { id: 5, roll: '05', name: 'Rohan Das', status: 'Absent' },
+  { id: 6, roll: '06', name: 'Sana Khan', status: 'Unmarked' },
+  { id: 7, roll: '07', name: 'Vihaan Patel', status: 'Present' },
+  { id: 8, roll: '08', name: 'Zoya Ali', status: 'Present' },
 ];
 
 function Icon({ name, size = 20, color = colors.ink }) {
@@ -123,38 +133,197 @@ function ScheduleRow({ item }) {
   return <View style={styles.scheduleRow}><Text style={styles.scheduleTime}>{item[0]}</Text><View style={styles.scheduleLine} /><View style={{ flex: 1 }}><Text style={styles.scheduleSubject}>{item[1]}</Text><Text style={styles.scheduleRoom}>{item[2]}</Text></View><Icon name="arrow-forward-outline" size={16} color={colors.blue} /></View>;
 }
 
-function DetailContent({ section, homework, setHomework, goTo }) {
-  if (section === 'Attendance') return <AttendanceContent />;
-  if (section === 'Fees') return <FeesContent />;
-  if (section === 'Homework') return <HomeworkContent homework={homework} setHomework={setHomework} />;
-  if (section === 'Exams') return <ExamsContent />;
-  if (section === 'Timetable') return <TimetableContent />;
+function DetailContent({ section, goTo, session, onSessionExpired }) {
+  if (section === 'Attendance') return <ParentAttendanceScreen session={session} onSessionExpired={onSessionExpired} onBackHome={() => goTo('Home')} />;
+  if (section === 'Fees') return <ParentFeesScreen session={session} onSessionExpired={onSessionExpired} />;
+  if (section === 'Homework') return <ParentHomeworkScreen session={session} onSessionExpired={onSessionExpired} />;
+  if (section === 'Exams') return <ParentExamsScreen session={session} onSessionExpired={onSessionExpired} onBackHome={() => goTo('Home')} />;
+  if (section === 'Timetable') return <ParentTimetableScreen session={session} onSessionExpired={onSessionExpired} onBackHome={() => goTo('Home')} />;
   return <NoticesContent />;
 }
 
 function AttendanceContent() {
-  return <><DetailHero icon="pie-chart" title="Attendance overview" value="65%" caption="20 days present out of 24 school days" tint={colors.paleBlue} iconColor={colors.blue} /><View style={styles.panel}><Bar label="Present" value="20 days" width="83%" color={colors.teal} /><Bar label="Absent" value="4 days" width="17%" color={colors.red} /></View><SectionTitle title="Monthly attendance" /><View style={styles.calendar}><Text style={styles.month}>September 2026</Text><View style={styles.calendarGrid}>{['M','T','W','T','F','S','S', ...Array.from({ length: 30 }, (_, i) => String(i + 1))].map((day, index) => <View key={`${day}-${index}`} style={[styles.day, index > 6 && index < 27 && styles.dayPresent, index === 10 && styles.dayToday]}><Text style={styles.dayText}>{day}</Text></View>)}</View></View></>;
+  const [students, setStudents] = useState(attendanceSeed);
+  const [selectedAction, setSelectedAction] = useState('Daily Log / Marking');
+  const [selectedBulk, setSelectedBulk] = useState('All Present');
+  const [filter, setFilter] = useState('All');
+  const [search, setSearch] = useState('');
+
+  const totalEnrolled = students.length;
+  const markedEntries = students.filter((student) => student.status !== 'Unmarked').length;
+  const presentToday = students.filter((student) => student.status === 'Present').length;
+  const absentCount = students.filter((student) => student.status === 'Absent').length;
+  const lateArrivals = students.filter((student) => student.status === 'Late').length;
+
+  const filteredStudents = students.filter((student) => {
+    const matchesFilter =
+      filter === 'All' ||
+      (filter === 'Present' && student.status === 'Present') ||
+      (filter === 'Absent' && student.status === 'Absent');
+
+    const query = search.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      student.name.toLowerCase().includes(query) ||
+      student.roll.includes(query);
+
+    return matchesFilter && matchesSearch;
+  });
+
+  const toggleStatus = (id) => {
+    setStudents((current) =>
+      current.map((student) => {
+        if (student.id !== id) return student;
+        const nextStatus = student.status === 'Present' ? 'Absent' : 'Present';
+        return { ...student, status: nextStatus };
+      }),
+    );
+  };
+
+  const applyBulkAction = (value) => {
+    setStudents((current) =>
+      current.map((student) => {
+        if (value === 'All Present') return { ...student, status: 'Present' };
+        if (value === 'All Absent') return { ...student, status: 'Absent' };
+        return student;
+      }),
+    );
+  };
+
+  const runCutoff = () => {
+    setStudents((current) =>
+      current.map((student) =>
+        student.status === 'Unmarked' ? { ...student, status: 'Absent' } : student,
+      ),
+    );
+    Alert.alert('Cutoff applied', 'Unmarked entries have been marked Absent and parents were notified via WhatsApp.');
+  };
+
+  const submitAttendance = () => {
+    Alert.alert('Attendance submitted', 'Daily attendance has been synced successfully.');
+  };
+
+  return (
+    <>
+      <View style={styles.attendanceControlCard}>
+        <View style={styles.attendanceHeaderRow}>
+          <Text style={styles.attendanceTitle}>Attendance Control</Text>
+          <Pressable style={styles.primaryBadge}><Text style={styles.primaryBadgeText}>Daily Log / Marking</Text></Pressable>
+        </View>
+
+        <View style={styles.actionPillRow}>
+          {['Daily Log / Marking', 'History Log', 'Biometric', 'Export', 'Submit Attendance'].map((action) => {
+            const isSelected = selectedAction === action;
+            const isSubmit = action === 'Submit Attendance';
+
+            return (
+              <Pressable
+                key={action}
+                style={[
+                  styles.actionPill,
+                  isSelected && styles.actionPillSelected,
+                  isSubmit && styles.actionPillPrimary,
+                ]}
+                onPress={() => {
+                  setSelectedAction(action);
+                  if (isSubmit) submitAttendance();
+                }}
+              >
+                <Text style={[
+                  styles.actionPillText,
+                  isSelected && styles.actionPillTextSelected,
+                  isSubmit && styles.actionPillTextPrimary,
+                ]}>{action}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.cutoffCard}>
+          <View style={styles.cutoffLabelWrap}>
+            <Icon name="time-outline" size={16} color={colors.blue} />
+            <Text style={styles.cutoffText}>10:30 AM Daily Attendance Cutoff Active</Text>
+          </View>
+          <Text style={styles.cutoffSubText}>
+            Any students left unmarked by 10:30 AM on working days are automatically recorded as Absent and WhatsApp alerts are dispatched to parents.
+          </Text>
+          <Pressable style={styles.cutoffButton} onPress={runCutoff}>
+            <Text style={styles.cutoffButtonText}>Run Cutoff Now</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.metricGrid}>
+          <View style={styles.metricItem}><Text style={styles.metricValue}>{totalEnrolled}</Text><Text style={styles.metricLabel}>Total Enrolled</Text><Text style={styles.metricMeta}>MATRIX VOLUME</Text></View>
+          <View style={styles.metricItem}><Text style={styles.metricValue}>{markedEntries}</Text><Text style={styles.metricLabel}>Marked Entries</Text><Text style={styles.metricMeta}>SYNCED</Text></View>
+          <View style={styles.metricItem}><Text style={styles.metricValue}>{presentToday}</Text><Text style={styles.metricLabel}>Present Today</Text><Text style={styles.metricMeta}>ACTIVE STATUS</Text></View>
+          <View style={styles.metricItem}><Text style={styles.metricValue}>{absentCount}</Text><Text style={styles.metricLabel}>Absent Count</Text><Text style={styles.metricMeta}>MISSING</Text></View>
+          <View style={styles.metricItem}><Text style={styles.metricValue}>{lateArrivals}</Text><Text style={styles.metricLabel}>Late Arrivals</Text><Text style={styles.metricMeta}>AUDIT LAG</Text></View>
+        </View>
+
+        <View style={styles.dateRow}>
+          <Text style={styles.dateTitle}>Date:</Text>
+          <Text style={styles.dateValue}>11-09-2026</Text>
+        </View>
+
+        <View style={styles.filterGroup}>
+          {['All Present', 'All Absent'].map((option) => {
+            const isSelected = selectedBulk === option;
+            return (
+              <Pressable
+                key={option}
+                style={[styles.optionButton, isSelected && styles.optionButtonSelected]}
+                onPress={() => {
+                  setSelectedBulk(option);
+                  applyBulkAction(option);
+                }}
+              >
+                <Text style={[styles.optionButtonText, isSelected && styles.optionButtonTextSelected]}>{option}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.searchBox}>
+          <Icon name="search-outline" size={17} color={colors.muted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search name/roll..."
+            placeholderTextColor="#9AA7B7"
+            style={styles.searchInput}
+          />
+        </View>
+
+        <View style={styles.tableHeader}>
+          <Text style={styles.tableHeaderText}>Student</Text>
+          <Text style={styles.tableHeaderText}>Status</Text>
+        </View>
+
+        {filteredStudents.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No data available</Text>
+            <Text style={styles.emptySubtitle}>No records found matching your criteria</Text>
+          </View>
+        ) : (
+          filteredStudents.map((student) => (
+            <Pressable key={student.id} style={styles.studentRow} onPress={() => toggleStatus(student.id)}>
+              <View style={styles.studentMetaWrap}>
+                <View style={styles.avatarChip}><Text style={styles.avatarText}>{student.name.charAt(0)}</Text></View>
+                <View>
+                  <Text style={styles.studentName}>{student.name}</Text>
+                  <Text style={styles.studentRoll}>Roll {student.roll}</Text>
+                </View>
+              </View>
+              <View style={[styles.statusBadge, student.status === 'Present' && styles.statusPresent, student.status === 'Absent' && styles.statusAbsent, student.status === 'Late' && styles.statusLate, student.status === 'Unmarked' && styles.statusUnmarked]}>
+                <Text style={[styles.statusText, student.status === 'Present' && styles.statusTextPresent, student.status === 'Absent' && styles.statusTextAbsent, student.status === 'Late' && styles.statusTextLate, student.status === 'Unmarked' && styles.statusTextUnmarked]}>{student.status}</Text>
+              </View>
+            </Pressable>
+          ))
+        )}
+      </View>
+    </>
+  );
 }
-
-function DetailHero({ icon, title, value, caption, tint, iconColor }) {
-  return <View style={styles.detailHero}><View style={[styles.largeIcon, { backgroundColor: tint }]}><Icon name={icon} size={30} color={iconColor} /></View><View style={{ flex: 1 }}><Text style={styles.heroTitle}>{title}</Text><Text style={styles.heroCaption}>{caption}</Text></View><Text style={styles.heroValue}>{value}</Text></View>;
-}
-
-function Bar({ label, value, width, color }) { return <View style={styles.barBlock}><View style={styles.barLabel}><Text style={styles.bodyText}>{label}</Text><Text style={styles.bodyText}>{value}</Text></View><View style={styles.barTrack}><View style={[styles.barFill, { width, backgroundColor: color }]} /></View></View>; }
-
-function FeesContent() {
-  return <><DetailHero icon="wallet" title="Fees & dues" value="₹1,80,186" caption="Your current outstanding balance" tint={colors.paleOrange} iconColor={colors.orange} /><View style={styles.panel}><FeeRow label="Tuition fee" amount="₹1,20,000" /><FeeRow label="Transport fee" amount="₹35,000" /><FeeRow label="Activity & materials" amount="₹25,186" total /></View><Pressable style={styles.primaryButton} onPress={() => Alert.alert('Demo payment', 'Payment flow is ready to connect to your school payment gateway.')}><Icon name="card-outline" color={colors.white} /><Text style={styles.primaryButtonText}>Pay outstanding fees</Text></Pressable><Text style={styles.helperText}>Last updated 9 Sep 2026 · No payment API connected</Text></>;
-}
-
-function FeeRow({ label, amount, total }) { return <View style={[styles.feeRow, total && styles.totalRow]}><Text style={[styles.bodyText, total && styles.totalText]}>{label}</Text><Text style={[styles.bodyText, total && styles.totalText]}>{amount}</Text></View>; }
-
-function HomeworkContent({ homework, setHomework }) {
-  return <><View style={styles.filterRow}><Text style={styles.subtle}>3 assignments this week</Text><View style={styles.filterChip}><Text style={styles.filterText}>All <Icon name="chevron-down" size={13} color={colors.blue} /></Text></View></View>{homework.map((item, index) => <Pressable key={item.title} onPress={() => setHomework(homework.map((task, taskIndex) => taskIndex === index ? { ...task, done: !task.done } : task))} style={styles.taskCard}><View style={[styles.checkbox, item.done && styles.checkboxDone]}>{item.done && <Icon name="checkmark" size={14} color={colors.white} />}</View><View style={{ flex: 1 }}><Text style={styles.taskSubject}>{item.subject}</Text><Text style={styles.taskTitle}>{item.title}</Text><Text style={[styles.taskDue, item.done && { color: colors.teal }]}>{item.done ? 'Completed' : item.due}</Text></View><Icon name="chevron-forward" size={17} color="#A3ADBB" /></Pressable>)}</>;
-}
-
-function ExamsContent() { return <><DetailHero icon="ribbon" title="Upcoming exams" value="5" caption="Next exam begins 18 September" tint="#F0ECFF" iconColor="#7760C8" /><View style={styles.panel}>{[['18 Sep', 'Mathematics', '09:00 AM'], ['20 Sep', 'English', '09:00 AM'], ['22 Sep', 'Science', '09:00 AM'], ['24 Sep', 'Hindi', '09:00 AM'], ['26 Sep', 'Environmental Studies', '09:00 AM']].map((exam) => <View style={styles.examRow} key={exam[1]}><View style={styles.examDate}><Text style={styles.examDay}>{exam[0].split(' ')[0]}</Text><Text style={styles.examMonth}>{exam[0].split(' ')[1]}</Text></View><View style={{ flex: 1 }}><Text style={styles.scheduleSubject}>{exam[1]}</Text><Text style={styles.scheduleRoom}>School examination · {exam[2]}</Text></View><Icon name="chevron-forward" size={17} color="#A3ADBB" /></View>)}</View></>; }
-
-function TimetableContent() { return <><View style={styles.weekRow}>{['Mon','Tue','Wed','Thu','Fri'].map((day, index) => <View key={day} style={[styles.weekDay, index === 1 && styles.weekDayActive]}><Text style={[styles.weekDayName, index === 1 && styles.weekDayActiveText]}>{day}</Text><Text style={[styles.weekDayNumber, index === 1 && styles.weekDayActiveText]}>{7 + index}</Text></View>)}</View><View style={styles.panel}>{schedule.map((item) => <ScheduleRow key={item[0]} item={item} />)}</View></>; }
 
 function NoticesContent() { return <><View style={styles.filterRow}><Text style={styles.subtle}>6 updates from Demo School</Text><View style={styles.filterChip}><Text style={styles.filterText}>All notices <Icon name="chevron-down" size={13} color={colors.blue} /></Text></View></View><View style={styles.panel}>{notices.map((notice) => <NoticeRow key={notice.title} notice={notice} />)}</View></>; }
 
@@ -163,16 +332,15 @@ function ProfileModal({ visible, onClose }) {
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><View style={styles.modalBackdrop}><View style={styles.modal}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Edit profile</Text><Pressable onPress={onClose}><Icon name="close" size={22} color={colors.ink} /></Pressable></View><Text style={styles.inputLabel}>Parent name</Text><TextInput value={name} onChangeText={setName} style={styles.input} /><Text style={styles.inputLabel}>Email address</Text><TextInput value="joshi.parent@demoschool.in" editable={false} style={[styles.input, styles.disabledInput]} /><Pressable style={styles.primaryButton} onPress={() => { onClose(); Alert.alert('Profile updated', `Welcome, ${name}.`); }}><Text style={styles.primaryButtonText}>Update profile</Text></Pressable></View></View></Modal>;
 }
 
-export default function ParentPortalScreen({ onLogout }) {
+export default function ParentPortalScreen({ onLogout, session }) {
   const [activeTab, setActiveTab] = useState('Home');
-  const [homework, setHomework] = useState(homeworkItems);
   const [profileOpen, setProfileOpen] = useState(false);
   const isHome = activeTab === 'Home';
   const handleLogout = () => {
     Alert.alert('Signed out', 'Demo sign out complete.', [{ text: 'OK', onPress: onLogout }]);
   };
 
-  return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.navy} /><View style={styles.header}><View><Text style={styles.brand}>DEMO SCHOOL</Text><Text style={styles.portal}>Parent portal <Text style={styles.year}>2026–27</Text></Text></View><Pressable onPress={handleLogout} style={styles.logout}><Icon name="log-out-outline" size={18} color="#C8DBF2" /><Text style={styles.logoutText}>Logout</Text></Pressable></View><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{isHome ? <HomeContent goTo={setActiveTab} /> : <><View style={styles.pageHeading}><Pressable onPress={() => setActiveTab('Home')}><Icon name="arrow-back" color={colors.ink} size={23} /></Pressable><View><Text style={styles.pageTitle}>{activeTab}</Text><Text style={styles.subtle}>joshii · Class 1, Section A</Text></View></View><DetailContent section={activeTab} homework={homework} setHomework={setHomework} goTo={setActiveTab} /></>}</ScrollView><View style={styles.bottomNav}>{navItems.map((item) => <Pressable key={item.label} onPress={() => setActiveTab(item.label)} style={styles.navItem}><Icon name={item.icon} size={21} color={activeTab === item.label ? colors.blue : colors.muted} /><Text style={[styles.navLabel, activeTab === item.label && styles.navLabelActive]}>{item.label}</Text></Pressable>)}<Pressable onPress={() => setProfileOpen(true)} style={styles.navItem}><Icon name="person-outline" size={21} color={colors.muted} /><Text style={styles.navLabel}>Profile</Text></Pressable></View><ProfileModal visible={profileOpen} onClose={() => setProfileOpen(false)} /></SafeAreaView>;
+  return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content" backgroundColor={colors.navy} /><View style={styles.header}><View><Text style={styles.brand}>DEMO SCHOOL</Text><Text style={styles.portal}>Parent portal <Text style={styles.year}>2026–27</Text></Text></View><Pressable onPress={handleLogout} style={styles.logout}><Icon name="log-out-outline" size={18} color="#C8DBF2" /><Text style={styles.logoutText}>Logout</Text></Pressable></View><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{isHome ? <HomeContent goTo={setActiveTab} /> : <><View style={styles.pageHeading}><Pressable onPress={() => setActiveTab('Home')}><Icon name="arrow-back" color={colors.ink} size={23} /></Pressable><View><Text style={styles.pageTitle}>{activeTab}</Text><Text style={styles.subtle}>joshii · Class 1, Section A</Text></View></View><DetailContent section={activeTab} goTo={setActiveTab} session={session} onSessionExpired={onLogout} /></>}</ScrollView><View style={styles.bottomNav}>{navItems.map((item) => <Pressable key={item.label} onPress={() => setActiveTab(item.label)} style={styles.navItem}><Icon name={item.icon} size={21} color={activeTab === item.label ? colors.blue : colors.muted} /><Text style={[styles.navLabel, activeTab === item.label && styles.navLabelActive]}>{item.label}</Text></Pressable>)}<Pressable onPress={() => setProfileOpen(true)} style={styles.navItem}><Icon name="person-outline" size={21} color={colors.muted} /><Text style={styles.navLabel}>Profile</Text></Pressable></View><ProfileModal visible={profileOpen} onClose={() => setProfileOpen(false)} /></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({

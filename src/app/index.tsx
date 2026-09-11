@@ -4,15 +4,15 @@ import ParentPortalScreen from "../screens/ParentPortalScreen";
 import TeacherPortalScreen from "../screens/TeacherPortalScreen";
 
 export default function Index() {
-  const [role, setRole] = useState(null);
+  const [session, setSession] = useState<{ role: string; email?: string; token?: string } | null>(null);
 
-  if (!role) {
-    return <LoginScreen onLogin={setRole} />;
+  if (!session) {
+    return <LoginScreen onLogin={setSession} />;
   }
 
-  if (role === 'Teacher') {
-    return <TeacherPortalScreen onLogout={() => setRole(null)} />;
+  if (session.role === 'Teacher') {
+    return <TeacherPortalScreen onLogout={() => setSession(null)} />;
   }
 
-  return <ParentPortalScreen onLogout={() => setRole(null)} />;
+  return <ParentPortalScreen session={session} onLogout={() => setSession(null)} />;
 }

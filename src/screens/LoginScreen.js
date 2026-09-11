@@ -54,7 +54,11 @@ export default function LoginScreen({ onLogin }) {
     }
 
     setMessage('');
-    onLogin(account.role);
+    onLogin({
+      role: account.role,
+      email: account.email,
+      token: account.token,
+    });
   };
 
   const fillAccount = (account) => {

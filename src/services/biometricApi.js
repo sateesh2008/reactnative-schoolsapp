@@ -57,6 +57,42 @@ export const biometricApi = {
     return saved;
   },
 
+  async updateEnrollment(id, enrollment, session) {
+    if (isApiConfigured) return apiRequest(`/api/biometric/enrollments/${id}`, { method: 'PUT', token: session?.token, body: enrollment });
+    const current = state.enrollments.find((item) => item.id === id);
+    if (!current) throw new Error('Enrollment was not found.');
+    const updated = { ...current, ...enrollment, status: 'Mapped' };
+    state.enrollments = state.enrollments.map((item) => item.id === id ? updated : item);
+    return updated;
+  },
+
+  async bulkImportEnrollments(enrollments, session) {
+    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/bulk-import', { method: 'POST', token: session?.token, body: { enrollments } });
+    const existingUids = new Set(state.enrollments.map((item) => String(item.biometricUid)));
+    const imported = enrollments.map((item, index) => ({ ...item, id: `mock-enrollment-${Date.now()}-${index}`, status: 'Mapped', lastSync: null }));
+    state.enrollments = [...state.enrollments, ...imported.filter((item) => !existingUids.has(String(item.biometricUid)))];
+    return { imported: state.enrollments.length - existingUids.size, skipped: imported.length - (state.enrollments.length - existingUids.size) };
+  },
+
+  async getAutoMapCandidates(category, session) {
+    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/auto-map/candidates', { token: session?.token, query: { category } });
+    return [];
+  },
+
+  async autoMapEnrollments(category, candidates, session) {
+    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/auto-map', { method: 'POST', token: session?.token, body: { category, candidates } });
+    const existingUids = new Set(state.enrollments.map((item) => String(item.biometricUid)));
+    const result = { mapped: 0, skipped: 0, alreadyMapped: 0, failed: 0, failures: [] };
+    candidates.forEach((candidate) => {
+      const uid = String(candidate.admissionOrEmployeeCode || '').trim();
+      if (!uid || existingUids.has(uid)) { result.skipped += 1; result.alreadyMapped += existingUids.has(uid) ? 1 : 0; return; }
+      existingUids.add(uid);
+      state.enrollments.push({ ...candidate, biometricUid: uid, id: `mock-auto-map-${Date.now()}-${result.mapped}`, status: 'Mapped', lastSync: null });
+      result.mapped += 1;
+    });
+    return result;
+  },
+
   async deleteEnrollment(id, session) {
     if (isApiConfigured) return apiRequest(`/api/biometric/enrollments/${id}`, { method: 'DELETE', token: session?.token });
     state.enrollments = state.enrollments.filter((enrollment) => enrollment.id !== id);

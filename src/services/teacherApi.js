@@ -101,4 +101,13 @@ export const teacherAttendanceApi = {
     if (!isApiConfigured) return { available: false };
     return apiRequest('/teacher/attendance/biometric/status', { token: session?.token });
   },
+
+  async sendAbsentWhatsAppAlert(records, context) {
+    return {
+      available: false,
+      simulated: true,
+      count: records.length,
+      context,
+    };
+  },
 };

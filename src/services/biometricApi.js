@@ -122,4 +122,9 @@ export const biometricApi = {
     state.punches = [event, ...state.punches];
     return event;
   },
+
+  async simulateWebhookEvent({ apiKey, biometricUid, timestamp }, session) {
+    if (isApiConfigured) return apiRequest('/api/biometric/event', { method: 'POST', token: session?.token, headers: { 'x-api-key': apiKey }, body: { biometric_uid: biometricUid, timestamp } });
+    return { available: false, simulated: true, biometric_uid: biometricUid, timestamp, status: 'Unmapped' };
+  },
 };

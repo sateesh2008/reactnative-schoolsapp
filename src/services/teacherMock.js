@@ -73,7 +73,7 @@ export const teacherShortcuts = teacherDashboardData.shortcuts;
 export const teacherNotices = teacherDashboardData.notices;
 
 export const teacherNavigationModules = [
-  'Dashboard',
+  'Home',
   'My Students',
   'Attendance',
   'Homework',

@@ -2,7 +2,7 @@
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -35,11 +35,15 @@ const colors = {
   softLilac: '#F5F1FF',
 };
 
-const moduleTabs = [
-  'Dashboard',
-  'My Students',
-  'Attendance',
-  'Homework',
+const primaryNavItems = [
+  { label: 'Home', icon: 'home-outline' },
+  { label: 'My Students', icon: 'people-outline' },
+  { label: 'Attendance', icon: 'calendar-outline' },
+  { label: 'Homework', icon: 'book-outline' },
+  { label: 'More', icon: 'menu-outline' },
+];
+
+const moreNavItems = [
   'Exams / Marks',
   'Timetable',
   'Leave',
@@ -49,6 +53,17 @@ const moduleTabs = [
   'Gate Pass',
   'OMR System',
 ];
+
+const moreModuleIcons = {
+  'Exams / Marks': 'ribbon-outline',
+  Timetable: 'time-outline',
+  Leave: 'document-text-outline',
+  Messaging: 'chatbubble-ellipses-outline',
+  Notifications: 'notifications-outline',
+  Reports: 'bar-chart-outline',
+  'Gate Pass': 'log-out-outline',
+  'OMR System': 'scan-outline',
+};
 
 const defaultDashboard = teacherDashboardMock;
 
@@ -269,11 +284,12 @@ function DashboardScreen({ data, onNavigate, onSearch, query }) {
 }
 
 export default function TeacherPortalScreen({ session, onLogout }) {
-  const [activeModule, setActiveModule] = useState('Dashboard');
+  const [activeModule, setActiveModule] = useState('Home');
   const [dashboardData, setDashboardData] = useState(defaultDashboard);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -297,16 +313,17 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const handleNavigate = (module) => {
     if (!module) return;
     setActiveModule(module);
+    setMoreOpen(false);
   };
 
   const signOut = () => Alert.alert('Signed out', 'Demo sign out complete.', [{ text: 'OK', onPress: onLogout }]);
 
   const renderModuleView = () => {
     if (activeModule === 'Attendance') {
-      return <TeacherAttendanceScreen session={session} onBack={() => setActiveModule('Dashboard')} />;
+      return <TeacherAttendanceScreen session={session} onBack={() => setActiveModule('Home')} />;
     }
 
-    if (activeModule === 'Dashboard') {
+    if (activeModule === 'Home') {
       return (
         <>
           {loading ? (
@@ -379,23 +396,59 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         </Pressable>
       </View>
 
-      <View style={styles.moduleNavWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moduleNav}>
-          {moduleTabs.map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => handleNavigate(item)}
-              style={({ pressed }) => [styles.moduleTab, activeModule === item && styles.moduleTabActive, pressed && styles.pressed]}
-            >
-              <Text style={[styles.moduleTabText, activeModule === item && styles.moduleTabTextActive]}>{item}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
-      {activeModule === 'Dashboard' ? null : <View style={styles.pageHeading}><Text style={styles.pageTitle}>{activeModule}</Text></View>}
+      {activeModule !== 'Home' && activeModule !== 'Attendance' ? <View style={styles.pageHeading}><Text style={styles.pageTitle}>{activeModule}</Text></View> : null}
 
       {renderModuleView()}
+
+      <View style={styles.bottomNav}>
+        {primaryNavItems.map((item) => {
+          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === item.label;
+
+          return (
+            <Pressable
+              key={item.label}
+              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(item.label)}
+              style={({ pressed }) => [styles.navItem, isActive && styles.navItemActive, pressed && styles.pressed]}
+            >
+              <Icon name={item.icon} size={21} color={isActive ? colors.blue : colors.muted} />
+              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Modal transparent visible={moreOpen} animationType="slide" onRequestClose={() => setMoreOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setMoreOpen(false)}>
+          <View style={styles.moreSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Teacher Modules</Text>
+              <Pressable onPress={() => setMoreOpen(false)}><Icon name="close" size={22} color={colors.ink} /></Pressable>
+            </View>
+            {moreNavItems.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => handleNavigate(item)}
+                style={({ pressed }) => [styles.moreItem, activeModule === item && styles.moreItemActive, pressed && styles.pressed]}
+              >
+                <View style={styles.moreItemIconWrap}><Icon name={moreModuleIcons[item]} size={18} color={activeModule === item ? colors.blue : colors.ink} /></View>
+                <View style={styles.moreItemCopy}>
+                  <Text style={[styles.moreItemTitle, activeModule === item && styles.moreItemTextActive]}>{item}</Text>
+                  <Text style={styles.moreItemDescription}>{
+                    item === 'Exams / Marks' ? 'Review examination marks' :
+                    item === 'Timetable' ? 'View teaching schedule' :
+                    item === 'Leave' ? 'Apply and manage leave' :
+                    item === 'Messaging' ? 'Communicate with students and parents' :
+                    item === 'Notifications' ? 'View notifications' :
+                    item === 'Reports' ? 'View teaching reports' :
+                    item === 'Gate Pass' ? 'Manage gate pass requests' :
+                    'Manage OMR examinations'
+                  }</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -416,23 +469,9 @@ const styles = StyleSheet.create({
   year: { color: '#8EB7E8', fontSize: 13, fontWeight: '600' },
   logout: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   logoutText: { color: '#C8DBF2', fontSize: 13, fontWeight: '700' },
-  moduleNavWrap: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
-  moduleNav: { paddingRight: 16 },
-  moduleTab: {
-    backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginRight: 8,
-  },
-  moduleTabActive: { backgroundColor: colors.blue, borderColor: colors.blue },
-  moduleTabText: { color: colors.ink, fontWeight: '700', fontSize: 11 },
-  moduleTabTextActive: { color: colors.white },
   pageHeading: { paddingHorizontal: 20, paddingBottom: 8 },
   pageTitle: { fontSize: 22, fontWeight: '900', color: colors.ink },
-  content: { padding: 20, paddingBottom: 30 },
+  content: { padding: 20, paddingBottom: 110 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 },
   greeting: { color: colors.ink, fontSize: 24, fontWeight: '900', lineHeight: 31 },
   school: { color: colors.muted, fontSize: 12, marginTop: 6 },
@@ -490,10 +529,44 @@ const styles = StyleSheet.create({
   noticeDate: { color: colors.muted, fontSize: 11, marginBottom: 6 },
   noticeTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' },
   noticeDescription: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  bottomNav: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 9,
+    paddingBottom: 10,
+    minHeight: 74,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 8,
+  },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7 },
+  navItemActive: { backgroundColor: colors.paleBlue },
+  navLabel: { color: colors.muted, fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center' },
+  navLabelActive: { color: colors.blue, fontWeight: '800' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 31, 0.35)', justifyContent: 'flex-end' },
+  moreSheet: { backgroundColor: colors.white, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 28 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  moreItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 12, marginTop: 8 },
+  moreItemActive: { backgroundColor: colors.paleBlue, borderColor: colors.blue },
+  moreItemIconWrap: { width: 32, height: 32, borderRadius: 9, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center' },
+  moreItemCopy: { flex: 1 },
+  moreItemTitle: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  moreItemTextActive: { color: colors.blue },
+  moreItemDescription: { color: colors.muted, fontSize: 11, marginTop: 3 },
   loadingState: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
   loadingText: { color: colors.muted, fontSize: 12 },
   errorText: { color: colors.red, backgroundColor: '#FDECEC', borderRadius: 10, padding: 14, marginHorizontal: 20, marginBottom: 16, textAlign: 'center' },
-  emptyState: { backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 24, alignItems: 'center', marginHorizontal: 20, marginTop: 16 },
+  emptyState: { backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 24, alignItems: 'center', marginHorizontal: 20, marginTop: 16, marginBottom: 100 },
   emptyIconWrap: { width: 52, height: 52, borderRadius: 15, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '900', marginBottom: 8 },
   emptySubtitle: { color: colors.muted, fontSize: 12, textAlign: 'center', marginBottom: 18 },
@@ -502,4 +575,4 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 });
 
-export { moduleTabs };
+export { primaryNavItems, moreNavItems };

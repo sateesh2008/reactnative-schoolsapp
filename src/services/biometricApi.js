@@ -50,6 +50,11 @@ export const biometricApi = {
     return requestOrMock('/api/biometric/enrollments', { token: session?.token }, 'enrollments', [...state.enrollments]);
   },
 
+  async getEnrollmentCandidates({ category, className, section }, session) {
+    if (isApiConfigured) return apiRequest('/api/biometric/enrollment-candidates', { token: session?.token, query: { category, class: className, section } });
+    return [];
+  },
+
   async saveEnrollment(enrollment, session) {
     if (isApiConfigured) return apiRequest('/api/biometric/enrollments', { method: 'POST', token: session?.token, body: enrollment });
     const saved = { ...enrollment, id: `mock-enrollment-${Date.now()}`, status: 'Mapped', lastSync: null };

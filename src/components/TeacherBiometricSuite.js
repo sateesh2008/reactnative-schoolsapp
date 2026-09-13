@@ -46,6 +46,13 @@ export default function TeacherBiometricSuite({ session }) {
   const [csvText, setCsvText] = useState('');
   const [enrollmentError, setEnrollmentError] = useState('');
   const [enrollmentSaving, setEnrollmentSaving] = useState(false);
+  const [enrollmentCandidates, setEnrollmentCandidates] = useState([]);
+  const [candidateCategory, setCandidateCategory] = useState('Student');
+  const [candidateClass, setCandidateClass] = useState('All Classes');
+  const [candidateSection, setCandidateSection] = useState('All Sections');
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [candidateSelector, setCandidateSelector] = useState(null);
+  const [candidateLoading, setCandidateLoading] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkCategory, setBulkCategory] = useState('Students');
   const [bulkCandidates, setBulkCandidates] = useState([]);
@@ -92,6 +99,18 @@ export default function TeacherBiometricSuite({ session }) {
   const unmapped = useMemo(() => snapshot.punches.filter((punch) => punch.status === 'Unmapped').length, [snapshot.punches]);
   const online = snapshot.devices.filter((deviceItem) => deviceItem.status === 'Online').length;
 
+  const candidateClasses = useMemo(() => [...new Set(enrollmentCandidates.map((item) => item.className).filter(Boolean))], [enrollmentCandidates]);
+  const candidateSections = useMemo(() => [...new Set(enrollmentCandidates.filter((item) => candidateClass === 'All Classes' || item.className === candidateClass).map((item) => item.section).filter(Boolean))], [enrollmentCandidates, candidateClass]);
+  const eligibleCandidates = useMemo(() => enrollmentCandidates.filter((item) => !snapshot.enrollments.some((enrolled) => String(enrolled.erpId || enrolled.admission_or_staff_code) === String(item.erpId || item.admission_or_staff_code))), [enrollmentCandidates, snapshot.enrollments]);
+  const visibleCandidates = useMemo(() => eligibleCandidates.filter((item) => !candidateSearch.trim() || [item.name, item.personName, item.erpId, item.admissionOrStaffCode, item.employeeCode, item.id].some((value) => String(value || '').toLowerCase().includes(candidateSearch.trim().toLowerCase()))), [eligibleCandidates, candidateSearch]);
+
+  const loadEnrollmentCandidates = async (category = candidateCategory, className = candidateClass, section = candidateSection) => {
+    setCandidateLoading(true);
+    try { setEnrollmentCandidates(await biometricApi.getEnrollmentCandidates({ category, className: className === 'All Classes' ? '' : className, section: section === 'All Sections' ? '' : section }, session)); }
+    catch { setEnrollmentError('Unable to load enrollment candidates.'); }
+    finally { setCandidateLoading(false); }
+  };
+
   const registerDevice = async () => {
     const validationError = validateDevice(device, snapshot.devices);
     if (validationError) { setDeviceError(validationError); return; }
@@ -132,7 +151,7 @@ export default function TeacherBiometricSuite({ session }) {
       : ['All Sections', ...enrollmentSections];
 
   const saveEnrollment = async () => {
-    if (!enrollment.user.trim() || !enrollment.category.trim() || !enrollment.erpId.trim() || !enrollment.biometricUid.trim() || !enrollment.device.trim()) { setEnrollmentError('Person, category, code, UID, and assigned machine are required.'); return; }
+    if (!enrollment.user.trim() || !enrollment.category.trim() || !enrollment.erpId.trim() || !enrollment.biometricUid.trim()) { setEnrollmentError('Candidate, category, code, and biometric UID are required.'); return; }
     const duplicate = snapshot.enrollments.some((item) => String(item.biometricUid) === enrollment.biometricUid.trim() && item.id !== editingEnrollment?.id);
     const duplicatePerson = snapshot.enrollments.some((item) => String(item.erpId) === enrollment.erpId.trim() && item.id !== editingEnrollment?.id);
     if (duplicate) { setEnrollmentError('This biometric UID is already assigned to another user.'); return; }
@@ -146,7 +165,7 @@ export default function TeacherBiometricSuite({ session }) {
     finally { setEnrollmentSaving(false); }
   };
 
-  const openEnrollment = (item = null) => { setEditingEnrollment(item); setEnrollment(item ? { ...blankEnrollment, ...item } : blankEnrollment); setEnrollmentError(''); setShowEnrollmentModal(true); };
+  const openEnrollment = (item = null) => { setEditingEnrollment(item); setEnrollment(item ? { ...blankEnrollment, ...item } : blankEnrollment); setCandidateCategory(item?.category || 'Student'); setCandidateClass(item?.className || 'All Classes'); setCandidateSection(item?.section || 'All Sections'); setCandidateSearch(''); setEnrollmentError(''); setShowEnrollmentModal(true); loadEnrollmentCandidates(item?.category || 'Student', item?.className || 'All Classes', item?.section || 'All Sections'); };
   const removeEnrollment = (item) => Alert.alert('Remove biometric mapping?', `${item.user || item.person_name} · UID ${item.biometricUid}`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { await biometricApi.deleteEnrollment(item.id, session); refresh(); } }]);
 
   const importCsv = async () => {
@@ -218,6 +237,11 @@ export default function TeacherBiometricSuite({ session }) {
     </Modal>
   );
 
+  const renderEnrollmentModalV2 = () => {
+    const pickerOptions = candidateSelector === 'category' ? ['Student', 'Teacher', 'Staff'] : candidateSelector === 'class' ? ['All Classes', ...candidateClasses] : candidateSelector === 'section' ? ['All Sections', ...candidateSections] : ['All Devices / Gate Scanners', ...snapshot.devices.map((item) => item.id)];
+    return <Modal visible={showEnrollmentModal} transparent animationType="slide" onRequestClose={() => !enrollmentSaving && setShowEnrollmentModal(false)}><KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.registrationModal}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Enroll Biometric Machine UID</Text><Pressable disabled={enrollmentSaving} onPress={() => setShowEnrollmentModal(false)} style={styles.closeButton}><Text style={styles.closeText}>✕</Text></Pressable></View>{enrollmentError ? <Text style={styles.formError}>{enrollmentError}</Text> : null}<Text style={styles.fieldLabel}>Person Category</Text><Pressable style={styles.enrollmentSelect} onPress={() => setCandidateSelector('category')}><Text style={styles.filterSelectText}>{candidateCategory}</Text><Icon name="chevron-down" size={15} color={colors.muted} /></Pressable><Text style={styles.fieldLabel}>Filter Class</Text><Pressable style={styles.enrollmentSelect} onPress={() => setCandidateSelector('class')}><Text style={styles.filterSelectText}>{candidateClass}</Text><Icon name="chevron-down" size={15} color={colors.muted} /></Pressable><Text style={styles.fieldLabel}>Filter Section</Text><Pressable style={styles.enrollmentSelect} onPress={() => setCandidateSelector('section')}><Text style={styles.filterSelectText}>{candidateSection}</Text><Icon name="chevron-down" size={15} color={colors.muted} /></Pressable><Text style={styles.fieldLabel}>Select Candidate * ({visibleCandidates.length} available)</Text><Pressable style={styles.enrollmentSelect} onPress={() => setCandidateSelector('candidate')}><Text style={styles.filterSelectText}>{enrollment.user || 'Select Candidate...'}</Text><Icon name="chevron-down" size={15} color={colors.muted} /></Pressable>{candidateSelector === 'candidate' ? <View style={styles.candidatePicker}><TextInput value={candidateSearch} onChangeText={setCandidateSearch} placeholder="Search candidate..." placeholderTextColor={colors.muted} style={styles.input} />{candidateLoading ? <ActivityIndicator color={colors.blue} /> : visibleCandidates.length ? visibleCandidates.map((item) => <Pressable key={item.id || item.erpId} style={styles.candidateOption} onPress={() => { setEnrollment({ ...enrollment, user: item.name || item.personName, category: candidateCategory, erpId: item.erpId || item.admissionOrStaffCode || item.employeeCode, className: item.className, section: item.section }); setCandidateSelector(null); }}><Text style={styles.listTitle}>{item.name || item.personName}</Text><Text style={styles.meta}>{item.erpId || item.admissionOrStaffCode || item.employeeCode} · {item.className || '-'} - {item.section || '-'}</Text></Pressable>) : <Text style={styles.meta}>No Candidates Available</Text>}</View> : null}<Field label="Biometric Machine UID *" value={enrollment.biometricUid} onChangeText={(value) => setEnrollment({ ...enrollment, biometricUid: value })} placeholder="e.g. S001 or 1001" /><Text style={styles.fieldLabel}>Assigned Device (Optional)</Text><Pressable style={styles.enrollmentSelect} onPress={() => setCandidateSelector('device')}><Text style={styles.filterSelectText}>{enrollment.device || 'All Devices / Gate Scanners'}</Text><Icon name="chevron-down" size={15} color={colors.muted} /></Pressable><View style={styles.modalActions}><Button title="Cancel" secondary onPress={() => setShowEnrollmentModal(false)} icon="close-outline" /><Button title="Save Mapping" onPress={saveEnrollment} icon="checkmark-outline" /></View>{candidateSelector && candidateSelector !== 'candidate' ? <View style={styles.inlinePicker}>{pickerOptions.map((option) => <Pressable key={option} style={styles.filterOption} onPress={() => { if (candidateSelector === 'category') { setCandidateCategory(option); setCandidateClass('All Classes'); setCandidateSection('All Sections'); loadEnrollmentCandidates(option, 'All Classes', 'All Sections'); } if (candidateSelector === 'class') { setCandidateClass(option); setCandidateSection('All Sections'); loadEnrollmentCandidates(candidateCategory, option, 'All Sections'); } if (candidateSelector === 'section') { setCandidateSection(option); loadEnrollmentCandidates(candidateCategory, candidateClass, option); } if (candidateSelector === 'device') setEnrollment({ ...enrollment, device: option === 'All Devices / Gate Scanners' ? '' : option }); setCandidateSelector(null); }}>{option}</Pressable>)}</View> : null}</View></KeyboardAvoidingView></Modal>;
+  };
+
   const renderCsvModal = () => (
     <Modal visible={showCsvModal} transparent animationType="slide" onRequestClose={() => setShowCsvModal(false)}><KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.registrationModal}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Bulk Auto-Map / CSV</Text><Pressable onPress={() => setShowCsvModal(false)} style={styles.closeButton}><Text style={styles.closeText}>✕</Text></Pressable></View><Text style={styles.modalHint}>Paste CSV rows with Person Name, Admission / Staff Code, and Biometric Machine UID columns.</Text><TextInput multiline value={csvText} onChangeText={setCsvText} placeholder="Person Name,Admission Code,Biometric UID,Category,Assigned Machine" placeholderTextColor={colors.muted} style={styles.csvInput} /><View style={styles.modalActions}><Button title="Cancel" secondary onPress={() => setShowCsvModal(false)} icon="close-outline" /><Button title="Import CSV" onPress={importCsv} icon="cloud-upload-outline" /></View></View></KeyboardAvoidingView></Modal>
   );
@@ -246,7 +270,7 @@ export default function TeacherBiometricSuite({ session }) {
   );
 
   const renderEnrollmentScreen = () => (
-    <><ScrollView contentContainerStyle={styles.content}><Text style={styles.title}>Biometric Device & Hardware Suite</Text><Text style={styles.status}>Push API / ISAPI Active</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>{tabs.map((tab) => { const label = tab === 'Registered Devices' ? `${tab} (${snapshot.devices.length})` : tab === 'User Enrollments' ? `${tab} (${snapshot.enrollments.length})` : tab; return <Pressable key={tab} style={[styles.tab, activeTab === tab && styles.activeTab]} onPress={() => setActiveTab(tab)}><Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{label}</Text></Pressable>; })}</ScrollView><Text style={styles.sectionTitle}>User Enrollments ({snapshot.enrollments.length})</Text>{renderEnrollments()}</ScrollView>{renderEnrollmentModal()}{renderBulkModal()}{renderFilterModal()}</>
+    <><ScrollView contentContainerStyle={styles.content}><Text style={styles.title}>Biometric Device & Hardware Suite</Text><Text style={styles.status}>Push API / ISAPI Active</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>{tabs.map((tab) => { const label = tab === 'Registered Devices' ? `${tab} (${snapshot.devices.length})` : tab === 'User Enrollments' ? `${tab} (${snapshot.enrollments.length})` : tab; return <Pressable key={tab} style={[styles.tab, activeTab === tab && styles.activeTab]} onPress={() => setActiveTab(tab)}><Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{label}</Text></Pressable>; })}</ScrollView><Text style={styles.sectionTitle}>User Enrollments ({snapshot.enrollments.length})</Text>{renderEnrollments()}</ScrollView>{renderEnrollmentModalV2()}{renderBulkModal()}{renderFilterModal()}</>
   );
 
   if (activeTab === 'User Enrollments') return renderEnrollmentScreen();
@@ -272,6 +296,10 @@ const styles = StyleSheet.create({
   filterModal: { backgroundColor: colors.white, borderRadius: 14, padding: 15, maxHeight: '75%' },
   filterOption: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: 8, marginTop: 4 },
   filterOptionText: { color: colors.ink, fontSize: 13 },
+  enrollmentSelect: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  candidatePicker: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, marginBottom: 9, maxHeight: 180, gap: 5 },
+  candidateOption: { padding: 8, borderRadius: 7, backgroundColor: colors.paleBlue },
+  inlinePicker: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, marginTop: 8, maxHeight: 170 },
   tableLabels: { color: colors.muted, fontSize: 9, lineHeight: 15, marginVertical: 10 },
   modalHint: { color: colors.muted, fontSize: 11, lineHeight: 17, marginBottom: 10 },
   csvInput: { minHeight: 130, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 10, color: colors.ink, fontSize: 11, textAlignVertical: 'top' },

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   Share,
@@ -10,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '../services/api';
 import { teacherAttendanceApi } from '../services/teacherApi';
@@ -42,6 +44,23 @@ function Metric({ title, value, label }) {
   return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricTitle}>{title}</Text><Text style={styles.metricMeta}>{label}</Text></View>;
 }
 
+function SelectModal({ visible, value, options, onSelect, onClose }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <View style={styles.modal} onStartShouldSetResponder={() => true}>
+          <Text style={styles.modalTitle}>Select option</Text>
+          {options.map((option) => (
+            <Pressable key={option} style={[styles.modalOption, option === value && styles.modalOptionActive]} onPress={() => { onSelect(option); onClose(); }}>
+              <Text style={styles.modalOptionText}>{option}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function EmptyState({ title = 'No data available', message = 'No records found matching your criteria' }) {
   return <View style={styles.empty}><Icon name="file-tray-outline" size={28} color={colors.blue} /><Text style={styles.emptyTitle}>{title}</Text><Text style={styles.emptyMessage}>{message}</Text></View>;
 }
@@ -63,6 +82,8 @@ function historySummary(records) {
 export default function TeacherAttendanceScreen({ session, onBack }) {
   const [activeTab, setActiveTab] = useState('Attendance Control');
   const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selecting, setSelecting] = useState(null);
   const [className, setClassName] = useState('Select an option');
   const [section, setSection] = useState('Select an option');
   const [subject, setSubject] = useState('Select an option');
@@ -217,6 +238,12 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
 
   const renderDailyLog = () => (
     <>
+      <View style={styles.filterCard}>
+        <View style={styles.controlRow}><Text style={styles.controlLabel}>Date:</Text><Pressable style={styles.dateButton} onPress={() => setShowDatePicker(true)}><Icon name="calendar-outline" size={17} color={colors.blue} /><Text style={styles.dateText}>{formatDate(date)}</Text></Pressable></View>
+        {showDatePicker ? <DateTimePicker value={date} mode="date" onChange={(_, selectedDate) => { setShowDatePicker(false); if (selectedDate) setDate(selectedDate); }} /> : null}
+        <Pressable style={styles.selectButtonFull} onPress={() => setSelecting('class')}><Text style={styles.selectText}>Select an option (Class)</Text><Icon name="chevron-down" size={16} color={colors.muted} /></Pressable>
+        <Pressable style={styles.selectButtonFull} onPress={() => setSelecting('section')}><Text style={styles.selectText}>Select an option (Sections)</Text><Icon name="chevron-down" size={16} color={colors.muted} /></Pressable>
+      </View>
       <View style={styles.tableHeader}><Text style={styles.tableHeaderText}>Roll / Admin No</Text><Text style={styles.tableHeaderText}>Student Identity</Text><Text style={styles.tableHeaderText}>Live Status</Text><Text style={styles.tableHeaderText}>Punch In / Out</Text><Text style={styles.tableHeaderText}>Precision Controls</Text></View>
       <View style={styles.searchWrap}><Icon name="search-outline" size={17} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Search name/roll..." placeholderTextColor={colors.muted} style={styles.searchInput} /></View>
       <View style={styles.filterRow}><Pressable style={styles.bulkButton} onPress={() => applyBulk('Present')}><Text style={styles.bulkText}>All Present</Text></Pressable><Pressable style={styles.bulkButton} onPress={() => applyBulk('Absent')}><Text style={styles.bulkText}>All Absent</Text></Pressable></View>
@@ -244,10 +271,14 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         {activeTab === 'History Log' ? <View><Text style={styles.sectionTitle}>Attendance History</Text>{history.length ? <><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyDates}>{history.map((entry) => <Pressable key={`${entry.date}-${entry.className}-${entry.subject}`} style={[styles.historyDate, entry.date === historyDate && styles.historyDateActive]} onPress={() => setHistoryDate(entry.date)}><Text style={styles.historyDateText}>{entry.date}</Text></Pressable>)}</ScrollView><View style={styles.historyCard}><Text style={styles.historyTitle}>{selectedHistory?.date || 'No selected record'}</Text>{selectedHistory ? <Text style={styles.historyText}>Class: {selectedHistory.className}  Subject: {selectedHistory.subject}{'\n'}Total students: {selectedHistory.summary?.total ?? selectedHistory.records?.length ?? 0}  Present: {selectedHistory.summary?.present ?? 0}  Absent: {selectedHistory.summary?.absent ?? 0}  Late: {selectedHistory.summary?.late ?? 0}{'\n'}Submission status: Submitted</Text> : null}</View></> : <EmptyState title="No data available" message="No submitted attendance history available." />}</View> : null}
         {activeTab === 'Export' ? <View><Text style={styles.sectionTitle}>Export Attendance</Text><View style={styles.exportCard}><Text style={styles.exportText}>Export the selected date, class, subject, and current attendance statuses as CSV.</Text><Pressable style={styles.primaryButton} onPress={exportCsv}><Icon name="download-outline" size={17} color={colors.white} /><Text style={styles.primaryText}>Export CSV</Text></Pressable></View></View> : null}
       </ScrollView>
+      <SelectModal visible={selecting === 'class'} value={className} options={['Select an option', ...data.classes]} onSelect={setClassName} onClose={() => setSelecting(null)} />
+      <SelectModal visible={selecting === 'section'} value={section} options={['Select an option', ...data.sections]} onSelect={setSection} onClose={() => setSelecting(null)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+    filterCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12, marginBottom: 12 },
+    selectButtonFull: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   container: { flex: 1, backgroundColor: colors.canvas }, header: { backgroundColor: colors.navy, padding: 16, flexDirection: 'row', justifyContent: 'space-between' }, brand: { color: '#A9C6E8', fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, portal: { color: colors.white, fontSize: 17, fontWeight: '900', marginTop: 4 }, year: { color: '#B8D0EC', fontSize: 10, marginTop: 4 }, teacherName: { color: colors.white, fontSize: 12, fontWeight: '800', marginTop: 8 }, teacherRole: { color: '#B8D0EC', fontSize: 10, marginTop: 2 }, headerActions: { alignItems: 'flex-end', gap: 9 }, initials: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#2E5D91', alignItems: 'center', justifyContent: 'center' }, initialsText: { color: colors.white, fontSize: 12, fontWeight: '900' }, backText: { color: '#C8DBF2', fontSize: 10 }, content: { padding: 16, paddingBottom: 30 }, pageTitle: { color: colors.ink, fontSize: 23, fontWeight: '900', marginBottom: 12 }, tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }, tab: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: colors.white }, tabActive: { backgroundColor: colors.blue, borderColor: colors.blue }, tabText: { color: colors.muted, fontSize: 9, fontWeight: '800' }, tabTextActive: { color: colors.white }, controlCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12, marginBottom: 12 }, controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, controlLabel: { color: colors.ink, fontSize: 13, fontWeight: '900' }, dateButton: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 8 }, dateText: { color: colors.ink, fontSize: 12, fontWeight: '800' }, selectRow: { flexDirection: 'row', gap: 8, marginTop: 10 }, selectButton: { flex: 1, minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, sectionSelect: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, selectText: { color: colors.ink, fontSize: 11, flex: 1 }, cutoff: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 13, marginBottom: 12 }, cutoffTitle: { color: colors.ink, fontSize: 13, fontWeight: '900' }, cutoffLabel: { color: colors.orange, fontSize: 11, fontWeight: '900', marginTop: 10 }, cutoffText: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 5 }, errorText: { color: colors.red, backgroundColor: colors.paleRed, borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 11 }, sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '900', marginBottom: 10 }, metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 }, metric: { width: '31.5%', minHeight: 84, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 9, padding: 8 }, metricValue: { color: colors.ink, fontSize: 18, fontWeight: '900', textAlign: 'center' }, metricTitle: { color: colors.ink, fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 5 }, metricMeta: { color: colors.muted, fontSize: 8, fontWeight: '800', textAlign: 'center', marginTop: 4 }, searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 9, paddingHorizontal: 11, marginBottom: 9 }, searchInput: { flex: 1, color: colors.ink, fontSize: 13, paddingVertical: 11, marginLeft: 7 }, filterRow: { flexDirection: 'row', gap: 6, marginBottom: 10 }, filterButton: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, filterText: { color: colors.muted, fontSize: 10, flex: 1 }, bulkButton: { backgroundColor: colors.paleBlue, borderRadius: 8, minHeight: 38, justifyContent: 'center', paddingHorizontal: 8 }, bulkText: { color: colors.blue, fontSize: 9, fontWeight: '900' }, tableHeader: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingVertical: 8, paddingHorizontal: 3 }, tableHeaderText: { color: colors.muted, fontSize: 8, fontWeight: '900', flex: 1, minWidth: 54 }, loader: { marginVertical: 24 }, recordCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 12, marginBottom: 8 }, recordHeader: { flexDirection: 'row', alignItems: 'center' }, recordName: { color: colors.ink, fontSize: 14, fontWeight: '900' }, recordMeta: { color: colors.muted, fontSize: 10, marginTop: 4 }, recordDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }, detailText: { color: colors.muted, fontSize: 9 }, statusActions: { flexDirection: 'row', gap: 5, marginTop: 11 }, statusButton: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 7, alignItems: 'center', paddingVertical: 7 }, statusButtonActive: { backgroundColor: colors.blue, borderColor: colors.blue }, statusButtonText: { color: colors.muted, fontSize: 9, fontWeight: '800' }, statusButtonTextActive: { color: colors.white }, statusBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 }, statusText: { fontSize: 9, fontWeight: '900' }, presentBadge: { backgroundColor: colors.paleGreen }, presentText: { color: colors.green }, absentBadge: { backgroundColor: colors.paleRed }, absentText: { color: colors.red }, lateBadge: { backgroundColor: colors.paleOrange }, lateText: { color: colors.orange }, unmarkedBadge: { backgroundColor: colors.canvas }, unmarkedText: { color: colors.muted }, empty: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, alignItems: 'center', padding: 24, marginTop: 8 }, emptyTitle: { color: colors.ink, fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 9 }, emptyMessage: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 5 }, submitButton: { backgroundColor: colors.blue, minHeight: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, marginTop: 12 }, primaryButton: { backgroundColor: colors.blue, minHeight: 42, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, marginTop: 11, paddingHorizontal: 12 }, primaryText: { color: colors.white, fontSize: 11, fontWeight: '900' }, successText: { color: colors.green, backgroundColor: colors.paleGreen, padding: 8, borderRadius: 8, marginTop: 9, fontSize: 11 }, historyDates: { marginBottom: 10 }, historyDate: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 9, marginRight: 7, backgroundColor: colors.white }, historyDateActive: { backgroundColor: colors.paleBlue, borderColor: colors.blue }, historyDateText: { color: colors.ink, fontSize: 10, fontWeight: '800' }, historyCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 13 }, historyTitle: { color: colors.ink, fontSize: 15, fontWeight: '900' }, historyText: { color: colors.muted, fontSize: 11, lineHeight: 19, marginTop: 8 }, exportCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 14 }, exportText: { color: colors.muted, fontSize: 12, lineHeight: 18 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 31, 0.35)', justifyContent: 'center', padding: 22 }, modal: { backgroundColor: colors.white, borderRadius: 14, padding: 15, maxHeight: '80%' }, modalTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', marginBottom: 8 }, modalOption: { padding: 12, borderRadius: 8, marginTop: 4 }, modalOptionActive: { backgroundColor: colors.paleBlue }, modalOptionText: { color: colors.ink, fontSize: 13 },
 });

@@ -15,6 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '../services/api';
 import { teacherAttendanceApi } from '../services/teacherApi';
+import TeacherBiometricSuite from '../components/TeacherBiometricSuite';
 
 const colors = {
   ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF',
@@ -267,7 +268,7 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
           {renderDailyLog()}
         </View> : null}
         {activeTab === 'Daily Log / Marking' ? <><View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" /></View>{renderDailyLog()}</> : null}
-        {activeTab === 'Biometric' ? <View><Text style={styles.sectionTitle}>Biometric Attendance</Text><EmptyState title="Biometric integration is not configured yet." message="Connect a biometric service to import punch records." /></View> : null}
+        {activeTab === 'Biometric' ? <TeacherBiometricSuite session={session} /> : null}
         {activeTab === 'History Log' ? <View><Text style={styles.sectionTitle}>Attendance History</Text>{history.length ? <><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyDates}>{history.map((entry) => <Pressable key={`${entry.date}-${entry.className}-${entry.subject}`} style={[styles.historyDate, entry.date === historyDate && styles.historyDateActive]} onPress={() => setHistoryDate(entry.date)}><Text style={styles.historyDateText}>{entry.date}</Text></Pressable>)}</ScrollView><View style={styles.historyCard}><Text style={styles.historyTitle}>{selectedHistory?.date || 'No selected record'}</Text>{selectedHistory ? <Text style={styles.historyText}>Class: {selectedHistory.className}  Subject: {selectedHistory.subject}{'\n'}Total students: {selectedHistory.summary?.total ?? selectedHistory.records?.length ?? 0}  Present: {selectedHistory.summary?.present ?? 0}  Absent: {selectedHistory.summary?.absent ?? 0}  Late: {selectedHistory.summary?.late ?? 0}{'\n'}Submission status: Submitted</Text> : null}</View></> : <EmptyState title="No data available" message="No submitted attendance history available." />}</View> : null}
         {activeTab === 'Export' ? <View><Text style={styles.sectionTitle}>Export Attendance</Text><View style={styles.exportCard}><Text style={styles.exportText}>Export the selected date, class, subject, and current attendance statuses as CSV.</Text><Pressable style={styles.primaryButton} onPress={exportCsv}><Icon name="download-outline" size={17} color={colors.white} /><Text style={styles.primaryText}>Export CSV</Text></Pressable></View></View> : null}
       </ScrollView>

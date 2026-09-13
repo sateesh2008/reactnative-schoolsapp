@@ -59,6 +59,12 @@ export default function TeacherBiometricSuite({ session }) {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
   const [bulkResult, setBulkResult] = useState(null);
+  const [punchSearch, setPunchSearch] = useState('');
+  const [punches, setPunches] = useState([]);
+  const [punchLoading, setPunchLoading] = useState(false);
+  const [punchError, setPunchError] = useState('');
+  const [autoRefreshPunches, setAutoRefreshPunches] = useState(false);
+  const punchRefreshRef = React.useRef(false);
   const [simulator, setSimulator] = useState({ biometricUid: '10004', punchType: 'IN', timestamp: new Date().toISOString().slice(0, 16) });
 
   const refresh = async () => {
@@ -73,6 +79,33 @@ export default function TeacherBiometricSuite({ session }) {
   };
 
   useEffect(() => { refresh(); }, [session]);
+
+  const punchKey = (punch) => String(punch.id || `${punch.timestamp || punch.time}|${punch.biometricUid || punch.uid}|${punch.device || punch.assignedDevice || ''}`);
+  const loadPunches = async (background = false) => {
+    if (punchRefreshRef.current) return;
+    punchRefreshRef.current = true;
+    if (!background) setPunchLoading(true);
+    setPunchError('');
+    try {
+      const latest = await biometricApi.getPunches(session);
+      const sorted = [...(latest || [])].sort((a, b) => new Date(b.timestamp || b.time || 0) - new Date(a.timestamp || a.time || 0));
+      setPunches((current) => { const merged = new Map(current.map((punch) => [punchKey(punch), punch])); sorted.forEach((punch) => merged.set(punchKey(punch), punch)); return [...merged.values()].sort((a, b) => new Date(b.timestamp || b.time || 0) - new Date(a.timestamp || a.time || 0)); });
+    } catch { setPunchError('Unable to load live punch feeds. Please try again.'); }
+    finally { punchRefreshRef.current = false; if (!background) setPunchLoading(false); }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'Live Punch Feeds') return undefined;
+    loadPunches();
+    if (!autoRefreshPunches) return undefined;
+    const interval = setInterval(() => loadPunches(true), 5000);
+    return () => clearInterval(interval);
+  }, [activeTab, autoRefreshPunches, session]);
+
+  const visiblePunches = useMemo(() => {
+    const query = punchSearch.trim().toLowerCase();
+    return punches.filter((punch) => !query || [punch.student, punch.personName, punch.name, punch.admissionOrStaffCode, punch.erpId, punch.employeeCode, punch.biometricUid, punch.uid].some((value) => String(value || '').toLowerCase().includes(query)));
+  }, [punches, punchSearch]);
 
   const loadBulkCandidates = async (category = bulkCategory) => {
     setBulkLoading(true);
@@ -283,7 +316,7 @@ export default function TeacherBiometricSuite({ session }) {
     {loading ? <ActivityIndicator color={colors.blue} style={styles.loader} /> : null}
     {activeTab === 'Registered Devices' ? <View><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Registered Devices ({snapshot.devices.length})</Text><Button title="Register Device" onPress={() => setShowDeviceForm(true)} icon="add-outline" /></View>{showDeviceForm ? <View style={styles.formCard}><Text style={styles.formTitle}>Register biometric device</Text><Field label="Device Name" value={device.name} onChangeText={(value) => setDevice({ ...device, name: value })} placeholder="Main entrance scanner" /><Text style={styles.fieldLabel}>Device Type</Text><View style={styles.choiceRow}>{deviceTypes.map((type) => <Pressable key={type} style={[styles.choice, device.type === type && styles.choiceActive]} onPress={() => setDevice({ ...device, type })}><Text style={styles.choiceText}>{type}</Text></Pressable>)}</View><Field label="Device ID / Serial Number" value={device.deviceId} onChangeText={(value) => setDevice({ ...device, deviceId: value })} placeholder="Device serial" /><Field label="IP Address / Host" value={device.host} onChangeText={(value) => setDevice({ ...device, host: value })} placeholder="192.168.1.20" /><Field label="Port" value={device.port} onChangeText={(value) => setDevice({ ...device, port: value })} placeholder="80" keyboardType="number-pad" /><Field label="Username" value={device.username} onChangeText={(value) => setDevice({ ...device, username: value })} placeholder="Backend-managed username" /><Field label="Password" value={device.password} onChangeText={(value) => setDevice({ ...device, password: value })} placeholder="Not stored in mock" secureTextEntry /><Field label="Protocol" value={device.protocol} onChangeText={(value) => setDevice({ ...device, protocol: value })} placeholder="HTTP / HTTPS / ISAPI" /><View style={styles.actions}><Button title="Cancel" secondary onPress={() => setShowDeviceForm(false)} icon="close-outline" /><Button title="Register" onPress={registerDevice} icon="checkmark-outline" /></View></View> : null}{snapshot.devices.length === 0 && !showDeviceForm ? <Empty title="No Devices Registered" message="Connect a supported scanner through the backend integration." action="Register First Device" onAction={() => setShowDeviceForm(true)} /> : snapshot.devices.map((deviceItem) => <View key={deviceItem.id} style={styles.listCard}><View style={styles.listIcon}><Icon name="hardware-chip-outline" size={21} color={colors.blue} /></View><View style={styles.listCopy}><Text style={styles.listTitle}>{deviceItem.name}</Text><Text style={styles.meta}>{deviceItem.type} · {deviceItem.deviceId}</Text><Text style={styles.meta}>{deviceItem.host}:{deviceItem.port} · {deviceItem.status || 'Unknown'}</Text></View><View style={styles.actions}><Button title="Test" secondary onPress={() => testConnection(deviceItem)} icon="wifi-outline" /><Pressable onPress={() => deleteDevice(deviceItem)}><Icon name="trash-outline" size={19} color={colors.red} /></Pressable></View></View>)}</View> : null}
     {activeTab === 'User Enrollments' ? <View><Text style={styles.sectionTitle}>User Enrollments ({snapshot.enrollments.length})</Text><View style={styles.formCard}><Text style={styles.formTitle}>Map ERP user to biometric UID</Text><Field label="ERP Student/User" value={enrollment.user} onChangeText={(value) => setEnrollment({ ...enrollment, user: value })} placeholder="Existing ERP user" /><Field label="ERP ID" value={enrollment.erpId} onChangeText={(value) => setEnrollment({ ...enrollment, erpId: value })} placeholder="Existing student/user ID" /><Field label="Biometric UID" value={enrollment.biometricUid} onChangeText={(value) => setEnrollment({ ...enrollment, biometricUid: value })} placeholder="Scanner UID" /><Field label="Device" value={enrollment.device} onChangeText={(value) => setEnrollment({ ...enrollment, device: value })} placeholder="Registered device ID" /><Button title="Save UID Mapping" onPress={saveEnrollment} icon="link-outline" /></View>{snapshot.enrollments.length ? snapshot.enrollments.map((item) => <View key={item.id} style={styles.listCard}><View style={styles.listCopy}><Text style={styles.listTitle}>{item.user} · {item.erpId}</Text><Text style={styles.meta}>UID {item.biometricUid} · Device {item.device}</Text><Text style={styles.meta}>{item.status || 'Mapped'} · Last sync {item.lastSync || 'Not synced'}</Text></View><Pressable onPress={async () => { await biometricApi.deleteEnrollment(item.id, session); refresh(); }}><Icon name="trash-outline" size={19} color={colors.red} /></Pressable></View>) : <Empty title="No User Enrollments" message="Map an existing ERP student or user to a device UID." />}</View> : null}
-    {activeTab === 'Live Punch Feeds' ? <View><Text style={styles.sectionTitle}>Live Punch Feeds</Text>{snapshot.punches.length ? snapshot.punches.map((punch) => <View key={punch.id} style={styles.listCard}><View style={styles.listCopy}><Text style={styles.listTitle}>{punch.timestamp || 'Unknown time'} · UID {punch.biometricUid}</Text><Text style={styles.meta}>{punch.student} · {punch.device}</Text><Text style={styles.meta}>{punch.punchType} · {punch.status}{punch.simulated ? ' · TEST / SIMULATED' : ''}</Text></View></View>) : <Empty title="No Live Punches Available" message="Live events will appear when the backend stream receives a device punch." />}</View> : null}
+    {activeTab === 'Live Punch Feeds' ? <View><Text style={styles.sectionTitle}>Live Punch Feeds</Text><View style={styles.punchControls}><View style={styles.searchWrap}><Icon name="search-outline" size={17} color={colors.muted} /><TextInput value={punchSearch} onChangeText={setPunchSearch} placeholder="Filter by name, code, UID..." placeholderTextColor={colors.muted} style={styles.searchInput} /></View><View style={styles.punchActions}><Pressable style={styles.refreshButton} onPress={() => loadPunches(false)} disabled={punchLoading}><Icon name="refresh-outline" size={16} color={colors.blue} /><Text style={styles.refreshText}>{punchLoading ? 'Refreshing...' : 'Refresh'}</Text></Pressable><Pressable style={styles.toggleRow} onPress={() => setAutoRefreshPunches((value) => !value)}><View style={[styles.toggle, autoRefreshPunches && styles.toggleOn]}><View style={[styles.toggleKnob, autoRefreshPunches && styles.toggleKnobOn]} /></View><Text style={styles.toggleText}>Auto-Refresh (5s)</Text></Pressable></View></View>{punchError ? <Text style={styles.error}>{punchError}</Text> : null}{punchLoading && !punches.length ? <View style={styles.feedLoading}><ActivityIndicator color={colors.blue} /><Text style={styles.meta}>Loading live punch feeds...</Text></View> : null}{punches.length && visiblePunches.length ? visiblePunches.map((punch) => <View key={punchKey(punch)} style={styles.listCard}><View style={styles.listCopy}><Text style={styles.listTitle}>{punch.personName || punch.student || punch.name || 'Unknown User'}</Text><Text style={styles.meta}>{punch.category || 'Unknown'} · {punch.admissionOrStaffCode || punch.erpId || punch.employeeCode || 'Code unavailable'}</Text><Text style={styles.meta}>UID: {punch.biometricUid || punch.uid || 'Unknown'} · Device: {punch.device || punch.assignedDevice || 'Unknown'}</Text><Text style={styles.meta}>{punch.timestamp || punch.time || 'Unknown time'} · Punch: {punch.punchType || punch.type || 'Unknown'} · Status: {punch.status || 'Unmapped'}{punch.simulated ? ' · TEST / SIMULATED' : ''}</Text></View></View>) : punches.length ? <Empty title="No records found matching your search." message="Try a different name, code, or UID." /> : <Empty title={`No attendance punches logged for date ${new Date().toISOString().slice(0, 10)}.`} message="Refresh or enable Auto-Refresh to check for new punches." />}</View> : null}
     {activeTab === 'Webhook & Test Simulator' ? <View><Text style={styles.sectionTitle}>Webhook & Test Simulator</Text><View style={styles.formCard}><Text style={styles.simulatedLabel}>TEST / SIMULATED</Text><Text style={styles.formTitle}>Create a test punch event</Text><Field label="Biometric UID" value={simulator.biometricUid} onChangeText={(value) => setSimulator({ ...simulator, biometricUid: value })} placeholder="10004" /><Field label="Punch Type" value={simulator.punchType} onChangeText={(value) => setSimulator({ ...simulator, punchType: value.toUpperCase() })} placeholder="IN or OUT" /><Field label="Timestamp" value={simulator.timestamp} onChangeText={(value) => setSimulator({ ...simulator, timestamp: value })} placeholder="Current date/time" /><Button title="Simulate Punch" onPress={simulatePunch} icon="flash-outline" /></View></View> : null}
   </ScrollView>{renderDeviceModal()}</>;
 }
@@ -300,6 +333,17 @@ const styles = StyleSheet.create({
   candidatePicker: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, marginBottom: 9, maxHeight: 180, gap: 5 },
   candidateOption: { padding: 8, borderRadius: 7, backgroundColor: colors.paleBlue },
   inlinePicker: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, marginTop: 8, maxHeight: 170 },
+  punchControls: { marginBottom: 10 },
+  punchActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  refreshButton: { minHeight: 38, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  refreshText: { color: colors.blue, fontSize: 10, fontWeight: '900' },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  toggle: { width: 34, height: 20, borderRadius: 10, backgroundColor: colors.line, padding: 2, justifyContent: 'center' },
+  toggleOn: { backgroundColor: colors.blue },
+  toggleKnob: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.white },
+  toggleKnobOn: { alignSelf: 'flex-end' },
+  toggleText: { color: colors.ink, fontSize: 10, fontWeight: '800' },
+  feedLoading: { alignItems: 'center', gap: 8, paddingVertical: 18 },
   tableLabels: { color: colors.muted, fontSize: 9, lineHeight: 15, marginVertical: 10 },
   modalHint: { color: colors.muted, fontSize: 11, lineHeight: 17, marginBottom: 10 },
   csvInput: { minHeight: 130, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 10, color: colors.ink, fontSize: 11, textAlignVertical: 'top' },

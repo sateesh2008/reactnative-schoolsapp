@@ -37,13 +37,16 @@ const colors = {
 
 const primaryNavItems = [
   { label: 'Home', icon: 'home-outline' },
-  { label: 'My Students', icon: 'people-outline' },
   { label: 'Attendance', icon: 'calendar-outline' },
+  { label: 'Gate Pass', module: 'Gate Pass', icon: 'log-out-outline' },
   { label: 'Homework', icon: 'book-outline' },
+  { label: 'Leave Management', module: 'Leave', icon: 'document-text-outline' },
+  { label: 'Timetable', module: 'Timetable', icon: 'time-outline' },
   { label: 'More', icon: 'menu-outline' },
 ];
 
 const moreNavItems = [
+  'My Students',
   'Exams / Marks',
   'Timetable',
   'Leave',
@@ -55,6 +58,7 @@ const moreNavItems = [
 ];
 
 const moreModuleIcons = {
+  'My Students': 'people-outline',
   'Exams / Marks': 'ribbon-outline',
   Timetable: 'time-outline',
   Leave: 'document-text-outline',
@@ -402,12 +406,13 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       <View style={styles.bottomNav}>
         {primaryNavItems.map((item) => {
-          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === item.label;
+          const module = item.module || item.label;
+          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === module;
 
           return (
             <Pressable
               key={item.label}
-              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(item.label)}
+              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(module)}
               style={({ pressed }) => [styles.navItem, isActive && styles.navItemActive, pressed && styles.pressed]}
             >
               <Icon name={item.icon} size={21} color={isActive ? colors.blue : colors.muted} />
@@ -434,6 +439,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                 <View style={styles.moreItemCopy}>
                   <Text style={[styles.moreItemTitle, activeModule === item && styles.moreItemTextActive]}>{item}</Text>
                   <Text style={styles.moreItemDescription}>{
+                    item === 'My Students' ? 'View assigned students' :
                     item === 'Exams / Marks' ? 'Review examination marks' :
                     item === 'Timetable' ? 'View teaching schedule' :
                     item === 'Leave' ? 'Apply and manage leave' :

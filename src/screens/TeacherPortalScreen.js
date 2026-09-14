@@ -37,13 +37,16 @@ const colors = {
 
 const primaryNavItems = [
   { label: 'Home', icon: 'home-outline' },
-  { label: 'My Students', icon: 'people-outline' },
   { label: 'Attendance', icon: 'calendar-outline' },
+  { label: 'Gate Pass', module: 'Gate Pass', icon: 'log-out-outline' },
   { label: 'Homework', icon: 'book-outline' },
+  { label: 'Leave Management', module: 'Leave', icon: 'document-text-outline' },
+  { label: 'Timetable', module: 'Timetable', icon: 'time-outline' },
   { label: 'More', icon: 'menu-outline' },
 ];
 
 const moreNavItems = [
+  'My Students',
   'Exams / Marks',
   'Timetable',
   'Leave',
@@ -55,6 +58,7 @@ const moreNavItems = [
 ];
 
 const moreModuleIcons = {
+  'My Students': 'people-outline',
   'Exams / Marks': 'ribbon-outline',
   Timetable: 'time-outline',
   Leave: 'document-text-outline',
@@ -64,6 +68,13 @@ const moreModuleIcons = {
   'Gate Pass': 'log-out-outline',
   'OMR System': 'scan-outline',
 };
+
+const legacyQuickActions = [
+  ['Mark Attendance', 'calendar-outline', 'Record daily presence and absences', '#E0F2FE'],
+  ['Post Homework', 'book-outline', 'Assign daily coursework to students', '#DCFCE7'],
+  ['Grade Exams', 'ribbon-outline', 'Review and grade student submissions', '#FEF3C7'],
+  ['My Schedule', 'time-outline', 'View personalized weekly schedule', '#F3E8FF'],
+];
 
 const defaultDashboard = teacherDashboardMock;
 
@@ -126,6 +137,22 @@ function TeacherQuickAction({ title, description, icon, onPress }) {
         <Text style={styles.moduleTitle}>{title}</Text>
         <Text style={styles.moduleMeta}>{description}</Text>
       </View>
+    </Pressable>
+  );
+}
+
+function LegacyQuickAction({ label, icon, detail, backgroundColor, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionCard, { backgroundColor }, pressed && styles.pressed]}
+    >
+      <View style={styles.actionIcon}>
+        <Icon name={icon} color={colors.blue} />
+      </View>
+      <Text style={styles.actionTitle}>{label}</Text>
+      <Text style={styles.actionDetail}>{detail}</Text>
+      <Icon name="arrow-forward" size={16} color={colors.blue} />
     </Pressable>
   );
 }
@@ -278,6 +305,20 @@ function DashboardScreen({ data, onNavigate, onSearch, query }) {
         ))}
       </View>
 
+      <SectionTitle title="Quick actions" />
+      <View style={styles.actionGrid}>
+        {legacyQuickActions.map(([label, icon, detail, backgroundColor]) => (
+          <LegacyQuickAction
+            key={label}
+            label={label}
+            icon={icon}
+            detail={detail}
+            backgroundColor={backgroundColor}
+            onPress={() => onNavigate(label === 'My Schedule' ? 'Timetable' : label === 'Mark Attendance' ? 'Attendance' : label === 'Post Homework' ? 'Homework' : 'Exams / Marks')}
+          />
+        ))}
+      </View>
+
       <FacultyNoticeBoard notices={notices} />
     </ScrollView>
   );
@@ -402,12 +443,13 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       <View style={styles.bottomNav}>
         {primaryNavItems.map((item) => {
-          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === item.label;
+          const module = item.module || item.label;
+          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === module;
 
           return (
             <Pressable
               key={item.label}
-              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(item.label)}
+              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(module)}
               style={({ pressed }) => [styles.navItem, isActive && styles.navItemActive, pressed && styles.pressed]}
             >
               <Icon name={item.icon} size={21} color={isActive ? colors.blue : colors.muted} />
@@ -434,6 +476,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                 <View style={styles.moreItemCopy}>
                   <Text style={[styles.moreItemTitle, activeModule === item && styles.moreItemTextActive]}>{item}</Text>
                   <Text style={styles.moreItemDescription}>{
+                    item === 'My Students' ? 'View assigned students' :
                     item === 'Exams / Marks' ? 'Review examination marks' :
                     item === 'Timetable' ? 'View teaching schedule' :
                     item === 'Leave' ? 'Apply and manage leave' :
@@ -529,6 +572,11 @@ const styles = StyleSheet.create({
   noticeDate: { color: colors.muted, fontSize: 11, marginBottom: 6 },
   noticeTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' },
   noticeDescription: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  actionCard: { width: '48%', minHeight: 146, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 13 },
+  actionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
+  actionTitle: { color: colors.ink, fontSize: 13, fontWeight: '900', marginBottom: 5 },
+  actionDetail: { color: colors.muted, fontSize: 11, lineHeight: 16, flex: 1, marginBottom: 8 },
   bottomNav: {
     position: 'absolute',
     left: 0,

@@ -11,7 +11,7 @@ export default function Index() {
   }
 
   if (session.role === 'Teacher') {
-    return <TeacherPortalScreen onLogout={() => setSession(null)} />;
+    return <TeacherPortalScreen session={session} onLogout={() => setSession(null)} />;
   }
 
   return <ParentPortalScreen session={session} onLogout={() => setSession(null)} />;

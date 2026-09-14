@@ -1,80 +1,626 @@
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { teacherApi } from '../services/teacherApi';
+import { teacherDashboardMock } from '../services/teacherMock';
+import TeacherAttendanceScreen from './TeacherAttendanceScreen';
 
-const colors = { navy: '#123B43', blue: '#0D8B82', ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', canvas: '#F4F8F6', white: '#FFFFFF', paleBlue: '#E5F4F0', paleTeal: '#E2F4EE', paleOrange: '#FFF1DF', teal: '#168A7C', orange: '#D9822B' };
-const actions = [
-  ['Mark Attendance', 'calendar-outline', 'Record daily presence and absences','#E0F2FE'],
-  ['Post Homework', 'book-outline', 'Assign daily coursework to students','#DCFCE7'],
-  ['Grade Exams', 'ribbon-outline', 'Review and grade student submissions','#FEF3C7'],
+const colors = {
+  ink: '#17343B',
+  muted: '#6A7F83',
+  line: '#D9E7E4',
+  canvas: '#F4F8F6',
+  white: '#FFFFFF',
+  navy: '#123B43',
+  blue: '#0D8B82',
+  paleBlue: '#E5F4F0',
+  teal: '#168A7C',
+  paleTeal: '#E2F4EE',
+  orange: '#D9822B',
+  paleOrange: '#FFF1DF',
+  red: '#C65353',
+  plum: '#5A4AB6',
+  softLilac: '#F5F1FF',
+};
+
+const primaryNavItems = [
+  { label: 'Home', icon: 'home-outline' },
+  { label: 'Attendance', icon: 'calendar-outline' },
+  { label: 'Gate Pass', module: 'Gate Pass', icon: 'log-out-outline' },
+  { label: 'Homework', icon: 'book-outline' },
+  { label: 'Leave Management', module: 'Leave', icon: 'document-text-outline' },
+  { label: 'Timetable', module: 'Timetable', icon: 'time-outline' },
+  { label: 'More', icon: 'menu-outline' },
+];
+
+const moreNavItems = [
+  'My Students',
+  'Exams / Marks',
+  'Timetable',
+  'Leave',
+  'Messaging',
+  'Notifications',
+  'Reports',
+  'Gate Pass',
+  'OMR System',
+];
+
+const moreModuleIcons = {
+  'My Students': 'people-outline',
+  'Exams / Marks': 'ribbon-outline',
+  Timetable: 'time-outline',
+  Leave: 'document-text-outline',
+  Messaging: 'chatbubble-ellipses-outline',
+  Notifications: 'notifications-outline',
+  Reports: 'bar-chart-outline',
+  'Gate Pass': 'log-out-outline',
+  'OMR System': 'scan-outline',
+};
+
+const legacyQuickActions = [
+  ['Mark Attendance', 'calendar-outline', 'Record daily presence and absences', '#E0F2FE'],
+  ['Post Homework', 'book-outline', 'Assign daily coursework to students', '#DCFCE7'],
+  ['Grade Exams', 'ribbon-outline', 'Review and grade student submissions', '#FEF3C7'],
   ['My Schedule', 'time-outline', 'View personalized weekly schedule', '#F3E8FF'],
 ];
-const notices = [['General', '17 Jul 2026', 'Sankranthi'], ['Holiday', '19 May 2026', 'Ugadi'], ['Holiday', '7 May 2026', 'Sankranthi holidays']];
-const schedule = [['08:30', 'Class 1 Mathematics', 'Room 204'], ['09:20', 'Class 1 English', 'Room 204'], ['10:10', 'Class 2 Science', 'Lab 1'], ['11:30', 'Faculty planning', 'Staff room']];
 
-function Icon({ name, size = 20, color = colors.ink }) { return <Ionicons name={name} size={size} color={color} />; }
-function Metric({ icon, label, value, detail, tint, iconColor }) { return <View style={[styles.metric, { backgroundColor: tint }]}><View style={styles.metricIcon}><Icon name={icon} color={iconColor} /></View><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricDetail}>{detail}</Text></View>; }
-function ScheduleView({ title }) { return <><Text style={styles.pageTitle}>{title}</Text><Text style={styles.subtle}>Demo School · 2026–27</Text><View style={styles.panel}>{schedule.map(([time, subject, room]) => <View style={styles.schedule} key={time}><Text style={styles.scheduleTime}>{time}</Text><View style={styles.scheduleLine} /><View style={{ flex: 1 }}><Text style={styles.actionTitle}>{subject}</Text><Text style={styles.subtle}>{room}</Text></View></View>)}</View></>; }
+const defaultDashboard = teacherDashboardMock;
 
-export default function TeacherPortalScreen({ onLogout }) {
-  const [activeView, setActiveView] = useState('Home');
-  const handleAction = (label) => {
-    if (label === 'Mark Attendance') { Alert.alert('Attendance', 'Today\'s attendance is marked for Class 1.'); return; }
-    Alert.alert(label, 'This demo action is ready to connect to the school API.');
+function Icon({ name, size = 20, color = colors.ink }) {
+  return <Ionicons name={name} size={size} color={color} />;
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
+function SectionTitle({ title, action, onAction }) {
+  return (
+    <View style={styles.sectionTitleRow}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {action && (
+        <Pressable onPress={onAction}>
+          <Text style={styles.seeAll}>{action}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function TeacherStatCard({ icon, label, value, detail, tint, iconColor, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.summaryCard, pressed && styles.pressed]}>
+      <View style={[styles.summaryIcon, { backgroundColor: tint }]}>
+        <Icon name={icon} size={18} color={iconColor} />
+      </View>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryDetail}>{detail}</Text>
+    </Pressable>
+  );
+}
+
+function DashboardShortcut({ title, icon, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
+      <View style={styles.moduleIcon}>
+        <Icon name={icon} size={21} color={colors.blue} />
+      </View>
+      <Text style={styles.moduleTitle}>{title}</Text>
+      <Icon name="arrow-forward" size={15} color={colors.blue} />
+    </Pressable>
+  );
+}
+
+function TeacherQuickAction({ title, description, icon, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
+      <View style={styles.moduleIcon}>
+        <Icon name={icon} size={21} color={colors.blue} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.moduleTitle}>{title}</Text>
+        <Text style={styles.moduleMeta}>{description}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function LegacyQuickAction({ label, icon, detail, backgroundColor, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionCard, { backgroundColor }, pressed && styles.pressed]}
+    >
+      <View style={styles.actionIcon}>
+        <Icon name={icon} color={colors.blue} />
+      </View>
+      <Text style={styles.actionTitle}>{label}</Text>
+      <Text style={styles.actionDetail}>{detail}</Text>
+      <Icon name="arrow-forward" size={16} color={colors.blue} />
+    </Pressable>
+  );
+}
+
+function AttendanceVelocityChart({ data }) {
+  const maxValue = useMemo(() => Math.max(...data.map((item) => item.value), 100), [data]);
+  const average = Math.round(data.reduce((sum, item) => sum + item.value, 0) / data.length);
+
+  return (
+    <View style={styles.listCard}>
+      <View style={styles.sectionTitleRow}>
+        <Text style={styles.sectionTitle}>Attendance Velocity Chart</Text>
+        <Text style={styles.chip}>WEEKLY AVG: {average}%</Text>
+      </View>
+
+      <View style={styles.chartArea}>
+        <View style={styles.yAxis}>
+          {[100, 90, 80, 70, 60].map((level) => (
+            <Text key={level} style={styles.axisLabel}>{level}</Text>
+          ))}
+        </View>
+
+        <View style={styles.chartColumnsWrap}>
+          {data.map((item) => (
+            <View key={item.day} style={styles.chartColumn}>
+              <View style={styles.chartBarWrap}>
+                <View
+                  style={[
+                    styles.chartBar,
+                    {
+                      height: Math.max((item.value / maxValue) * 120, 18),
+                      backgroundColor: item.value >= 91 ? colors.blue : colors.orange,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.chartValue}>{item.value}%</Text>
+              <Text style={styles.chartDay}>{item.day}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function FacultyNoticeBoard({ notices }) {
+  return (
+    <View style={styles.listCard}>
+      <View style={styles.sectionTitleRow}>
+        <Text style={styles.sectionTitle}>Faculty Notice Board</Text>
+        <View style={styles.noticeLiveWrap}>
+          <View style={styles.noticeLiveDot} />
+          <Text style={styles.noticeLiveText}>LIVE</Text>
+        </View>
+      </View>
+
+      {notices.map((notice, index) => (
+        <View key={`${notice.date}-${notice.title}-${index}`} style={styles.noticeRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.noticeType}>{notice.category || 'General'}</Text>
+            <Text style={styles.noticeDate}>{notice.date}</Text>
+            <Text style={styles.noticeTitle}>{notice.title}</Text>
+            {notice.description ? <Text style={styles.noticeDescription}>{notice.description}</Text> : null}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ModulePlaceholder({ title, icon, description }) {
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrap}>
+        <Icon name={icon} size={26} color={colors.blue} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptySubtitle}>{description}</Text>
+      <Pressable style={styles.primaryButton} onPress={() => Alert.alert('Ready', `${title} is ready for API integration.`)}>
+        <Text style={styles.primaryButtonText}>View details</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function DashboardScreen({ data, onNavigate, onSearch, query }) {
+  const dashboardData = data?.dashboardData || defaultDashboard.dashboardData;
+  const teacher = data?.teacher || defaultDashboard.teacher;
+  const shortcuts = data?.shortcuts || defaultDashboard.shortcuts;
+  const notices = data?.notices || defaultDashboard.notices;
+  const quickActions = data?.quickActions || defaultDashboard.quickActions;
+  const weeklyAttendance = data?.attendanceWeekly || defaultDashboard.attendanceWeekly;
+
+  return (
+    <ScrollView style={styles.screenScroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headingRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.greeting}>{getGreeting()}, {teacher.name.split(' ')[0]}! 👋</Text>
+          <Text style={styles.school}>{teacher.school || 'Demo School'}</Text>
+        </View>
+        <View style={styles.accountBadge}>
+          <Text style={styles.accountName}>Instructor</Text>
+          <Text style={styles.accountCount}>{teacher.initials || 'S'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.studentSelector}>
+        <View style={styles.studentAvatar}>
+          <Text style={styles.studentAvatarText}>{teacher.initials}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.studentLabel}>INSTRUCTOR OS</Text>
+          <Text style={styles.studentName}>{teacher.name}</Text>
+          <Text style={styles.studentClass}>{teacher.role}</Text>
+        </View>
+      </View>
+
+      <View style={styles.searchWrap}>
+        <Ionicons name="search-outline" size={17} color={colors.muted} />
+        <TextInput
+          value={query}
+          onChangeText={onSearch}
+          placeholder="Search anything..."
+          placeholderTextColor={colors.muted}
+          style={styles.searchInput}
+        />
+      </View>
+
+      <View style={styles.summaryGrid}>
+        <TeacherStatCard icon="school-outline" label="Assigned Classes" value={String(dashboardData.activeLoad)} detail="Active Load" tint={colors.paleBlue} iconColor={colors.blue} onPress={() => onNavigate('My Students')} />
+        <TeacherStatCard icon="people-outline" label="Total Students" value={String(dashboardData.totalStudents)} detail="Mentored" tint={colors.paleTeal} iconColor={colors.teal} onPress={() => onNavigate('My Students')} />
+        <TeacherStatCard icon="pie-chart-outline" label="Attendance %" value={`${dashboardData.attendancePercentage}%`} detail="Average Today" tint={colors.paleOrange} iconColor={colors.orange} onPress={() => onNavigate('Attendance')} />
+        <TeacherStatCard icon="clipboard-outline" label="Pending Marks" value={String(dashboardData.pendingMarks)} detail="Grade Audit" tint={colors.softLilac} iconColor={colors.plum} onPress={() => onNavigate('Exams / Marks')} />
+      </View>
+
+      <SectionTitle title="Dashboard Shortcuts" />
+      <View style={styles.moduleGrid}>
+        {shortcuts.map((shortcut) => (
+          <DashboardShortcut key={shortcut.title} title={shortcut.title} icon={shortcut.icon} onPress={() => onNavigate(shortcut.target)} />
+        ))}
+      </View>
+
+      <AttendanceVelocityChart data={weeklyAttendance} />
+
+      <SectionTitle title="Instructional Operations" />
+      <View style={styles.moduleGrid}>
+        {quickActions.map((action) => (
+          <TeacherQuickAction key={action.title} title={action.title} description={action.description} icon={action.icon} onPress={() => onNavigate(action.target)} />
+        ))}
+      </View>
+
+      <SectionTitle title="Quick actions" />
+      <View style={styles.actionGrid}>
+        {legacyQuickActions.map(([label, icon, detail, backgroundColor]) => (
+          <LegacyQuickAction
+            key={label}
+            label={label}
+            icon={icon}
+            detail={detail}
+            backgroundColor={backgroundColor}
+            onPress={() => onNavigate(label === 'My Schedule' ? 'Timetable' : label === 'Mark Attendance' ? 'Attendance' : label === 'Post Homework' ? 'Homework' : 'Exams / Marks')}
+          />
+        ))}
+      </View>
+
+      <FacultyNoticeBoard notices={notices} />
+    </ScrollView>
+  );
+}
+
+export default function TeacherPortalScreen({ session, onLogout }) {
+  const [activeModule, setActiveModule] = useState('Home');
+  const [dashboardData, setDashboardData] = useState(defaultDashboard);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const loadDashboard = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await teacherApi.getDashboard(session);
+      setDashboardData(data);
+    } catch (err) {
+      setError('Unable to load dashboard data. Showing local demo data.');
+      setDashboardData(defaultDashboard);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadDashboard();
+  }, [session]);
+
+  const handleNavigate = (module) => {
+    if (!module) return;
+    setActiveModule(module);
+    setMoreOpen(false);
+  };
+
   const signOut = () => Alert.alert('Signed out', 'Demo sign out complete.', [{ text: 'OK', onPress: onLogout }]);
-  return <SafeAreaView style={[styles.safe,{
-        backgroundColor:
-          activeView === 'Home'
-            ? '#F4F8F6'
-            : activeView === 'My Classes'
-            ? '#F0FDF4'
-            : activeView === 'Schedule'
-            ? '#FAF5FF'
-            : '#FFFBEB',
-      },]}><StatusBar barStyle="light-content" backgroundColor={colors.navy} /><View style={styles.header}><View><Text style={styles.brand}>DEMO SCHOOL</Text><Text style={styles.portal}>Instructor OS <Text style={styles.year}>2026–27</Text></Text></View><Pressable onPress={signOut} style={styles.logout}><Icon name="log-out-outline" size={18} color="#C8DBF2" /><Text style={styles.logoutText}>Logout</Text></Pressable></View><ScrollView  style={{ backgroundColor: 'transparent' }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{activeView === 'Home' ? <><View style={styles.greeting}><View><Text style={styles.eyebrow}>TEACHER DASHBOARD</Text><Text style={styles.title}>Welcome, sudarsan!</Text><Text style={styles.subtle}>Tuesday, 9 September 2026 · Teacher</Text></View><View style={styles.avatar}><Text style={styles.avatarText}>SK</Text></View></View><View style={styles.teacherBanner}><View style={styles.teacherAvatar}><Text style={styles.teacherAvatarText}>SK</Text></View><View style={{ flex: 1 }}><Text style={styles.teacherName}>sudarsan kumar</Text><Text style={styles.teacherMeta}>Teacher · Demo School</Text></View><Icon name="shield-checkmark" color="#9FC7F2" size={23} /></View>
-  <View style={styles.metrics}>
-  <Metric
-    icon="people-outline"
-    label="Assigned classes"
-    value="2"
-    detail="Active load"
-    tint="#e0b2bd"
-    iconColor="#e95e93"
-  />
 
-  <Metric
-    icon="school-outline"
-    label="Total students"
-    value="45"
-    detail="Mentored"
-    tint="#ccf0f1"
-    iconColor="#2ac0da"
-  />
+  const renderModuleView = () => {
+    if (activeModule === 'Attendance') {
+      return <TeacherAttendanceScreen session={session} onBack={() => setActiveModule('Home')} />;
+    }
 
-  <Metric
-    icon="pie-chart-outline"
-    label="Attendance %"
-    value="94%"
-    detail="Average today"
-    tint="#e2e486"
-    iconColor="#e6d32a"
-  />
+    if (activeModule === 'Home') {
+      return (
+        <>
+          {loading ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={colors.blue} />
+              <Text style={styles.loadingText}>Loading dashboard...</Text>
+            </View>
+          ) : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <DashboardScreen data={dashboardData} query={search} onSearch={setSearch} onNavigate={handleNavigate} />
+        </>
+      );
+    }
 
-  <Metric
-    icon="clipboard-outline"
-    label="Pending marks"
-    value="8"
-    detail="Grade audit"
-    tint="#dca3e4"
-    iconColor="#9333EA"
-  />
-</View>
-  <Text style={styles.sectionTitle}>Instructional operations</Text><View style={styles.actionGrid}>
-  {actions.map(([label, icon, detail, backgroundColor]) => <Pressable key={label} style={[styles.actionCard, { backgroundColor: backgroundColor } ]} onPress={() => handleAction(label)}>
-    <View style={styles.actionIcon}><Icon name={icon} color={colors.blue} /></View><Text style={styles.actionTitle}>{label}</Text><Text style={styles.actionDetail}>{detail}</Text><Icon name="arrow-forward" size={16} color={colors.blue} /></Pressable>)}</View><Text style={styles.sectionTitle}>Attendance velocity</Text><View style={styles.panel}><View style={styles.chartHeader}><View><Text style={styles.chartCaption}>WEEKLY AVERAGE</Text><Text style={styles.chartValue}>91%</Text></View><Icon name="trending-up" size={26} color={colors.teal} /></View><View style={styles.chart}>{[82, 88, 91, 86, 95, 93].map((height, index) => <View key={index} style={styles.chartColumn}><View style={[styles.chartBar, { height: height / 2, backgroundColor: index === 4 ? colors.blue : '#B9D6F5' }]} /><Text style={styles.chartLabel}>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][index]}</Text></View>)}</View></View><Text style={styles.sectionTitle}>Faculty notice board</Text><View style={styles.panel}>{notices.map(([type, date, title]) => <View style={styles.notice} key={title}><View style={styles.noticeDot} /><View style={{ flex: 1 }}><View style={styles.noticeMeta}><Text style={styles.noticeType}>{type.toUpperCase()}</Text><Text style={styles.noticeDate}>{date}</Text></View><Text style={styles.noticeTitle}>{title}</Text></View><Icon name="chevron-forward" size={16} color="#A3ADBB" /></View>)}</View></> : <ScheduleView title={activeView} />}</ScrollView><View style={styles.bottomNav}>{['Home', 'My Classes', 'Schedule', 'Notices'].map((item) => <Pressable key={item} onPress={() => setActiveView(item)} style={styles.navItem}><Icon name={item === 'Home' ? 'home-outline' : item === 'My Classes' ? 'people-outline' : item === 'Schedule' ? 'time-outline' : 'megaphone-outline'} size={21} color={activeView === item ? colors.blue : colors.muted} /><Text style={[styles.navLabel, activeView === item && styles.navActive]}>{item}</Text></Pressable>)}</View></SafeAreaView>;
+    if (activeModule === 'My Students') {
+      return <ModulePlaceholder title="My Students" icon="people-outline" description="Student groups, mentor list, and class allocation are ready for future API integration." />;
+    }
+
+    if (activeModule === 'Homework') {
+      return <ModulePlaceholder title="Homework" icon="book-outline" description="Create and review assignments for the teacher’s active class schedule." />;
+    }
+
+    if (activeModule === 'Exams / Marks') {
+      return <ModulePlaceholder title="Exams / Marks" icon="ribbon-outline" description="Mark evaluation, grade review, and score publishing will appear here." />;
+    }
+
+    if (activeModule === 'Timetable') {
+      return <ModulePlaceholder title="Timetable" icon="time-outline" description="View the daily and weekly class timetable for faculty planning." />;
+    }
+
+    if (activeModule === 'Leave') {
+      return <ModulePlaceholder title="Leave" icon="document-text-outline" description="Teacher leave requests and approval history are managed here." />;
+    }
+
+    if (activeModule === 'Messaging') {
+      return <ModulePlaceholder title="Messaging" icon="chatbubble-ellipses-outline" description="Parent and staff communication channels can be connected to this screen." />;
+    }
+
+    if (activeModule === 'Notifications') {
+      return <ModulePlaceholder title="Notifications" icon="notifications-outline" description="Live updates, alerts, and announcements for the teaching staff." />;
+    }
+
+    if (activeModule === 'Reports') {
+      return <ModulePlaceholder title="Reports" icon="bar-chart-outline" description="Attendance, academic performance, and operational insights will be displayed here." />;
+    }
+
+    if (activeModule === 'Gate Pass') {
+      return <ModulePlaceholder title="Gate Pass" icon="log-out-outline" description="Gate pass issuance and approval for staff and visitors can be managed here." />;
+    }
+
+    if (activeModule === 'OMR System') {
+      return <ModulePlaceholder title="OMR System" icon="scan-outline" description="OMR evaluation workflows can be connected to this module in a future release." />;
+    }
+
+    return <ModulePlaceholder title={activeModule} icon="grid-outline" description="This teacher module is ready for data integration." />;
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
+
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.brand}>DEMO SCHOOL</Text>
+          <Text style={styles.portal}>Teacher portal <Text style={styles.year}>2026–27</Text></Text>
+        </View>
+        <Pressable onPress={signOut} style={styles.logout}>
+          <Icon name="log-out-outline" size={18} color="#C8DBF2" />
+          <Text style={styles.logoutText}>Logout</Text>
+        </Pressable>
+      </View>
+
+      {activeModule !== 'Home' && activeModule !== 'Attendance' ? <View style={styles.pageHeading}><Text style={styles.pageTitle}>{activeModule}</Text></View> : null}
+
+      {renderModuleView()}
+
+      <View style={styles.bottomNav}>
+        {primaryNavItems.map((item) => {
+          const module = item.module || item.label;
+          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === module;
+
+          return (
+            <Pressable
+              key={item.label}
+              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(module)}
+              style={({ pressed }) => [styles.navItem, isActive && styles.navItemActive, pressed && styles.pressed]}
+            >
+              <Icon name={item.icon} size={21} color={isActive ? colors.blue : colors.muted} />
+              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Modal transparent visible={moreOpen} animationType="slide" onRequestClose={() => setMoreOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setMoreOpen(false)}>
+          <View style={styles.moreSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Teacher Modules</Text>
+              <Pressable onPress={() => setMoreOpen(false)}><Icon name="close" size={22} color={colors.ink} /></Pressable>
+            </View>
+            {moreNavItems.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => handleNavigate(item)}
+                style={({ pressed }) => [styles.moreItem, activeModule === item && styles.moreItemActive, pressed && styles.pressed]}
+              >
+                <View style={styles.moreItemIconWrap}><Icon name={moreModuleIcons[item]} size={18} color={activeModule === item ? colors.blue : colors.ink} /></View>
+                <View style={styles.moreItemCopy}>
+                  <Text style={[styles.moreItemTitle, activeModule === item && styles.moreItemTextActive]}>{item}</Text>
+                  <Text style={styles.moreItemDescription}>{
+                    item === 'My Students' ? 'View assigned students' :
+                    item === 'Exams / Marks' ? 'Review examination marks' :
+                    item === 'Timetable' ? 'View teaching schedule' :
+                    item === 'Leave' ? 'Apply and manage leave' :
+                    item === 'Messaging' ? 'Communicate with students and parents' :
+                    item === 'Notifications' ? 'View notifications' :
+                    item === 'Reports' ? 'View teaching reports' :
+                    item === 'Gate Pass' ? 'Manage gate pass requests' :
+                    'Manage OMR examinations'
+                  }</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas }, header: { backgroundColor: colors.navy, paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, brand: { color: '#A9C6E8', fontSize: 11, letterSpacing: 1.8, fontWeight: '800' }, portal: { color: colors.white, fontSize: 21, fontWeight: '800', marginTop: 4 }, year: { color: '#8EB7E8', fontSize: 13 }, logout: { flexDirection: 'row', alignItems: 'center', gap: 6 }, logoutText: { color: '#C8DBF2', fontSize: 13, fontWeight: '700' }, content: { padding: 20, paddingBottom: 28 }, greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }, eyebrow: { color: colors.blue, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 }, title: { color: colors.ink, fontSize: 24, fontWeight: '900', marginTop: 6 }, subtle: { color: colors.muted, fontSize: 12, marginTop: 4 }, avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#DCEBFB', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: colors.blue, fontWeight: '900' }, teacherBanner: { backgroundColor: colors.navy, borderRadius: 12, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 17 }, teacherAvatar: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#2E5D91', alignItems: 'center', justifyContent: 'center', marginRight: 12 }, teacherAvatarText: { color: colors.white, fontWeight: '900' }, teacherName: { color: colors.white, fontSize: 16, fontWeight: '900' }, teacherMeta: { color: '#B8D0EC', fontSize: 11, marginTop: 3 }, metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 }, metric: { width: '48%', minHeight: 139, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 13 }, metricIcon: { width: 38, height: 38, backgroundColor: '#FFFFFF', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 11 }, metricLabel: { color: colors.muted, fontSize: 11, fontWeight: '700' }, metricValue: { color: colors.ink, fontSize: 20, fontWeight: '900', marginTop: 5 }, metricDetail: { color: colors.muted, fontSize: 10, marginTop: 3 }, sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '900', marginBottom: 10, marginTop: 3 }, actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 21 }, actionCard: { width: '48%', minHeight: 147, backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 13 }, actionIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, actionTitle: { color: colors.ink, fontSize: 13, fontWeight: '900' }, actionDetail: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 5, marginBottom: 8 }, panel: { backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 15, marginBottom: 22 }, chartHeader: { flexDirection: 'row', justifyContent: 'space-between' }, chartCaption: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 }, chartValue: { color: colors.ink, fontSize: 24, fontWeight: '900', marginTop: 3 }, chart: { height: 115, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', marginTop: 10 }, chartColumn: { alignItems: 'center', justifyContent: 'flex-end', height: 112 }, chartBar: { width: 18, borderRadius: 5, marginBottom: 7 }, chartLabel: { color: colors.muted, fontSize: 10 }, notice: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.line }, noticeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blue }, noticeMeta: { flexDirection: 'row', gap: 8 }, noticeType: { color: colors.blue, fontSize: 9, fontWeight: '900' }, noticeDate: { color: colors.muted, fontSize: 10 }, noticeTitle: { color: colors.ink, fontSize: 13, fontWeight: '800', marginTop: 4 }, bottomNav: { backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 9, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-around' }, navItem: { alignItems: 'center', width: '25%' }, navLabel: { color: colors.muted, fontSize: 10, fontWeight: '700', marginTop: 4 }, navActive: { color: colors.blue, fontWeight: '900' }, pageTitle: { color: colors.ink, fontSize: 26, fontWeight: '900', marginBottom: 4 }, schedule: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.line }, scheduleTime: { color: colors.blue, fontSize: 12, fontWeight: '900', width: 44 }, scheduleLine: { height: 30, width: 2, backgroundColor: '#BFD8F5' },
+  safe: { flex: 1, backgroundColor: colors.canvas },
+  header: {
+    backgroundColor: colors.navy,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  brand: { color: '#A9C6E8', fontSize: 11, letterSpacing: 1.8, fontWeight: '800' },
+  portal: { color: colors.white, fontSize: 22, fontWeight: '800', marginTop: 4 },
+  year: { color: '#8EB7E8', fontSize: 13, fontWeight: '600' },
+  logout: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoutText: { color: '#C8DBF2', fontSize: 13, fontWeight: '700' },
+  pageHeading: { paddingHorizontal: 20, paddingBottom: 8 },
+  pageTitle: { fontSize: 22, fontWeight: '900', color: colors.ink },
+  content: { padding: 20, paddingBottom: 110 },
+  headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 },
+  greeting: { color: colors.ink, fontSize: 24, fontWeight: '900', lineHeight: 31 },
+  school: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  accountBadge: { alignItems: 'flex-end', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 10, minWidth: 92 },
+  accountName: { color: colors.ink, fontSize: 11, fontWeight: '800' },
+  accountCount: { color: colors.blue, fontSize: 20, fontWeight: '900', marginTop: 4 },
+  studentSelector: { backgroundColor: colors.navy, borderRadius: 13, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 18 },
+  studentAvatar: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#2E5D91', alignItems: 'center', justifyContent: 'center' },
+  studentAvatarText: { color: colors.white, fontSize: 18, fontWeight: '900' },
+  studentLabel: { color: '#B8D0EC', fontSize: 10, fontWeight: '800' },
+  studentName: { color: colors.white, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  studentClass: { color: '#B8D0EC', fontSize: 11, marginTop: 2 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  searchInput: { flex: 1, marginLeft: 8, color: colors.ink, fontSize: 14 },
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  summaryCard: { width: '48%', minHeight: 145, backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 13 },
+  summaryIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  summaryLabel: { color: colors.muted, fontSize: 10, fontWeight: '800' },
+  summaryValue: { color: colors.ink, fontSize: 15, fontWeight: '900', marginTop: 6 },
+  summaryDetail: { color: colors.muted, fontSize: 9, marginTop: 5 },
+  sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900' },
+  seeAll: { color: colors.blue, fontSize: 12, fontWeight: '800' },
+  chip: { color: colors.blue, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
+  moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  moduleCard: { width: '48%', minHeight: 74, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center' },
+  moduleTitle: { color: colors.ink, fontSize: 11, fontWeight: '900', lineHeight: 15, flex: 1 },
+  moduleMeta: { color: colors.muted, fontSize: 10, marginTop: 4 },
+  listCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 18 },
+  chartArea: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
+  yAxis: { width: 26, justifyContent: 'space-between', height: 150, paddingBottom: 26 },
+  axisLabel: { color: colors.muted, fontSize: 10, textAlign: 'right' },
+  chartColumnsWrap: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 170, paddingLeft: 10 },
+  chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 2 },
+  chartBarWrap: { width: 26, height: 120, justifyContent: 'flex-end', alignItems: 'center', borderRadius: 10, backgroundColor: colors.canvas, overflow: 'hidden' },
+  chartBar: { width: '100%', borderRadius: 10, minHeight: 18 },
+  chartValue: { color: colors.muted, fontSize: 10, marginTop: 8, marginBottom: 6 },
+  chartDay: { color: colors.ink, fontWeight: '700', fontSize: 11 },
+  noticeLiveWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  noticeLiveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red },
+  noticeLiveText: { color: colors.red, fontWeight: '800', fontSize: 10 },
+  noticeRow: { paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.line },
+  noticeType: { color: colors.orange, fontSize: 10, fontWeight: '900', marginBottom: 4 },
+  noticeDate: { color: colors.muted, fontSize: 11, marginBottom: 6 },
+  noticeTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' },
+  noticeDescription: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  actionCard: { width: '48%', minHeight: 146, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 13 },
+  actionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
+  actionTitle: { color: colors.ink, fontSize: 13, fontWeight: '900', marginBottom: 5 },
+  actionDetail: { color: colors.muted, fontSize: 11, lineHeight: 16, flex: 1, marginBottom: 8 },
+  bottomNav: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 9,
+    paddingBottom: 10,
+    minHeight: 74,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 8,
+  },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7 },
+  navItemActive: { backgroundColor: colors.paleBlue },
+  navLabel: { color: colors.muted, fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center' },
+  navLabelActive: { color: colors.blue, fontWeight: '800' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 31, 0.35)', justifyContent: 'flex-end' },
+  moreSheet: { backgroundColor: colors.white, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 28 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  moreItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 12, marginTop: 8 },
+  moreItemActive: { backgroundColor: colors.paleBlue, borderColor: colors.blue },
+  moreItemIconWrap: { width: 32, height: 32, borderRadius: 9, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center' },
+  moreItemCopy: { flex: 1 },
+  moreItemTitle: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  moreItemTextActive: { color: colors.blue },
+  moreItemDescription: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  loadingState: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
+  loadingText: { color: colors.muted, fontSize: 12 },
+  errorText: { color: colors.red, backgroundColor: '#FDECEC', borderRadius: 10, padding: 14, marginHorizontal: 20, marginBottom: 16, textAlign: 'center' },
+  emptyState: { backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 24, alignItems: 'center', marginHorizontal: 20, marginTop: 16, marginBottom: 100 },
+  emptyIconWrap: { width: 52, height: 52, borderRadius: 15, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '900', marginBottom: 8 },
+  emptySubtitle: { color: colors.muted, fontSize: 12, textAlign: 'center', marginBottom: 18 },
+  primaryButton: { backgroundColor: colors.blue, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 },
+  primaryButtonText: { color: colors.white, fontWeight: '800', fontSize: 13 },
+  pressed: { opacity: 0.7 },
 });
+
+export { primaryNavItems, moreNavItems };

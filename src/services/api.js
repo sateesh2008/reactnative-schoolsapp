@@ -19,7 +19,7 @@ const errorMessageForStatus = (status) => {
   return 'The request could not be completed. Please try again.';
 };
 
-export async function apiRequest(path, { method = 'GET', token, query, body, signal } = {}) {
+export async function apiRequest(path, { method = 'GET', token, query, body, signal, headers: extraHeaders } = {}) {
   if (!API_BASE_URL) {
     return null;
   }
@@ -36,6 +36,7 @@ export async function apiRequest(path, { method = 'GET', token, query, body, sig
       signal,
       headers: {
         Accept: 'application/json',
+        ...(extraHeaders || {}),
         ...(body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },

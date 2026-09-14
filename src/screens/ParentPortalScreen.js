@@ -96,14 +96,14 @@ const parentStudents = [
 ];
 
 const additionalModules = [
-  { title: 'Timetable', icon: 'time-outline', tab: 'Timetable' },
-  { title: 'Student Profile', icon: 'person-circle-outline', tab: 'Student Profile' },
-  { title: 'Exams & Results', icon: 'ribbon-outline', tab: 'Exams' },
-  { title: 'Transport', icon: 'bus-outline', tab: 'Transport' },
-  { title: 'Messaging / Notifications', icon: 'megaphone-outline', tab: 'Messaging / Notifications' },
-  { title: 'Events', icon: 'school-outline', tab: 'Events' },
-  { title: 'Leave', icon: 'create-outline', tab: 'Leave' },
-  { title: 'Documents', icon: 'document-text-outline', tab: 'Documents' },
+  { title: 'Timetable', icon: 'time-outline', tab: 'Timetable', tint: '#E5F4F0', accent: '#168A7C' },
+  { title: 'Student Profile', icon: 'person-circle-outline', tab: 'Student Profile', tint: '#EAF0FB', accent: '#5274B8' },
+  { title: 'Exams & Results', icon: 'ribbon-outline', tab: 'Exams', tint: '#FFF1DF', accent: '#D9822B' },
+  { title: 'Transport', icon: 'bus-outline', tab: 'Transport', tint: '#FDECEC', accent: '#C65353' },
+  { title: 'Messaging / Notifications', icon: 'megaphone-outline', tab: 'Messaging / Notifications', tint: '#F2ECFB', accent: '#7A5AA6' },
+  { title: 'Events', icon: 'school-outline', tab: 'Events', tint: '#EAF5FB', accent: '#3284A8' },
+  { title: 'Leave', icon: 'create-outline', tab: 'Leave', tint: '#FFF6D9', accent: '#B8861B' },
+  { title: 'Documents', icon: 'document-text-outline', tab: 'Documents', tint: '#F0EDF8', accent: '#6C63A8' },
 ];
 
 function getGreeting() {
@@ -118,7 +118,7 @@ function DashboardCard({ icon, label, value, detail, tint, iconColor, onPress })
 }
 
 function ModuleCard({ module, onPress }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [dashboardStyles.moduleCard, pressed && styles.pressed]}><View style={dashboardStyles.moduleIcon}><Icon name={module.icon} size={21} color={colors.blue} /></View><Text style={dashboardStyles.moduleTitle}>{module.title}</Text><Icon name="arrow-forward" size={15} color={colors.blue} /></Pressable>;
+  return <Pressable onPress={onPress} style={({ pressed }) => [dashboardStyles.moduleCard, { backgroundColor: module.tint, borderColor: module.accent, borderLeftColor: module.accent }, pressed && styles.pressed]}><View style={dashboardStyles.moduleIcon}><Icon name={module.icon} size={21} color={module.accent} /></View><Text style={dashboardStyles.moduleTitle}>{module.title}</Text><Icon name="arrow-forward" size={15} color={module.accent} /></Pressable>;
 }
 
 function StudentCard({ student, selected, onPress }) {
@@ -419,8 +419,8 @@ const dashboardStyles = StyleSheet.create({
   summaryValue: { color: colors.ink, fontSize: 15, fontWeight: '900', marginTop: 6 },
   summaryDetail: { color: colors.muted, fontSize: 9, marginTop: 5 },
   moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  moduleCard: { width: '48%', minHeight: 74, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 10 },
-  moduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
+  moduleCard: { width: '48%', minHeight: 74, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderRadius: 11, padding: 10 },
+  moduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255, 255, 255, 0.62)', alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
   moduleTitle: { color: colors.ink, fontSize: 11, fontWeight: '900', lineHeight: 15, paddingRight: 2 },
   listCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 13, marginBottom: 18 },
   classRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.line },

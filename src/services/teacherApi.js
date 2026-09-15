@@ -6,7 +6,12 @@ import {
   teacherNotices,
   teacherProfile,
   teacherShortcuts,
+  teacherHomeworkMock,
 } from './teacherMock';
+
+let localHomework = teacherHomeworkMock.map((assignment) => ({ ...assignment }));
+let localSubmissions = {};
+let localLeaveRequests = [];
 
 export const teacherApi = {
   async getDashboard(session) {
@@ -38,9 +43,57 @@ export const teacherApi = {
   },
 
   async getHomework(session) {
-    if (!isApiConfigured) return [];
+    if (!isApiConfigured) return localHomework.map((assignment) => ({ ...assignment }));
     const payload = await apiRequest('/api/teacher/homework', { token: session?.token });
     return payload?.data || payload?.homework || [];
+  },
+
+  async createHomework(input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest('/api/homework', { method: 'POST', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+    const selectedClasses = input.assignedClasses?.length ? input.assignedClasses : [{ id: input.classId || 'class-1', label: `${input.className || 'Class_1'}-${input.section || 'A'}`, className: input.className || 'Class_1', section: input.section || 'A' }];
+    const assignments = selectedClasses.map((selectedClass, index) => ({ ...input, id: `homework-${Date.now()}-${index}`, classId: selectedClass.id, className: selectedClass.className, section: selectedClass.section, teacher: input.teacher || teacherProfile.name }));
+    localHomework = [...assignments, ...localHomework];
+    return assignments.length === 1 ? { ...assignments[0] } : { assignments };
+  },
+
+  async getHomeworkSubmissions(homeworkId, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/api/homework/${homeworkId}/submissions`, { token: session?.token });
+      return payload?.data || payload?.submissions || [];
+    }
+    if (!localSubmissions[homeworkId]) {
+      const assignment = localHomework.find((item) => item.id === homeworkId);
+      localSubmissions[homeworkId] = assignment ? [
+        { id: `${homeworkId}-student-1`, studentName: 'Aarav Sharma', className: assignment.className || assignment.class, section: assignment.section || 'A', rollNumber: '01', submissionStatus: 'Submitted', evaluationStatus: 'Pending Evaluation', submittedDate: assignment.dueDate, submissionDetails: 'Homework submission received.' },
+        { id: `${homeworkId}-student-2`, studentName: 'Diya Nair', className: assignment.className || assignment.class, section: assignment.section || 'A', rollNumber: '02', submissionStatus: 'Not Submitted', evaluationStatus: 'Not Submitted' },
+      ] : [];
+    }
+    return localSubmissions[homeworkId].map((submission) => ({ ...submission }));
+  },
+
+  async saveHomeworkEvaluation(homeworkId, submissionId, input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/api/homework/${homeworkId}/submissions/${submissionId}/evaluation`, { method: 'PUT', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+    const submissions = localSubmissions[homeworkId] || [];
+    const submission = submissions.find((item) => item.id === submissionId);
+    if (!submission) throw new Error('The selected submission is no longer available.');
+    Object.assign(submission, input, { evaluationStatus: 'Evaluated' });
+    return { ...submission };
+  },
+
+  async createLeaveRequest(input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest('/api/teacher/leave', { method: 'POST', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+    const request = { ...input, id: `leave-request-${Date.now()}` };
+    localLeaveRequests = [request, ...localLeaveRequests];
+    return { ...request };
   },
 
   async getExams(session) {

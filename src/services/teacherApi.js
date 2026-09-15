@@ -11,6 +11,7 @@ import {
 
 let localHomework = teacherHomeworkMock.map((assignment) => ({ ...assignment }));
 let localSubmissions = {};
+let localLeaveRequests = [];
 
 export const teacherApi = {
   async getDashboard(session) {
@@ -83,6 +84,16 @@ export const teacherApi = {
     if (!submission) throw new Error('The selected submission is no longer available.');
     Object.assign(submission, input, { evaluationStatus: 'Evaluated' });
     return { ...submission };
+  },
+
+  async createLeaveRequest(input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest('/api/teacher/leave', { method: 'POST', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+    const request = { ...input, id: `leave-request-${Date.now()}` };
+    localLeaveRequests = [request, ...localLeaveRequests];
+    return { ...request };
   },
 
   async getExams(session) {

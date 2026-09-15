@@ -19,6 +19,7 @@ import TeacherAttendanceScreen from './TeacherAttendanceScreen';
 import TeacherGatePassScreen from './TeacherGatePassScreen';
 import TeacherHomeworkScreen from './TeacherHomeworkScreen';
 import TeacherHomeworkEvaluationScreen from './TeacherHomeworkEvaluationScreen';
+import TeacherLeaveManagementScreen from './TeacherLeaveManagementScreen';
 
 const colors = {
   ink: '#17343B',
@@ -404,7 +405,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === 'Leave') {
-      return <ModulePlaceholder title="Leave" icon="document-text-outline" description="Teacher leave requests and approval history are managed here." />;
+      return <TeacherLeaveManagementScreen session={session} />;
     }
 
     if (activeModule === 'Messaging') {

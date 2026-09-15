@@ -105,3 +105,15 @@ export const teacherAttendanceMock = {
   sections: ['A', 'B'],
   subjects: ['Mathematics', 'English', 'Science'],
 };
+
+export const teacherHomeworkMock = [
+  { id: 'hw-1', className: 'Class_1', section: 'B', subject: 'English', title: 'test 1', teacher: 'sudarsan kumar', assignedDate: '2026-09-01', dueDate: '2026-09-06', academicYear: '2026-2027' },
+  { id: 'hw-2', className: 'Class_1', section: 'B', subject: 'Telugu', title: 'Reading Lesss1', teacher: 'sudarsan kumar', assignedDate: '2026-08-15', dueDate: '2026-08-20', academicYear: '2026-2027' },
+  { id: 'hw-3', className: 'Class_1', section: 'A', subject: 'Telugu', title: 'Reading Lesss1', teacher: 'sudarsan kumar', assignedDate: '2026-08-15', dueDate: '2026-08-20', academicYear: '2026-2027' },
+  { id: 'hw-4', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-07', academicYear: '2026-2027' },
+  { id: 'hw-5', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-08', academicYear: '2026-2027' },
+  { id: 'hw-6', className: 'Class_1', section: 'A', subject: 'English', title: 'Grammer', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-06', academicYear: '2026-2027' },
+  { id: 'hw-7', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-09', academicYear: '2026-2027' },
+  { id: 'hw-8', className: 'Class_1', section: 'A', subject: 'English', title: 'Ready', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-06', academicYear: '2026-2027' },
+  { id: 'hw-9', className: 'Class_1', section: 'A', subject: 'Hindi', title: 'eucliridan therore', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-03', academicYear: '2026-2027' },
+];

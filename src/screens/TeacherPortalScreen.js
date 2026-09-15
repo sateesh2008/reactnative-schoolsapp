@@ -16,6 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { teacherApi } from '../services/teacherApi';
 import { teacherDashboardMock } from '../services/teacherMock';
 import TeacherAttendanceScreen from './TeacherAttendanceScreen';
+import TeacherGatePassScreen from './TeacherGatePassScreen';
+import TeacherHomeworkScreen from './TeacherHomeworkScreen';
+import TeacherHomeworkEvaluationScreen from './TeacherHomeworkEvaluationScreen';
 
 const colors = {
   ink: '#17343B',
@@ -331,6 +334,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -384,7 +388,11 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === 'Homework') {
-      return <ModulePlaceholder title="Homework" icon="book-outline" description="Create and review assignments for the teacher’s active class schedule." />;
+      return <TeacherHomeworkScreen session={session} />;
+    }
+
+    if (activeModule === 'Homework Evaluation') {
+      return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
     if (activeModule === 'Exams / Marks') {
@@ -412,7 +420,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === 'Gate Pass') {
-      return <ModulePlaceholder title="Gate Pass" icon="log-out-outline" description="Gate pass issuance and approval for staff and visitors can be managed here." />;
+      return <TeacherGatePassScreen session={session} />;
     }
 
     if (activeModule === 'OMR System') {
@@ -437,19 +445,33 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         </Pressable>
       </View>
 
-      {activeModule !== 'Home' && activeModule !== 'Attendance' ? <View style={styles.pageHeading}><Text style={styles.pageTitle}>{activeModule}</Text></View> : null}
+      {activeModule !== 'Home' && activeModule !== 'Attendance' && activeModule !== 'Homework Evaluation' ? <View style={styles.pageHeading}><Text style={styles.pageTitle}>{activeModule}</Text></View> : null}
 
       {renderModuleView()}
 
       <View style={styles.bottomNav}>
         {primaryNavItems.map((item) => {
           const module = item.module || item.label;
-          const isActive = item.label === 'More' ? moreNavItems.includes(activeModule) : activeModule === module;
+          const isActive = item.label === 'More'
+            ? moreNavItems.includes(activeModule)
+            : item.label === 'Homework'
+              ? activeModule === 'Homework' || activeModule === 'Homework Evaluation' || homeworkMenuOpen
+              : activeModule === module;
 
           return (
             <Pressable
               key={item.label}
-              onPress={() => item.label === 'More' ? setMoreOpen(true) : setActiveModule(module)}
+              onPress={() => {
+                if (item.label === 'More') {
+                  setMoreOpen(true);
+                  return;
+                }
+                if (item.label === 'Homework') {
+                  setHomeworkMenuOpen((value) => !value);
+                  return;
+                }
+                setActiveModule(module);
+              }}
               style={({ pressed }) => [styles.navItem, isActive && styles.navItemActive, pressed && styles.pressed]}
             >
               <Icon name={item.icon} size={21} color={isActive ? colors.blue : colors.muted} />
@@ -458,6 +480,37 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           );
         })}
       </View>
+
+      <Modal transparent visible={homeworkMenuOpen} animationType="slide" onRequestClose={() => setHomeworkMenuOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setHomeworkMenuOpen(false)}>
+          <View style={styles.moreSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Homework</Text>
+              <Pressable onPress={() => setHomeworkMenuOpen(false)}><Icon name="close" size={22} color={colors.ink} /></Pressable>
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.moreItem, activeModule === 'Homework' && styles.moreItemActive, pressed && styles.pressed]}
+              onPress={() => { setHomeworkMenuOpen(false); setActiveModule('Homework'); }}
+            >
+              <View style={styles.moreItemIconWrap}><Icon name="add-circle-outline" size={18} color={colors.blue} /></View>
+              <View style={styles.moreItemCopy}>
+                <Text style={styles.moreItemTitle}>Add Homework</Text>
+                <Text style={styles.moreItemDescription}>Create and manage assignments</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.moreItem, activeModule === 'Homework Evaluation' && styles.moreItemActive, pressed && styles.pressed]}
+              onPress={() => { setHomeworkMenuOpen(false); setActiveModule('Homework Evaluation'); }}
+            >
+              <View style={styles.moreItemIconWrap}><Icon name="checkmark-done-outline" size={18} color={colors.blue} /></View>
+              <View style={styles.moreItemCopy}>
+                <Text style={styles.moreItemTitle}>Homework Evaluation</Text>
+                <Text style={styles.moreItemDescription}>Review student submissions</Text>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal transparent visible={moreOpen} animationType="slide" onRequestClose={() => setMoreOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setMoreOpen(false)}>

@@ -13,16 +13,21 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { attendanceApi } from "../services/attendanceApi";
 import { feesApi } from "../services/feesApi";
+import { attendanceApi } from "../services/attendanceApi";
+import { examsApi } from "../services/examsApi";
 import { homeworkApi } from "../services/homeworkApi";
 import { timetableApi } from "../services/timetableApi";
+import { parentApi } from "../services/parentApi";
 import ParentAdditionalModuleScreen from "./ParentAdditionalModuleScreen";
+import ParentAnnouncementsScreen from "./ParentAnnouncementsScreen";
 import ParentAttendanceScreen from "./ParentAttendanceScreen";
 import ParentExamsScreen from "./ParentExamsScreen";
 import ParentFeesScreen from "./ParentFeesScreen";
 import ParentHomeworkScreen from "./ParentHomeworkScreen";
+import ParentLeaveScreen from "./ParentLeaveScreen";
 import ParentTimetableScreen from "./ParentTimetableScreen";
+import ParentTransportScreen from "./ParentTransportScreen";
 
 const colors = {
   ink: "#17343B",
@@ -40,6 +45,9 @@ const colors = {
   red: "#C65353",
 };
 
+const notices = [];
+const attendanceSeed = [];
+
 const navItems = [
   { label: "Home", icon: "home-outline" },
   { label: "Attendance", icon: "calendar-outline" },
@@ -47,59 +55,6 @@ const navItems = [
   { label: "Homework", icon: "book-outline" },
   { label: "Exams", icon: "ribbon-outline" },
   { label: "Timetable", icon: "time-outline" },
-];
-
-const notices = [
-  {
-    type: "Finance",
-    date: "9 Sep 2026",
-    title: "Fees outstanding: ₹1,80,186",
-    color: colors.red,
-  },
-  {
-    type: "Compliance",
-    date: "9 Sep 2026",
-    title: "Attendance alert: 65%",
-    color: colors.orange,
-  },
-  {
-    type: "General",
-    date: "17 Jul 2026",
-    title: "Sankranthi",
-    color: colors.blue,
-  },
-  { type: "Holiday", date: "19 May 2026", title: "Ugadi", color: colors.teal },
-  {
-    type: "General",
-    date: "13 Apr 2026",
-    title: "Annual Exam",
-    color: colors.blue,
-  },
-  {
-    type: "General",
-    date: "10 Apr 2026",
-    title: "Annual Day Celebrations",
-    color: colors.blue,
-  },
-];
-
-const schedule = [
-  ["08:30", "Mathematics", "Room 204"],
-  ["09:20", "English", "Room 204"],
-  ["10:10", "Science", "Lab 1"],
-  ["11:30", "Hindi", "Room 204"],
-  ["12:20", "Art & Craft", "Art Studio"],
-];
-
-const attendanceSeed = [
-  { id: 1, roll: "01", name: "Aarav Sharma", status: "Present" },
-  { id: 2, roll: "02", name: "Diya Nair", status: "Present" },
-  { id: 3, roll: "03", name: "Kabir Singh", status: "Late" },
-  { id: 4, roll: "04", name: "Meera Iyer", status: "Unmarked" },
-  { id: 5, roll: "05", name: "Rohan Das", status: "Absent" },
-  { id: 6, roll: "06", name: "Sana Khan", status: "Unmarked" },
-  { id: 7, roll: "07", name: "Vihaan Patel", status: "Present" },
-  { id: 8, roll: "08", name: "Zoya Ali", status: "Present" },
 ];
 
 function Icon({ name, size = 20, color = colors.ink }) {
@@ -118,17 +73,6 @@ function SectionTitle({ title, action, onAction }) {
     </View>
   );
 }
-
-const parentStudents = [
-  {
-    id: "student-1",
-    initial: "j",
-    name: "joshii",
-    className: "Class_1",
-    section: "A",
-  },
-  { id: "student-2", initial: "A", name: "Aarav", className: "Class_1" },
-];
 
 const additionalModules = [
   {
@@ -276,6 +220,7 @@ function HomeContent({
   goTo,
   dashboard,
   selectedStudent,
+  students,
   onSelectStudent,
   onRefresh,
 }) {
@@ -296,7 +241,7 @@ function HomeContent({
       </View>
       <Text style={dashboardStyles.studentsLabel}>STUDENT:</Text>
       <View style={dashboardStyles.studentList}>
-        {parentStudents.map((student) => (
+        {students.map((student) => (
           <StudentCard
             key={student.id}
             student={student}
@@ -309,15 +254,16 @@ function HomeContent({
         <View style={dashboardStyles.state}>
           <Text style={dashboardStyles.stateText}>Loading dashboard...</Text>
         </View>
-      ) : dashboard.error ? (
-        <View style={dashboardStyles.error}>
-          <Text style={dashboardStyles.errorText}>{dashboard.error}</Text>
-          <Pressable onPress={onRefresh}>
-            <Text style={dashboardStyles.retry}>Retry</Text>
-          </Pressable>
-        </View>
       ) : (
         <>
+          {dashboard.error ? (
+            <View style={dashboardStyles.error}>
+              <Text style={dashboardStyles.errorText}>{dashboard.error}</Text>
+              <Pressable onPress={onRefresh}>
+                <Text style={dashboardStyles.retry}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <View style={dashboardStyles.summaryGrid}>
             <DashboardCard
               icon="pie-chart-outline"
@@ -426,6 +372,7 @@ function DetailContent({
   session,
   onSessionExpired,
   selectedStudentId,
+  selectedStudent,
 }) {
   if (section === "Attendance")
     return (
@@ -470,22 +417,44 @@ function DetailContent({
         onBackHome={() => goTo("Home")}
       />
     );
+  if (section === "Messaging / Notifications")
+    return (
+      <ParentAnnouncementsScreen
+        session={session}
+        selectedStudentId={selectedStudentId}
+        onSessionExpired={onSessionExpired}
+        onBackHome={() => goTo("Home")}
+      />
+    );
+  if (section === "Leave")
+    return (
+      <ParentLeaveScreen
+        session={session}
+        selectedStudentId={selectedStudentId}
+        onSessionExpired={onSessionExpired}
+        onBackHome={() => goTo("Home")}
+      />
+    );
+  if (section === "Transport")
+    return (
+      <ParentTransportScreen
+        session={session}
+        selectedStudentId={selectedStudentId}
+        onSessionExpired={onSessionExpired}
+        onBackHome={() => goTo("Home")}
+      />
+    );
   if (
     [
       "Student Profile",
-      "Transport",
-      "Messaging / Notifications",
       "Events",
-      "Leave",
       "Documents",
     ].includes(section)
   )
     return (
       <ParentAdditionalModuleScreen
         title={section}
-        selectedStudent={parentStudents.find(
-          (student) => student.id === selectedStudentId,
-        )}
+        selectedStudent={selectedStudent}
         onBack={() => goTo("Home")}
       />
     );
@@ -769,7 +738,7 @@ function NoticesContent() {
   return (
     <>
       <View style={styles.filterRow}>
-        <Text style={styles.subtle}>6 updates from Demo School</Text>
+        <Text style={styles.subtle}>No notifications available</Text>
         <View style={styles.filterChip}>
           <Text style={styles.filterText}>
             All notices{" "}
@@ -786,8 +755,10 @@ function NoticesContent() {
   );
 }
 
-function ProfileModal({ visible, onClose }) {
-  const [name, setName] = useState("joshi");
+function ProfileModal({ visible, onClose, session }) {
+  const [name, setName] = useState(
+    session?.name || session?.email?.split("@")[0] || "",
+  );
   return (
     <Modal
       visible={visible}
@@ -807,7 +778,7 @@ function ProfileModal({ visible, onClose }) {
           <TextInput value={name} onChangeText={setName} style={styles.input} />
           <Text style={styles.inputLabel}>Email address</Text>
           <TextInput
-            value="joshi.parent@demoschool.in"
+            value={session?.email || ""}
             editable={false}
             style={[styles.input, styles.disabledInput]}
           />
@@ -828,9 +799,8 @@ function ProfileModal({ visible, onClose }) {
 
 export default function ParentPortalScreen({ onLogout, session }) {
   const [activeTab, setActiveTab] = useState("Home");
-  const [selectedStudentId, setSelectedStudentId] = useState(
-    parentStudents[0]?.id || "",
-  );
+  const [students, setStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const [dashboard, setDashboard] = useState({
     loading: true,
     error: "",
@@ -838,13 +808,13 @@ export default function ParentPortalScreen({ onLogout, session }) {
     fees: "₹0",
     homeworkDetail: "No data available",
     classes: [],
-    schoolName: "School information unavailable",
-    studentCount: parentStudents.length,
+    schoolName: session?.schoolName || "",
+    studentCount: students.length,
   });
   const [profileOpen, setProfileOpen] = useState(false);
   const isHome = activeTab === "Home";
   const handleLogout = () => {
-    Alert.alert("Signed out", "Demo sign out complete.", [
+    Alert.alert("Signed out", "Your session has ended.", [
       { text: "OK", onPress: onLogout },
     ]);
   };
@@ -852,23 +822,42 @@ export default function ParentPortalScreen({ onLogout, session }) {
   const loadDashboard = async () => {
     setDashboard((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const [attendance, fees, homework, timetable] = await Promise.all([
-        attendanceApi.getSummary("2026-09-11", session),
-        feesApi.getSummary(session),
-        homeworkApi.getAssignments(session),
-        timetableApi.getWeeklySchedule(session),
+      const children = await parentApi.getChildren(session);
+      const nextStudents = children.map((student) => ({
+        ...student,
+        initial: (student.first_name || student.name || "?").charAt(0).toUpperCase(),
+        name: [student.first_name, student.last_name].filter(Boolean).join(" ") || student.name || "Student",
+        className: student.class_name || student.className || "",
+        section: student.division_name || student.section || "",
+      }));
+      setStudents(nextStudents);
+      const activeStudentId = selectedStudentId || String(nextStudents[0]?.id || "");
+      if (!activeStudentId) {
+        setDashboard((current) => ({ ...current, loading: false, studentCount: 0 }));
+        return;
+      }
+      if (String(activeStudentId) !== String(selectedStudentId)) {
+        setSelectedStudentId(activeStudentId);
+      }
+
+      const results = await Promise.allSettled([
+        feesApi.getSummary(session, activeStudentId),
+        attendanceApi.getSummary("2026-09-11", session, activeStudentId),
+        homeworkApi.getAssignments(session, activeStudentId),
+        examsApi.getResults(session, activeStudentId),
       ]);
-      const dayKey = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
-        new Date().getDay()
-      ];
-      const daySessions = timetable?.[dayKey] || [];
-      const classes = daySessions
-        .filter((item) => item.subject)
-        .map((item) => [
-          `${item.startTime || ""}${item.endTime ? ` - ${item.endTime}` : ""}`,
-          item.subject,
-          [item.teacher, item.room].filter(Boolean).join(" · "),
-        ]);
+      const [feesResult, attendanceResult, homeworkResult, examsResult] = results;
+      const failedServices = results
+        .map((result, index) => (
+          result.status === "rejected"
+            ? `${["fees", "attendance", "homework", "exams"][index]}: ${result.reason?.message || "request failed"}`
+            : null
+        ))
+        .filter(Boolean);
+      const fees = feesResult.status === "fulfilled" ? feesResult.value : null;
+      const attendance = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
+      const homework = homeworkResult.status === "fulfilled" ? homeworkResult.value : [];
+      const exams = examsResult.status === "fulfilled" ? examsResult.value : [];
       setDashboard({
         loading: false,
         error: "",
@@ -877,15 +866,19 @@ export default function ParentPortalScreen({ onLogout, session }) {
         homeworkDetail: homework?.length
           ? `${homework.length} available`
           : "No data available",
-        classes,
-        schoolName: "School information unavailable",
-        studentCount: parentStudents.length,
+        classes: [],
+        schoolName: session?.schoolName || "",
+        studentCount: nextStudents.length,
+        examCount: exams.length,
+        error: failedServices.length
+          ? `Some services are unavailable: ${failedServices.join(", ")}.`
+          : "",
       });
-    } catch {
+    } catch (error) {
       setDashboard((current) => ({
         ...current,
         loading: false,
-        error: "Unable to load dashboard data. Please try again.",
+        error: error?.message || "Unable to load dashboard data. Please try again.",
       }));
     }
   };
@@ -894,10 +887,10 @@ export default function ParentPortalScreen({ onLogout, session }) {
     loadDashboard();
   }, [session, selectedStudentId]);
 
-  const selectedStudent = parentStudents.find(
-    (student) => student.id === selectedStudentId,
+  const selectedStudent = students.find(
+    (student) => String(student.id) === String(selectedStudentId),
   ) ||
-    parentStudents[0] || {
+    students[0] || {
       id: "",
       initial: "?",
       name: "Student",
@@ -908,7 +901,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
       <View style={styles.header}>
         <View>
-          <Text style={styles.brand}>DEMO SCHOOL</Text>
+          <Text style={styles.brand}>{session?.schoolName || ""}</Text>
           <Text style={styles.portal}>
             Parent portal <Text style={styles.year}>2026–27</Text>
           </Text>
@@ -934,6 +927,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
             goTo={setActiveTab}
             dashboard={dashboard}
             selectedStudent={selectedStudent}
+            students={students}
             onSelectStudent={setSelectedStudentId}
             onRefresh={loadDashboard}
           />
@@ -953,6 +947,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
               goTo={setActiveTab}
               session={session}
               selectedStudentId={selectedStudentId}
+              selectedStudent={selectedStudent}
               onSessionExpired={onLogout}
             />
           </>
@@ -988,6 +983,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
       <ProfileModal
         visible={profileOpen}
         onClose={() => setProfileOpen(false)}
+        session={session}
       />
     </SafeAreaView>
   );

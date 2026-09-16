@@ -126,7 +126,11 @@ function HomeworkCard({ assignment, index }) {
   );
 }
 
-export default function ParentHomeworkScreen({ session, onSessionExpired }) {
+export default function ParentHomeworkScreen({
+  session,
+  selectedStudentId,
+  onSessionExpired,
+}) {
   const [assignments, setAssignments] = useState([]);
   const [filter, setFilter] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -136,7 +140,7 @@ export default function ParentHomeworkScreen({ session, onSessionExpired }) {
     setLoading(true);
     setError("");
     return homeworkApi
-      .getAssignments(session)
+      .getAssignments(session, selectedStudentId)
       .then(setAssignments)
       .catch((requestError) => {
         setError(
@@ -151,7 +155,7 @@ export default function ParentHomeworkScreen({ session, onSessionExpired }) {
 
   useEffect(() => {
     loadAssignments();
-  }, [session, onSessionExpired]);
+  }, [session, selectedStudentId, onSessionExpired]);
 
   const visibleAssignments = useMemo(
     () =>

@@ -95,6 +95,7 @@ function SessionCard({ session, index }) {
 
 export default function ParentTimetableScreen({
   session,
+  selectedStudentId,
   onSessionExpired,
   onBackHome,
 }) {
@@ -107,7 +108,9 @@ export default function ParentTimetableScreen({
     setLoading(true);
     setError("");
     try {
-      setTimetable(await timetableApi.getWeeklySchedule(session));
+      setTimetable(
+        await timetableApi.getWeeklySchedule(session, selectedStudentId),
+      );
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
@@ -122,7 +125,7 @@ export default function ParentTimetableScreen({
 
   useEffect(() => {
     loadTimetable();
-  }, []);
+  }, [session, selectedStudentId]);
   const sessions = timetable[selectedDay] || [];
 
   return (

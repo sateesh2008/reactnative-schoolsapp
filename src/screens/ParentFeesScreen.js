@@ -189,7 +189,7 @@ function ReceiptTransaction({ receipt, index }) {
   );
 }
 
-export default function ParentFeesScreen({ session, onSessionExpired }) {
+export default function ParentFeesScreen({ session, selectedStudentId, onSessionExpired }) {
   const [summary, setSummary] = useState({});
   const [pendingFees, setPendingFees] = useState([]);
   const [transactionHistory, setTransactionHistory] = useState([]);
@@ -200,12 +200,11 @@ export default function ParentFeesScreen({ session, onSessionExpired }) {
     setLoading(true);
     setError("");
     try {
-      const [nextSummary, nextPendingFees, nextTransactionHistory] =
-        await Promise.all([
-          feesApi.getSummary(session),
-          feesApi.getPendingFees(session),
-          feesApi.getTransactionHistory(session),
-        ]);
+      const nextSummary = await feesApi.getSummary(session, selectedStudentId);
+      const nextPendingFees = nextSummary?.fees || [];
+      const nextTransactionHistory = await feesApi.getTransactionHistory(
+        { ...session, studentId: selectedStudentId },
+      );
       setSummary(nextSummary || {});
       setPendingFees(nextPendingFees || []);
       setTransactionHistory(nextTransactionHistory || []);
@@ -223,7 +222,7 @@ export default function ParentFeesScreen({ session, onSessionExpired }) {
 
   useEffect(() => {
     loadFees();
-  }, []);
+  }, [session, selectedStudentId]);
 
   const payOutstanding = () =>
     Alert.alert(
@@ -330,7 +329,7 @@ export default function ParentFeesScreen({ session, onSessionExpired }) {
       <Pressable style={styles.payButton} onPress={payOutstanding}>
         <Icon name="card-outline" color={colors.white} />
         <Text style={styles.payButtonText}>
-          Pay Outstanding {formatMoney(summary.institutionalDues || 180186)}
+          Pay Outstanding {formatMoney(summary.institutionalDues || 0)}
         </Text>
       </Pressable>
     </View>

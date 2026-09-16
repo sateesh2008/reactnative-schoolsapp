@@ -1,5 +1,4 @@
 import { apiRequest, isApiConfigured } from './api';
-import { parentAttendanceSample, parentAttendanceSampleSummary } from './attendanceMock';
 
 const emptySummary = {
   totalEnrolled: 0,
@@ -10,20 +9,49 @@ const emptySummary = {
   canMarkAttendance: false,
 };
 
-const recordsFrom = (payload) => payload?.records || payload?.data || [];
+const recordsFrom = (payload) => {
+  const records = payload?.data?.records || payload?.records || payload?.data || [];
+  return (Array.isArray(records) ? records : []).map((record) => {
+    const date = record.date || record.attendance_date || record.attendanceDate || '';
+    const status = record.status || record.attendance_status || 'Unmarked';
+    return {
+      ...record,
+      date,
+      day: record.day || (date ? new Date(date).toLocaleDateString('en-US', { weekday: 'long' }) : ''),
+      status: String(status).replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      biometricPunch: record.biometricPunch || record.biometric_punch || record.punch_time || '',
+    };
+  });
+};
+
+const summaryFrom = (summary = {}, records = []) => {
+  const total = Number(summary.total ?? summary.total_days ?? records.length);
+  const present = Number(summary.present ?? summary.days_present ?? records.filter((record) => record.status === 'Present').length);
+  const absent = Number(summary.absent ?? summary.days_absent ?? records.filter((record) => record.status === 'Absent').length);
+  const late = Number(summary.late ?? summary.late_entries ?? records.filter((record) => record.status === 'Late').length);
+  return {
+    ...emptySummary,
+    ...summary,
+    daysPresent: present,
+    daysAbsent: absent,
+    lateEntries: late,
+    attendanceRate: total ? Math.round((present / total) * 100) : 0,
+  };
+};
 
 export const attendanceApi = {
-  async getSummary(date, session) {
-    if (!isApiConfigured) return parentAttendanceSampleSummary;
-    const payload = await apiRequest('/attendance/summary', {
+  async getSummary(date, session, studentId) {
+    if (!isApiConfigured || !studentId) return emptySummary;
+    const dateValue = String(date || '');
+    const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
       token: session?.token,
-      query: { date },
+      query: { month: dateValue.slice(0, 7) },
     });
-    return { ...emptySummary, ...(payload?.summary || payload || {}) };
+    return summaryFrom(payload?.data?.summary || payload?.summary, recordsFrom(payload));
   },
 
   async getByDate(date, search, session) {
-    if (!isApiConfigured) return parentAttendanceSample;
+    if (!isApiConfigured) return [];
     const payload = await apiRequest('/attendance/daily', {
       token: session?.token,
       query: { date, search },
@@ -31,9 +59,9 @@ export const attendanceApi = {
     return recordsFrom(payload);
   },
 
-  async getMonthly(month, session) {
-    if (!isApiConfigured) return parentAttendanceSample;
-    const payload = await apiRequest('/attendance/monthly', {
+  async getMonthly(month, session, studentId) {
+    if (!isApiConfigured || !studentId) return [];
+    const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
       token: session?.token,
       query: { month },
     });

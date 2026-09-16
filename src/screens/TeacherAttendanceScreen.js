@@ -1,21 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, } from 'react-native';
+import TeacherBiometricSuite from '../components/TeacherBiometricSuite';
 import { ApiError } from '../services/api';
 import { teacherAttendanceApi } from '../services/teacherApi';
-import TeacherBiometricSuite from '../components/TeacherBiometricSuite';
 
 const colors = {
   ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF',
@@ -41,8 +30,8 @@ function StatusBadge({ status }) {
   return <View style={[styles.statusBadge, tone[0]]}><Text style={[styles.statusText, tone[1]]}>{status}</Text></View>;
 }
 
-function Metric({ title, value, label }) {
-  return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricTitle}>{title}</Text><Text style={styles.metricMeta}>{label}</Text></View>;
+function Metric({ title, value, label ,backgroundColor }) {
+  return <View style={[styles.metric, { backgroundColor }]}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricTitle}>{title}</Text><Text style={styles.metricMeta}>{label}</Text></View>;
 }
 
 function SelectModal({ visible, value, options, onSelect, onClose }) {
@@ -264,10 +253,10 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         {activeTab === 'Attendance Control' ? <View>
           <View style={styles.cutoff}><Text style={styles.cutoffTitle}>10:30 AM Daily Attendance Cutoff Active</Text><Text style={styles.cutoffLabel}>WhatsApp Absent Alert</Text><Text style={styles.cutoffText}>Any students left unmarked by 10:30 AM on working days are automatically recorded as Absent and WhatsApp alerts are dispatched to parents.</Text><Pressable style={styles.primaryButton} disabled={actionLoading} onPress={runCutoff}>{actionLoading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryText}>Run Cutoff Now</Text>}</Pressable>{cutoffTime ? <Text style={styles.successText}>Cutoff executed at {cutoffTime}. WhatsApp alert simulation completed.</Text> : null}</View>
-          <View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" /></View>
+          <View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" backgroundColor={colors.paleBlue} /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" backgroundColor={colors.paleRed} /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" backgroundColor={colors.paleGreen} /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" backgroundColor={colors.paleRed} /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" backgroundColor={colors.paleOrange} /></View>
           {renderDailyLog()}
         </View> : null}
-        {activeTab === 'Daily Log / Marking' ? <><View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" /></View>{renderDailyLog()}</> : null}
+        {activeTab === 'Daily Log / Marking' ? <><View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" backgroundColor={colors.paleBlue} /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" backgroundColor={colors.paleRed} /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" backgroundColor={colors.paleGreen} /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" backgroundColor={colors.paleRed} /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" backgroundColor={colors.paleOrange} /></View>{renderDailyLog()}</> : null}
         {activeTab === 'Biometric' ? <TeacherBiometricSuite session={session} /> : null}
         {activeTab === 'History Log' ? <View><Text style={styles.sectionTitle}>Attendance History</Text>{history.length ? <><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyDates}>{history.map((entry) => <Pressable key={`${entry.date}-${entry.className}-${entry.subject}`} style={[styles.historyDate, entry.date === historyDate && styles.historyDateActive]} onPress={() => setHistoryDate(entry.date)}><Text style={styles.historyDateText}>{entry.date}</Text></Pressable>)}</ScrollView><View style={styles.historyCard}><Text style={styles.historyTitle}>{selectedHistory?.date || 'No selected record'}</Text>{selectedHistory ? <Text style={styles.historyText}>Class: {selectedHistory.className}  Subject: {selectedHistory.subject}{'\n'}Total students: {selectedHistory.summary?.total ?? selectedHistory.records?.length ?? 0}  Present: {selectedHistory.summary?.present ?? 0}  Absent: {selectedHistory.summary?.absent ?? 0}  Late: {selectedHistory.summary?.late ?? 0}{'\n'}Submission status: Submitted</Text> : null}</View></> : <EmptyState title="No data available" message="No submitted attendance history available." />}</View> : null}
         {activeTab === 'Export' ? <View><Text style={styles.sectionTitle}>Export Attendance</Text><View style={styles.exportCard}><Text style={styles.exportText}>Export the selected date, class, subject, and current attendance statuses as CSV.</Text><Pressable style={styles.primaryButton} onPress={exportCsv}><Icon name="download-outline" size={17} color={colors.white} /><Text style={styles.primaryText}>Export CSV</Text></Pressable></View></View> : null}

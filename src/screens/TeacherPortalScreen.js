@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { teacherApi } from '../services/teacherApi';
 import { teacherDashboardMock } from '../services/teacherMock';
 import TeacherAttendanceScreen from './TeacherAttendanceScreen';
@@ -79,7 +79,19 @@ const legacyQuickActions = [
   ['Grade Exams', 'ribbon-outline', 'Review and grade student submissions', '#FEF3C7'],
   ['My Schedule', 'time-outline', 'View personalized weekly schedule', '#F3E8FF'],
 ];
+const shortcutColors = [
+  colors.paleBlue,
+  colors.paleTeal,
+  colors.paleOrange,
+  colors.softLilac,
+];
 
+const operationColors = [
+  colors.paleOrange,
+  colors.softLilac,
+  colors.paleTeal,
+  colors.paleBlue,
+];
 const defaultDashboard = teacherDashboardMock;
 
 function Icon({ name, size = 20, color = colors.ink }) {
@@ -108,7 +120,7 @@ function SectionTitle({ title, action, onAction }) {
 
 function TeacherStatCard({ icon, label, value, detail, tint, iconColor, onPress }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.summaryCard, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.summaryCard, { backgroundColor: tint }, pressed && styles.pressed]}>
       <View style={[styles.summaryIcon, { backgroundColor: tint }]}>
         <Icon name={icon} size={18} color={iconColor} />
       </View>
@@ -119,9 +131,9 @@ function TeacherStatCard({ icon, label, value, detail, tint, iconColor, onPress 
   );
 }
 
-function DashboardShortcut({ title, icon, onPress }) {
+function DashboardShortcut({ title, icon, onPress , backgroundColor}) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, { backgroundColor }, pressed && styles.pressed]}>
       <View style={styles.moduleIcon}>
         <Icon name={icon} size={21} color={colors.blue} />
       </View>
@@ -131,9 +143,9 @@ function DashboardShortcut({ title, icon, onPress }) {
   );
 }
 
-function TeacherQuickAction({ title, description, icon, onPress }) {
+function TeacherQuickAction({ title, description, icon, onPress, backgroundColor }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.moduleCard, { backgroundColor: backgroundColor }, pressed && styles.pressed]}>
       <View style={styles.moduleIcon}>
         <Icon name={icon} size={21} color={colors.blue} />
       </View>
@@ -295,8 +307,8 @@ function DashboardScreen({ data, onNavigate, onSearch, query }) {
 
       <SectionTitle title="Dashboard Shortcuts" />
       <View style={styles.moduleGrid}>
-        {shortcuts.map((shortcut) => (
-          <DashboardShortcut key={shortcut.title} title={shortcut.title} icon={shortcut.icon} onPress={() => onNavigate(shortcut.target)} />
+        {shortcuts.map((shortcut, index) => (
+          <DashboardShortcut key={shortcut.title} title={shortcut.title} icon={shortcut.icon} backgroundColor={shortcutColors[index % shortcutColors.length]} onPress={() => onNavigate(shortcut.target)} />
         ))}
       </View>
 
@@ -304,8 +316,8 @@ function DashboardScreen({ data, onNavigate, onSearch, query }) {
 
       <SectionTitle title="Instructional Operations" />
       <View style={styles.moduleGrid}>
-        {quickActions.map((action) => (
-          <TeacherQuickAction key={action.title} title={action.title} description={action.description} icon={action.icon} onPress={() => onNavigate(action.target)} />
+        {quickActions.map((action, index) =>(
+          <TeacherQuickAction key={action.title} title={action.title} description={action.description} icon={action.icon} backgroundColor={operationColors[index % operationColors.length]} onPress={() => onNavigate(action.target)} />
         ))}
       </View>
 
@@ -604,7 +616,7 @@ const styles = StyleSheet.create({
   seeAll: { color: colors.blue, fontSize: 12, fontWeight: '800' },
   chip: { color: colors.blue, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
   moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  moduleCard: { width: '48%', minHeight: 74, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moduleCard: { width: '48%', minHeight: 74, borderWidth: 1, borderColor: colors.line, borderRadius: 11, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
   moduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center' },
   moduleTitle: { color: colors.ink, fontSize: 11, fontWeight: '900', lineHeight: 15, flex: 1 },
   moduleMeta: { color: colors.muted, fontSize: 10, marginTop: 4 },
@@ -677,4 +689,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 });
 
-export { primaryNavItems, moreNavItems };
+export { moreNavItems, primaryNavItems };
+

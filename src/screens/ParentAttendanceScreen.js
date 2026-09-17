@@ -132,7 +132,11 @@ function AttendanceLog({ record, index, isFirst, isLast }) {
   );
 }
 
-export default function ParentAttendanceScreen({ session, onSessionExpired }) {
+export default function ParentAttendanceScreen({
+  session,
+  selectedStudentId,
+  onSessionExpired,
+}) {
   const [monthlyRecords, setMonthlyRecords] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
@@ -143,8 +147,8 @@ export default function ParentAttendanceScreen({ session, onSessionExpired }) {
     setError("");
     try {
       const [nextSummary, nextMonthlyRecords] = await Promise.all([
-        attendanceApi.getSummary("2026-09-11", session),
-        attendanceApi.getMonthly("2026-09", session),
+        attendanceApi.getSummary(month, session, selectedStudentId),
+        attendanceApi.getMonthly(month, session, selectedStudentId),
       ]);
       setSummary(nextSummary);
       setMonthlyRecords(nextMonthlyRecords);
@@ -156,9 +160,11 @@ export default function ParentAttendanceScreen({ session, onSessionExpired }) {
     }
   };
 
+  const month = new Date().toISOString().slice(0, 7);
+
   useEffect(() => {
     loadDaily();
-  }, []);
+  }, [session, selectedStudentId, month]);
 
   return (
     <View style={styles.container}>

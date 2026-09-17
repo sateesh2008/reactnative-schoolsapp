@@ -13,12 +13,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const accounts = [
-  { role: 'School Admin', email: 'India2026@gmail.com', password: 'India@2026' },
-  { role: 'Parent', email: 'joshi@gmail.com', password: '9087654321' },
-  { role: 'Teacher', email: 'sudarsan@gmail.com', password: '9876543212' },
-];
+import { isApiConfigured } from '../services/api';
+import { login } from '../services/authApi';
 
 const colors = {
   navy: '#123B43',
@@ -32,39 +28,75 @@ const colors = {
   red: '#C65353',
 };
 
-export default function LoginScreen({ onLogin }) {
+export default function LoginScreen({ onLogin }) 
+{
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    const account = accounts.find(
-      (item) => item.email.toLowerCase() === email.trim().toLowerCase(),
-    );
-
-    if (!account || account.password !== password) {
-      setMessage('Invalid login ID or password.');
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setMessage('Enter your email address and password.');
       return;
     }
 
-    if (account.role === 'School Admin') {
-      setMessage('Admin portal is not included in this demo.');
+    if (!isApiConfigured) {
+      setMessage('The login service is not configured.');
       return;
     }
 
+    setLoading(true);
     setMessage('');
-    onLogin({
-      role: account.role,
-      email: account.email,
-      token: account.token,
-    });
-  };
+    try {
+      const payload = await login(trimmedEmail, password);
+      const result = payload?.data || payload;
+      const user = result?.user || result?.profile || {};
+      const token = result?.token
+        || result?.access_token
+        || result?.accessToken
+        || payload?.token
+        || payload?.access_token
+        || payload?.accessToken;
+      const roleValue = result?.role || user.role || user.user_type || user.userType;
+      const role = String(roleValue || '').toLowerCase();
+      const normalizedRole = role.includes('teacher')
+        ? 'Teacher'
+        : role.includes('parent')
+          ? 'Parent'
+          : role.includes('admin')
+            ? 'School Admin'
+            : '';
 
-  const fillAccount = (account) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setMessage('');
+      if (!normalizedRole) {
+        setMessage('The login response did not include a valid user role.');
+        return;
+      }
+
+      if (normalizedRole === 'School Admin') {
+        setMessage('Admin portal is not included in this demo.');
+        return;
+      }
+
+      if (!token) {
+        setMessage('Login succeeded, but the server did not return an access token.');
+        return;
+      }
+
+      onLogin({
+        role: normalizedRole,
+        email: result?.email || user.email || trimmedEmail,
+        token,
+        name: user.name || user.full_name || user.fullName,
+        schoolName: user.tenant?.name || user.school?.name || user.school_name,
+      });
+    } catch (error) {
+      setMessage(error?.message || 'Unable to sign in. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -133,37 +165,14 @@ export default function LoginScreen({ onLogin }) {
             </Pressable>
             <Pressable
               onPress={handleLogin}
-              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+              disabled={loading}
+              style={({ pressed }) => [styles.button, (pressed || loading) && styles.pressed]}
             >
-              <Text style={styles.buttonText}>Sign in to Account</Text>
-              <Ionicons name="arrow-forward" size={19} color={colors.white} />
+              <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign in to Account'}</Text>
+              {!loading ? <Ionicons name="arrow-forward" size={19} color={colors.white} /> : null}
             </Pressable>
           </View>
 
-          <View style={styles.demoBox}>
-            <View style={styles.demoHeader}>
-              <Ionicons name="information-circle-outline" size={18} color={colors.blue} />
-              <Text style={styles.demoTitle}>Demo Login IDs</Text>
-            </View>
-            <Text style={styles.demoHint}>Tap an account to fill the login form.</Text>
-            {accounts.map((account) => (
-              <Pressable
-                key={account.role}
-                onPress={() => fillAccount(account)}
-                style={styles.accountRow}
-              >
-                <View style={styles.accountText}>
-                  <Text style={styles.accountRole}>{account.role}</Text>
-                  <Text style={styles.accountEmail}>{account.email}</Text>
-                </View>
-                <Ionicons
-                  name="arrow-forward-circle-outline"
-                  size={19}
-                  color={colors.blue}
-                />
-              </Pressable>
-            ))}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -189,12 +198,4 @@ const styles = StyleSheet.create({
   forgotText: { color: colors.blue, fontSize: 11, fontWeight: '900' },
   pressed: { opacity: 0.75 },
   error: { color: colors.red, fontSize: 12, fontWeight: '700', marginTop: -5, marginBottom: 12 },
-  demoBox: { backgroundColor: colors.paleBlue, borderRadius: 12, padding: 15, marginTop: 16 },
-  demoHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  demoTitle: { color: colors.ink, fontSize: 13, fontWeight: '900' },
-  demoHint: { color: colors.muted, fontSize: 11, marginTop: 5, marginBottom: 9 },
-  accountRow: { backgroundColor: colors.white, borderRadius: 9, padding: 11, flexDirection: 'row', alignItems: 'center', marginTop: 7 },
-  accountText: { flex: 1 },
-  accountRole: { color: colors.blue, fontSize: 11, fontWeight: '900' },
-  accountEmail: { color: colors.ink, fontSize: 12, fontWeight: '700', marginTop: 2 },
 });

@@ -145,6 +145,7 @@ function ResultCard({ result, index }) {
 
 export default function ParentExamsScreen({
   session,
+  selectedStudentId,
   onSessionExpired,
   onBackHome,
 }) {
@@ -159,8 +160,8 @@ export default function ParentExamsScreen({
     setError("");
     try {
       const [nextTickets, nextResults] = await Promise.all([
-        examsApi.getHallTickets(session),
-        examsApi.getResults(session),
+        examsApi.getHallTickets(session, selectedStudentId),
+        examsApi.getResults(session, selectedStudentId),
       ]);
       setHallTickets(nextTickets || []);
       setResults(nextResults || []);
@@ -177,13 +178,17 @@ export default function ParentExamsScreen({
 
   useEffect(() => {
     loadExams();
-  }, []);
+  }, [session, selectedStudentId]);
 
   const downloadHallTicket = async (ticket) => {
     setDownloadingId(ticket.id);
     try {
-      const response = await examsApi.downloadHallTicket(ticket.id, session);
-      if (!response?.available)
+      const response = await examsApi.downloadHallTicket(
+        ticket.id,
+        selectedStudentId,
+        session,
+      );
+      if (!response?.available && !response?.url && !response?.download_url)
         Alert.alert(
           "Hall ticket unavailable",
           "Hall ticket download will be available when the examination API is connected.",

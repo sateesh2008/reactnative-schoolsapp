@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { dateKey, gatePassApi } from '../services/gatePassApi';
 import TeacherGatePassForm from './TeacherGatePassForm';
 
@@ -39,7 +39,7 @@ function SelectField({ label, value, placeholder, options, onChange }) {
 
 function ActionButton({ title, icon, onPress, secondary }) { return <Pressable onPress={onPress} style={({ pressed }) => [styles.actionButton, secondary && styles.secondaryButton, pressed && styles.pressed]}><Icon name={icon} size={16} color={secondary ? colors.blue : colors.white} /><Text style={[styles.actionText, secondary && styles.secondaryText]}>{title}</Text></Pressable>; }
 
-function SummaryCard({ label, value, icon, tint, accent }) { const filterKey = summaryFilterKey[label]; const active = activeSummaryCard === filterKey; return <Pressable onPress={() => summaryCardHandler(filterKey)} style={({ pressed }) => [styles.summaryCard, active && { borderColor: colors.blue, borderWidth: 2, backgroundColor: colors.paleBlue, elevation: 3 }, pressed && styles.pressed]}><View style={[styles.summaryIcon, { backgroundColor: active ? colors.white : tint }]}><Icon name={icon} size={18} color={accent} /></View><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text>{active ? <View style={{ height: 3, backgroundColor: colors.blue, borderRadius: 3, marginTop: 6 }} /> : null}</Pressable>; }
+function SummaryCard({ label, value, icon, tint, accent }) { const filterKey = summaryFilterKey[label]; const active = activeSummaryCard === filterKey; return <Pressable onPress={() => summaryCardHandler(filterKey)} style={({ pressed }) => [styles.summaryCard,{backgroundColor: tint}, active && { borderColor: colors.blue, borderWidth: 2, backgroundColor: colors.paleBlue, elevation: 3 }, pressed && styles.pressed]}><View style={[styles.summaryIcon, { backgroundColor: active ? colors.white : tint }]}><Icon name={icon} size={18} color={accent} /></View><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text>{active ? <View style={{ height: 3, backgroundColor: colors.blue, borderRadius: 3, marginTop: 6 }} /> : null}</Pressable>; }
 
 function GatePassCard({ record, index, onSlip, onExit, onReturn }) {
   const canExit = record.status === 'ISSUED';

@@ -17,8 +17,8 @@ import { teacherApi } from '../services/teacherApi';
 import { teacherDashboardMock } from '../services/teacherMock';
 import TeacherAttendanceScreen from './TeacherAttendanceScreen';
 import TeacherGatePassScreen from './TeacherGatePassScreen';
-import TeacherHomeworkScreen from './TeacherHomeworkScreen';
 import TeacherHomeworkEvaluationScreen from './TeacherHomeworkEvaluationScreen';
+import TeacherHomeworkScreen from './TeacherHomeworkScreen';
 import TeacherLeaveManagementScreen from './TeacherLeaveManagementScreen';
 
 const colors = {
@@ -37,7 +37,8 @@ const colors = {
   red: '#C65353',
   plum: '#5A4AB6',
   softLilac: '#F5F1FF',
-};
+  noticeBackground: '#EAF4FF',
+  };
 
 const primaryNavItems = [
   { label: 'Home', icon: 'home-outline' },
@@ -620,7 +621,7 @@ const styles = StyleSheet.create({
   moduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.paleBlue, alignItems: 'center', justifyContent: 'center' },
   moduleTitle: { color: colors.ink, fontSize: 11, fontWeight: '900', lineHeight: 15, flex: 1 },
   moduleMeta: { color: colors.muted, fontSize: 10, marginTop: 4 },
-  listCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 18 },
+  listCard: { backgroundColor:  '#EAF4FF', borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginBottom: 18 },
   chartArea: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
   yAxis: { width: 26, justifyContent: 'space-between', height: 150, paddingBottom: 26 },
   axisLabel: { color: colors.muted, fontSize: 10, textAlign: 'right' },

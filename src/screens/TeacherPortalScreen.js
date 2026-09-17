@@ -1,4 +1,4 @@
-﻿import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +20,9 @@ import TeacherGatePassScreen from './TeacherGatePassScreen';
 import TeacherHomeworkScreen from './TeacherHomeworkScreen';
 import TeacherHomeworkEvaluationScreen from './TeacherHomeworkEvaluationScreen';
 import TeacherLeaveManagementScreen from './TeacherLeaveManagementScreen';
+import TeacherSetExamsScreen from './TeacherSetExamsScreen';
+import TeacherTimetableScreen from './TeacherTimetableScreen';
+import TeacherExamsMarksScreen from './TeacherExamsMarksScreen';
 
 const colors = {
   ink: '#17343B',
@@ -51,6 +54,7 @@ const primaryNavItems = [
 
 const moreNavItems = [
   'My Students',
+  'Set Exams',
   'Exams / Marks',
   'Timetable',
   'Leave',
@@ -63,6 +67,7 @@ const moreNavItems = [
 
 const moreModuleIcons = {
   'My Students': 'people-outline',
+  'Set Exams': 'ribbon-outline',
   'Exams / Marks': 'ribbon-outline',
   Timetable: 'time-outline',
   Leave: 'document-text-outline',
@@ -349,23 +354,35 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
 
-  const loadDashboard = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await teacherApi.getDashboard(session);
-      setDashboardData(data);
-    } catch (err) {
-      setError('Unable to load dashboard data. Showing local demo data.');
-      setDashboardData(defaultDashboard);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadDashboard();
+    let isActive = true;
+
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await teacherApi.getDashboard(session);
+        if (isActive) {
+          setDashboardData(data);
+        }
+      } catch {
+        if (isActive) {
+          setError('Unable to load dashboard data. Showing local demo data.');
+          setDashboardData(defaultDashboard);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadDashboard();
+
+    return () => {
+      isActive = false;
+    };
   }, [session]);
 
   const handleNavigate = (module) => {
@@ -408,12 +425,16 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
+    if (activeModule === 'Set Exams') {
+      return <TeacherSetExamsScreen session={session} />;
+    }
+
     if (activeModule === 'Exams / Marks') {
-      return <ModulePlaceholder title="Exams / Marks" icon="ribbon-outline" description="Mark evaluation, grade review, and score publishing will appear here." />;
+      return <TeacherExamsMarksScreen session={session} module="Exams / Marks" onSelectModule={(moduleName) => setActiveModule(moduleName)} onBack={() => setActiveModule('Home')} />;
     }
 
     if (activeModule === 'Timetable') {
-      return <ModulePlaceholder title="Timetable" icon="time-outline" description="View the daily and weekly class timetable for faculty planning." />;
+      return <TeacherTimetableScreen session={session} />;
     }
 
     if (activeModule === 'Leave') {
@@ -543,6 +564,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   <Text style={[styles.moreItemTitle, activeModule === item && styles.moreItemTextActive]}>{item}</Text>
                   <Text style={styles.moreItemDescription}>{
                     item === 'My Students' ? 'View assigned students' :
+                    item === 'Set Exams' ? 'Schedule and configure exams' :
                     item === 'Exams / Marks' ? 'Review examination marks' :
                     item === 'Timetable' ? 'View teaching schedule' :
                     item === 'Leave' ? 'Apply and manage leave' :

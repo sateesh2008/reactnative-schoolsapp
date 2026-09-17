@@ -1,6 +1,6 @@
 import { apiRequest } from './api';
 
-const LOGIN_PATH = process.env.EXPO_PUBLIC_LOGIN_PATH || '/login';
+const LOGIN_PATH = process.env.EXPO_PUBLIC_LOGIN_PATH || '/auth/login';
 
 export async function login(email, password) {
   try {

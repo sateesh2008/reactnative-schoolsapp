@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { Colors } from "../constants/theme";
 import { ApiError } from "../services/api";
@@ -147,7 +147,6 @@ export default function ParentExamsScreen({
   session,
   selectedStudentId,
   onSessionExpired,
-  onBackHome,
 }) {
   const [hallTickets, setHallTickets] = useState([]);
   const [results, setResults] = useState([]);
@@ -212,10 +211,6 @@ export default function ParentExamsScreen({
       <View style={styles.heading}>
         <Text style={styles.title}>Exams</Text>
         <Text style={styles.subtitle}>Parent Mobile View</Text>
-        <Pressable style={styles.backHome} onPress={onBackHome}>
-          <Icon name="arrow-back" size={16} color={colors.blue} />
-          <Text style={styles.backText}>Back Home</Text>
-        </Pressable>
       </View>
       {loading ? (
         <View style={styles.loading}>

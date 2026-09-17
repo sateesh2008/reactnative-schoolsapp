@@ -97,7 +97,6 @@ export default function ParentTimetableScreen({
   session,
   selectedStudentId,
   onSessionExpired,
-  onBackHome,
 }) {
   const [selectedDay, setSelectedDay] = useState("Mon");
   const [timetable, setTimetable] = useState({});
@@ -133,10 +132,6 @@ export default function ParentTimetableScreen({
       <View style={styles.heading}>
         <Text style={styles.title}>Timetable</Text>
         <Text style={styles.subtitle}>Parent Mobile View</Text>
-        <Pressable style={styles.backHome} onPress={onBackHome}>
-          <Icon name="arrow-back" size={16} color={colors.blue} />
-          <Text style={styles.backText}>Back Home</Text>
-        </Pressable>
       </View>
       <View
         style={[

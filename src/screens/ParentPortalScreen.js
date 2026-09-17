@@ -1,23 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  Modal,
-  Pressable,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
-import { feesApi } from "../services/feesApi";
 import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
+import { feesApi } from "../services/feesApi";
 import { homeworkApi } from "../services/homeworkApi";
-import { timetableApi } from "../services/timetableApi";
 import { parentApi } from "../services/parentApi";
 import ParentAdditionalModuleScreen from "./ParentAdditionalModuleScreen";
 import ParentAnnouncementsScreen from "./ParentAnnouncementsScreen";
@@ -154,6 +154,7 @@ function DashboardCard({
       onPress={onPress}
       style={({ pressed }) => [
         dashboardStyles.summaryCard,
+        { backgroundColor: tint, borderColor: iconColor },
         pressed && styles.pressed,
       ]}
     >
@@ -270,8 +271,8 @@ function HomeContent({
               label="Attendance"
               value={dashboard.attendance}
               detail="Current summary"
-              tint={colors.paleBlue}
-              iconColor={colors.blue}
+              tint="#F2ECFB"
+              iconColor="#7A5AA6"
               onPress={() => goTo("Attendance")}
             />
             <DashboardCard
@@ -279,8 +280,8 @@ function HomeContent({
               label="Fees & Dues"
               value={dashboard.fees}
               detail="Outstanding"
-              tint={colors.paleOrange}
-              iconColor={colors.orange}
+              tint="#EAF5FB"
+              iconColor="#3284A8"
               onPress={() => goTo("Fees")}
             />
             <DashboardCard
@@ -288,8 +289,8 @@ function HomeContent({
               label="Homework"
               value="Tasks"
               detail={dashboard.homeworkDetail}
-              tint={colors.paleTeal}
-              iconColor={colors.teal}
+              tint="#FFF1DF"
+              iconColor="#D9822B"
               onPress={() => goTo("Homework")}
             />
           </View>
@@ -380,7 +381,6 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
   if (section === "Fees")
@@ -405,7 +405,6 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
   if (section === "Timetable")
@@ -414,7 +413,6 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
   if (section === "Messaging / Notifications")
@@ -423,7 +421,6 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
   if (section === "Leave")
@@ -432,7 +429,6 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
   if (section === "Transport")
@@ -441,21 +437,13 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
-        onBackHome={() => goTo("Home")}
       />
     );
-  if (
-    [
-      "Student Profile",
-      "Events",
-      "Documents",
-    ].includes(section)
-  )
+  if (["Student Profile", "Events", "Documents"].includes(section))
     return (
       <ParentAdditionalModuleScreen
         title={section}
         selectedStudent={selectedStudent}
-        onBack={() => goTo("Home")}
       />
     );
   return <NoticesContent />;
@@ -798,6 +786,8 @@ function ProfileModal({ visible, onClose, session }) {
 }
 
 export default function ParentPortalScreen({ onLogout, session }) {
+  const unreadMessages = 3;
+  const unreadNotifications = 5;
   const [activeTab, setActiveTab] = useState("Home");
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -814,6 +804,11 @@ export default function ParentPortalScreen({ onLogout, session }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const isHome = activeTab === "Home";
   const handleLogout = () => {
+    if (Platform.OS === "web") {
+      onLogout();
+      return;
+    }
+
     Alert.alert("Signed out", "Your session has ended.", [
       { text: "OK", onPress: onLogout },
     ]);
@@ -825,15 +820,25 @@ export default function ParentPortalScreen({ onLogout, session }) {
       const children = await parentApi.getChildren(session);
       const nextStudents = children.map((student) => ({
         ...student,
-        initial: (student.first_name || student.name || "?").charAt(0).toUpperCase(),
-        name: [student.first_name, student.last_name].filter(Boolean).join(" ") || student.name || "Student",
+        initial: (student.first_name || student.name || "?")
+          .charAt(0)
+          .toUpperCase(),
+        name:
+          [student.first_name, student.last_name].filter(Boolean).join(" ") ||
+          student.name ||
+          "Student",
         className: student.class_name || student.className || "",
         section: student.division_name || student.section || "",
       }));
       setStudents(nextStudents);
-      const activeStudentId = selectedStudentId || String(nextStudents[0]?.id || "");
+      const activeStudentId =
+        selectedStudentId || String(nextStudents[0]?.id || "");
       if (!activeStudentId) {
-        setDashboard((current) => ({ ...current, loading: false, studentCount: 0 }));
+        setDashboard((current) => ({
+          ...current,
+          loading: false,
+          studentCount: 0,
+        }));
         return;
       }
       if (String(activeStudentId) !== String(selectedStudentId)) {
@@ -846,17 +851,20 @@ export default function ParentPortalScreen({ onLogout, session }) {
         homeworkApi.getAssignments(session, activeStudentId),
         examsApi.getResults(session, activeStudentId),
       ]);
-      const [feesResult, attendanceResult, homeworkResult, examsResult] = results;
+      const [feesResult, attendanceResult, homeworkResult, examsResult] =
+        results;
       const failedServices = results
-        .map((result, index) => (
+        .map((result, index) =>
           result.status === "rejected"
             ? `${["fees", "attendance", "homework", "exams"][index]}: ${result.reason?.message || "request failed"}`
-            : null
-        ))
+            : null,
+        )
         .filter(Boolean);
       const fees = feesResult.status === "fulfilled" ? feesResult.value : null;
-      const attendance = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
-      const homework = homeworkResult.status === "fulfilled" ? homeworkResult.value : [];
+      const attendance =
+        attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
+      const homework =
+        homeworkResult.status === "fulfilled" ? homeworkResult.value : [];
       const exams = examsResult.status === "fulfilled" ? examsResult.value : [];
       setDashboard({
         loading: false,
@@ -878,7 +886,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
       setDashboard((current) => ({
         ...current,
         loading: false,
-        error: error?.message || "Unable to load dashboard data. Please try again.",
+        error:
+          error?.message || "Unable to load dashboard data. Please try again.",
       }));
     }
   };
@@ -906,10 +915,32 @@ export default function ParentPortalScreen({ onLogout, session }) {
             Parent portal <Text style={styles.year}>2026–27</Text>
           </Text>
         </View>
-        <Pressable onPress={handleLogout} style={styles.logout}>
-          <Icon name="log-out-outline" size={18} color="#C8DBF2" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel={`${unreadMessages} unread messages`}
+            onPress={() => setActiveTab("Messaging / Notifications")}
+            style={styles.headerIconButton}
+          >
+            <Icon
+              name="chatbubble-ellipses-outline"
+              size={19}
+              color="#C8DBF2"
+            />
+            <Text style={styles.unreadBadge}>{unreadMessages}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel={`${unreadNotifications} unread notifications`}
+            onPress={() => setActiveTab("Messaging / Notifications")}
+            style={styles.headerIconButton}
+          >
+            <Icon name="notifications-outline" size={19} color="#C8DBF2" />
+            <Text style={styles.unreadBadge}>{unreadNotifications}</Text>
+          </Pressable>
+          <Pressable onPress={handleLogout} style={styles.logout}>
+            <Icon name="log-out-outline" size={18} color="#C8DBF2" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </Pressable>
+        </View>
       </View>
       <ScrollView
         refreshControl={
@@ -1013,6 +1044,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   year: { color: "#8EB7E8", fontSize: 13, fontWeight: "600" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 13 },
+  headerIconButton: { position: "relative", padding: 3 },
+  unreadBadge: {
+    position: "absolute",
+    top: -5,
+    right: -6,
+    minWidth: 15,
+    height: 15,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: colors.red,
+    color: colors.white,
+    fontSize: 9,
+    fontWeight: "900",
+    textAlign: "center",
+    lineHeight: 15,
+  },
   logout: { flexDirection: "row", alignItems: "center", gap: 6 },
   logoutText: { color: "#C8DBF2", fontSize: 13, fontWeight: "700" },
   content: { padding: 20, paddingBottom: 30 },
@@ -1419,9 +1467,9 @@ const dashboardStyles = StyleSheet.create({
   },
   greeting: {
     color: colors.ink,
-    fontSize: 24,
-    fontWeight: "900",
-    lineHeight: 31,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   school: { color: colors.muted, fontSize: 12, marginTop: 6 },
   dashboardOs: {

@@ -1,4 +1,4 @@
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://educampus360.com/api').replace(/\/$/, '');
 
 export class ApiError extends Error 
 {

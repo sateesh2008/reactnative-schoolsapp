@@ -13,6 +13,88 @@ let localHomework = teacherHomeworkMock.map((assignment) => ({ ...assignment }))
 let localSubmissions = {};
 let localLeaveRequests = [];
 
+const normalizePayrollStatus = (status) => {
+  const normalized = String(status || 'Unmarked').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  if (normalized === 'not marked' || normalized === 'unmarked') return 'Unmarked';
+  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+export const formatDateForPayrollApi = (dateValue) => {
+  if (!dateValue) return null;
+
+  if (dateValue instanceof Date) {
+    if (Number.isNaN(dateValue.getTime())) throw new Error('Attendance date is invalid.');
+    const year = dateValue.getFullYear();
+    const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+    const day = String(dateValue.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  const value = String(dateValue).trim();
+  let year;
+  let month;
+  let day;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    [, year, month, day] = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  } else {
+    const match = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!match) throw new Error('Attendance date must use DD-MM-YYYY or YYYY-MM-DD format.');
+    [, day, month, year] = match;
+  }
+
+  const calendarDate = new Date(Number(year), Number(month) - 1, Number(day));
+  if (
+    calendarDate.getFullYear() !== Number(year)
+    || calendarDate.getMonth() !== Number(month) - 1
+    || calendarDate.getDate() !== Number(day)
+  ) {
+    throw new Error('Attendance date is invalid.');
+  }
+
+  return `${year}-${month}-${day}`;
+};
+
+const payrollDateKeys = ['date', 'attendance_date', 'from', 'to', 'fromDate', 'toDate', 'startDate', 'endDate', 'from_date', 'to_date', 'start_date', 'end_date'];
+
+const normalizePayrollDateFields = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const normalized = { ...value };
+  payrollDateKeys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(normalized, key) && normalized[key]) {
+      normalized[key] = formatDateForPayrollApi(normalized[key]);
+    }
+  });
+  return normalized;
+};
+
+const normalizePayrollDateParams = (params = {}) => normalizePayrollDateFields(params);
+
+const normalizePayrollRecord = (record) => ({
+  ...record,
+  id: record.id || record.attendance_id || record.attendanceId || record.student_id || record.staff_id,
+  name: record.name || record.student_name || record.studentName || record.staff_name || record.staffName,
+  roll: record.roll || record.roll_number || record.rollNumber,
+  admissionNumber: record.admissionNumber || record.admission_number,
+  studentId: record.studentId || record.student_id,
+  status: normalizePayrollStatus(record.status || record.attendance_status),
+  punchIn: record.punchIn || record.punch_in || record.check_in || '',
+  punchOut: record.punchOut || record.punch_out || record.check_out || '',
+});
+
+const normalizePayrollRecords = (payload) => {
+  const records = payload?.data?.records || payload?.records || payload?.data || payload?.results || payload || [];
+  return (Array.isArray(records) ? records : []).map(normalizePayrollRecord);
+};
+
+const normalizePayrollAttendance = (payload) => ({
+  ...(payload?.data && !Array.isArray(payload.data) ? payload.data : payload && !Array.isArray(payload) ? payload : {}),
+  records: normalizePayrollRecords(payload),
+  classes: payload?.classes || payload?.data?.classes || [],
+  sections: payload?.sections || payload?.data?.sections || [],
+  subjects: payload?.subjects || payload?.data?.subjects || [],
+});
+
 const examSeed = [
   { id: 20, name: 'Periodic Text', targetClass: 'Class_4', section: null, startDate: '07/09/2026', endDate: '07/09/2026', startTime: '12:00', endTime: '13:00', status: 'Scheduled', subjects: ['Mathematics', 'Science'] },
   { id: 15, name: 'UNIT TEST', targetClass: 'Global (All Classes)', section: null, startDate: '31/07/2026', endDate: '31/07/2026', startTime: '09:00', endTime: '00:00', status: 'Scheduled', subjects: ['English', 'Social Science'] },
@@ -40,9 +122,11 @@ let localExams = examSeed.map((exam) => ({ ...exam, subjects: [...(exam.subjects
 export const teacherApi = {
   async getDashboard(session) {
     if (!isApiConfigured) return teacherDashboardMock;
-    const payload = await apiRequest('/api/teacher/dashboard', { token: session?.token });
+    const payload = await apiRequest('/staff', { token: session?.token });
+    const staff = payload?.data || payload?.staff || payload?.results || [];
+    const currentStaff = Array.isArray(staff) ? staff[0] || {} : staff;
     return {
-      teacher: teacherProfile,
+      teacher: { ...teacherProfile, ...(currentStaff?.name ? { name: currentStaff.name } : {}), ...(currentStaff?.school_name ? { school: currentStaff.school_name } : {}) },
       dashboardData: teacherDashboardData,
       dashboardStats: teacherDashboardMock.dashboardStats,
       attendanceWeekly: teacherDashboardMock.attendanceWeekly,
@@ -52,6 +136,18 @@ export const teacherApi = {
       modules: teacherDashboardMock.modules,
       ...(payload?.data || payload || {}),
     };
+  },
+
+  async getStaff(session) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/staff', { token: session?.token });
+    return payload?.data || payload?.staff || payload?.results || [];
+  },
+
+  async getTeachers(session) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/teachers', { token: session?.token });
+    return payload?.data || payload?.teachers || payload?.results || [];
   },
 
   async getStudents(session) {
@@ -110,14 +206,39 @@ export const teacherApi = {
     return { ...submission };
   },
 
+  async getLeaves(session) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/leaves', { token: session?.token });
+    return payload?.data || payload?.leaves || payload?.results || [];
+  },
+
   async createLeaveRequest(input, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest('/api/teacher/leave', { method: 'POST', token: session?.token, body: input });
+      const payload = await apiRequest('/leaves/apply', { method: 'POST', token: session?.token, body: input });
       return payload?.data || payload;
     }
     const request = { ...input, id: `leave-request-${Date.now()}` };
     localLeaveRequests = [request, ...localLeaveRequests];
     return { ...request };
+  },
+
+  async updateLeaveStatus(id, status, session) {
+    if (!isApiConfigured) return { id, status };
+    const payload = await apiRequest(`/leaves/${id}/status`, {
+      method: 'PATCH',
+      token: session?.token,
+      body: { status },
+    });
+    return payload?.data || payload;
+  },
+
+  async deleteLeave(id, session) {
+    if (!isApiConfigured) return { id, deleted: true };
+    const payload = await apiRequest(`/leaves/${id}`, {
+      method: 'DELETE',
+      token: session?.token,
+    });
+    return payload?.data || payload;
   },
 
   async getExams(session) {
@@ -182,31 +303,56 @@ export const teacherApi = {
 };
 
 export const teacherAttendanceApi = {
-  async getAttendance({ date, className, section, subject }, session) {
+  async getPayrollAttendance({ date, className, section, subject } = {}, session) {
     if (!isApiConfigured) return teacherAttendanceMock;
-    const payload = await apiRequest('/teacher/attendance', { token: session?.token, query: { date, class: className, section, subject } });
-    return payload?.data || payload;
+    const payload = await apiRequest('/payroll/attendance', {
+      token: session?.token,
+      query: normalizePayrollDateParams({ date, class: className, section, subject }),
+    });
+    return normalizePayrollAttendance(payload);
+  },
+
+  async recordPayrollAttendance(records, context = {}, session) {
+    if (!isApiConfigured) return { available: false };
+    return apiRequest('/payroll/attendance', {
+      method: 'POST',
+      token: session?.token,
+      body: {
+        ...normalizePayrollDateFields(context),
+        records: records.map((record) => normalizePayrollDateFields(record)),
+      },
+    });
+  },
+
+  async getPayrollAttendanceHistory(params = {}, session) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/payroll/attendance/history', {
+      token: session?.token,
+      query: normalizePayrollDateParams(params),
+    });
+    return normalizePayrollRecords(payload);
+  },
+
+  async getAttendance(context, session) {
+    return this.getPayrollAttendance(context, session);
   },
 
   async runAttendanceCutoff(date, session) {
     if (!isApiConfigured) return { available: false };
-    return apiRequest('/teacher/attendance/cutoff', { method: 'POST', token: session?.token, body: { date } });
+    return apiRequest('/attendance', { method: 'POST', token: session?.token, body: { date, action: 'cutoff' } });
   },
 
   async submitAttendance(records, context, session) {
-    if (!isApiConfigured) return { available: false };
-    return apiRequest('/teacher/attendance/submit', { method: 'POST', token: session?.token, body: { records, ...context } });
+    return this.recordPayrollAttendance(records, context, session);
   },
 
   async getHistory(params, session) {
-    if (!isApiConfigured) return [];
-    const payload = await apiRequest('/teacher/attendance/history', { token: session?.token, query: params });
-    return payload?.records || payload?.data || [];
+    return this.getPayrollAttendanceHistory(params, session);
   },
 
   async getBiometricStatus(session) {
     if (!isApiConfigured) return { available: false };
-    return apiRequest('/teacher/attendance/biometric/status', { token: session?.token });
+    return apiRequest('/attendance/analytics', { token: session?.token });
   },
 
   async sendAbsentWhatsAppAlert(records, context) {

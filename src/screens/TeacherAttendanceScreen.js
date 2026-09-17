@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View, } from 'react-native';
 import TeacherBiometricSuite from '../components/TeacherBiometricSuite';
 import { ApiError } from '../services/api';
@@ -15,7 +15,6 @@ const colors = {
 
 const tabs = ['Attendance Control', 'Daily Log / Marking', 'History Log', 'Biometric', 'Export', 'Submit Attendance'];
 const statuses = ['Present', 'Absent', 'Late', 'Unmarked'];
-const filters = ['Select an option', 'All Present', 'All Absent', 'Late', 'Unmarked'];
 const emptyData = { records: [], classes: [], sections: [], subjects: [] };
 const formatDate = (date) => `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
 const isWorkingDay = (date) => ![0, 6].includes(date.getDay());
@@ -76,8 +75,8 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   const [selecting, setSelecting] = useState(null);
   const [className, setClassName] = useState('Select an option');
   const [section, setSection] = useState('Select an option');
-  const [subject, setSubject] = useState('Select an option');
-  const [filter, setFilter] = useState('Select an option');
+  const [subject] = useState('Select an option');
+  const [filter] = useState('Select an option');
   const [search, setSearch] = useState('');
   const [data, setData] = useState(emptyData);
   const [history, setHistory] = useState([]);
@@ -91,20 +90,23 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   const context = { date: formatDate(date), className, section, subject };
   const submissionKey = `${context.date}|${className}|${section}|${subject}`;
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      setData(normalizeData(await teacherAttendanceApi.getAttendance(context, session)));
+      setData(normalizeData(await teacherAttendanceApi.getPayrollAttendance({ date: formatDate(date), className, section, subject }, session)));
     } catch (requestError) {
       setData(emptyData);
       setError(requestError instanceof ApiError ? requestError.message : 'Unable to load attendance. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [date, className, section, subject, session]);
 
-  useEffect(() => { loadAttendance(); }, [date, className, section, subject]);
+  useEffect(() => {
+    const loadTimer = setTimeout(() => { void loadAttendance(); }, 0);
+    return () => clearTimeout(loadTimer);
+  }, [loadAttendance]);
 
   const summary = useMemo(() => ({
     totalEnrolled: data.records.length,
@@ -172,11 +174,14 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   const completeSubmit = async () => {
     setActionLoading(true);
     try {
-      const result = await teacherAttendanceApi.submitAttendance(data.records, context, session);
+      const result = await teacherAttendanceApi.recordPayrollAttendance(data.records, context, session);
       setSubmittedKeys((current) => current.includes(submissionKey) ? current : [...current, submissionKey]);
       addHistoryEntry();
       Alert.alert(result?.available === false ? 'Attendance saved locally' : 'Attendance submitted successfully.', result?.available === false ? 'The backend endpoint is not connected; this submission is available in History Log for this session.' : 'Attendance has been submitted.');
-      if (result?.available !== false) await loadAttendance();
+      if (result?.available !== false) {
+        await loadAttendance();
+        await loadHistory();
+      }
     } catch {
       Alert.alert('Submission error', 'Unable to submit attendance. Please try again.');
     } finally {
@@ -200,16 +205,16 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
     completeSubmit();
   };
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
-      const records = await teacherAttendanceApi.getHistory({ className, section, subject }, session);
+      const records = await teacherAttendanceApi.getPayrollAttendanceHistory({ className, section, subject }, session);
       if (records.length) setHistory((current) => [...records, ...current]);
     } catch {
       setError('Unable to load submitted attendance history.');
     }
-  };
+  }, [className, section, subject, session]);
 
-  useEffect(() => { if (activeTab === 'History Log') loadHistory(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'History Log') void loadHistory(); }, [activeTab, loadHistory]);
 
   const exportCsv = async () => {
     const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;

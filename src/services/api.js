@@ -44,7 +44,7 @@ export async function apiRequest(path, { method = 'GET', token, query, body, sig
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch (error) {
-    throw new ApiError('Unable to connect to the server. Please check your internet connection.', 0, error);
+    throw new ApiError('Unable to connect to the server. Please check your internet connection and try again.', 0, error);
   }
 
   const contentType = response.headers.get('content-type') || '';

@@ -12,7 +12,6 @@ const statusLabels = { ISSUED: 'ISSUED (PENDING EXIT)', OUT: 'OUT (LEFT CAMPUS)'
 const statusOptions = ['All Passes', 'Pending Exit', 'Currently Out', 'Returned', 'Overdue', 'Cancelled', 'One-Way Exit'];
 const reasons = ['Emergency', 'Medical / Sickness', 'Family Function', 'Personal Work', 'Other'];
 const escorts = ['Parent', 'Guardian', 'Staff', 'Other'];
-const pad = (value) => String(value).padStart(2, '0');
 const formatDate = (value) => new Date(`${value}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 const formatTime = (value) => { if (!value) return 'N/A'; const [hours, minutes] = value.split(':').map(Number); const date = new Date(); date.setHours(hours, minutes, 0, 0); return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
 const isPendingExit = (record) => record.status === 'ISSUED' && !record.exitTime;
@@ -53,25 +52,62 @@ function GatePassCard({ record, index, onSlip, onExit, onReturn }) {
 }
 
 export default function TeacherGatePassScreen({ session }) {
-  const [records, setRecords] = useState([]); const [students, setStudents] = useState([]); const [classes, setClasses] = useState([]); const [selectedDate, setSelectedDate] = useState(new Date()); const [showDatePicker, setShowDatePicker] = useState(false); const [classFilter, setClassFilter] = useState(''); const [sectionFilter, setSectionFilter] = useState(''); const [statusFilter, setStatusFilter] = useState('All Passes'); const [cardFilter, setCardFilter] = useState(''); const [query, setQuery] = useState(''); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState('10'); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState(''); const [showForm, setShowForm] = useState(false);
+  const [records, setRecords] = useState([]); const [students, setStudents] = useState([]); const [classes, setClasses] = useState([]); const [divisions, setDivisions] = useState([]); const [stats, setStats] = useState({}); const [selectedDate, setSelectedDate] = useState(new Date()); const [showDatePicker, setShowDatePicker] = useState(false); const [classFilter, setClassFilter] = useState(''); const [sectionFilter, setSectionFilter] = useState(''); const [statusFilter, setStatusFilter] = useState('All Passes'); const [cardFilter, setCardFilter] = useState(''); const [query, setQuery] = useState(''); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState('10'); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState(''); const [showForm, setShowForm] = useState(false); const [actionLoading, setActionLoading] = useState(false);
   const selectedDateKey = dateKey(selectedDate);
-  const load = async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(''); try { const [nextRecords, nextStudents, nextClasses] = await Promise.all([gatePassApi.list(session), gatePassApi.getStudents(session), gatePassApi.getClasses(session)]); setRecords(nextRecords); setStudents(nextStudents); setClasses((nextClasses || []).map((item) => typeof item === 'string' ? item : item.name || item.className).filter(Boolean)); } catch { setError('Unable to load gate passes. Please try again.'); } finally { setLoading(false); setRefreshing(false); } };
-  useEffect(() => { const timer = setTimeout(() => load(), 0); return () => clearTimeout(timer); }, [session]);
-  const classOptions = [...new Set([...classes, ...students.map((student) => student.className).filter(Boolean)])];
-  const sectionOptions = [...new Set(students.filter((student) => !classFilter || student.className === classFilter).map((student) => student.section).filter(Boolean))];
+  const selectedClass = classes.find((item) => item.name === classFilter);
+  const selectedDivision = divisions.find((item) => (item.name || item.label || item.division_name) === sectionFilter);
+  const load = async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(''); try { const activeStatus = cardFilter || statusFilter; const status = ['ISSUED', 'CHECKED_OUT', 'RETURNED', 'CANCELLED'].includes(activeStatus) ? activeStatus : undefined; const [nextRecords, nextStats, nextClasses] = await Promise.all([gatePassApi.list(session, { date: selectedDateKey, class_id: selectedClass?.id, division_id: selectedDivision?.id, status, search: query.trim() }), gatePassApi.stats(session), classes.length ? Promise.resolve(classes) : gatePassApi.getClasses(session)]); setRecords(nextRecords); setStats(nextStats || {}); setClasses(nextClasses || []); } catch (requestError) { setError(requestError?.message || 'Unable to load gate passes. Please try again.'); } finally { setLoading(false); setRefreshing(false); } };
+  useEffect(() => { const timer = setTimeout(() => load(), 0); return () => clearTimeout(timer); }, [session, selectedDateKey, classFilter, sectionFilter, statusFilter, cardFilter, query]);
+  useEffect(() => {
+    if (!selectedClass?.id) return undefined;
+    let active = true;
+    const loadClassData = async () => {
+      try {
+        const [nextDivisions, nextStudents] = await Promise.all([
+          gatePassApi.getDivisions(selectedClass.id, session),
+          gatePassApi.getStudents(selectedClass.id, session),
+        ]);
+        if (active) {
+          setDivisions(nextDivisions);
+          setStudents(nextStudents);
+        }
+      } catch (requestError) {
+        if (active) setError(requestError?.message || 'Unable to load class divisions and students.');
+      }
+    };
+    void loadClassData();
+    return () => { active = false; };
+  }, [classFilter, session]);
+  useEffect(() => {
+    if (!showForm || students.length || !classes.length) return undefined;
+    let active = true;
+    const loadFormStudents = async () => {
+      try {
+        const result = await Promise.all(classes.map((item) => gatePassApi.getStudents(item.id, session)));
+        if (active) setStudents(result.flat());
+      } catch (requestError) {
+        if (active) setError(requestError?.message || 'Unable to load active students.');
+      }
+    };
+    void loadFormStudents();
+    return () => { active = false; };
+  }, [showForm, students.length, classes, session]);
+  const classOptions = classes.map((item) => item.name || item.label).filter(Boolean);
+  const sectionOptions = divisions.map((item) => item.name || item.label || item.division_name).filter(Boolean);
   const filteredRecords = useMemo(() => records.filter((record) => { const search = query.trim().toLowerCase(); const matchesSearch = !search || [record.studentName, record.passNumber, record.admissionNumber, record.className, record.section].some((value) => String(value || '').toLowerCase().includes(search)); const activeStatus = cardFilter || statusFilter; const statusMatch = activeStatus === 'All Passes' || (activeStatus === 'Pending Exit' && isPendingExit(record)) || (activeStatus === 'Currently Out' && isCurrentlyOut(record)) || (activeStatus === 'Returned' && isReturned(record)) || (activeStatus === 'Overdue' && isOverdue(record)) || (activeStatus === 'Cancelled' && record.status === 'CANCELLED') || (activeStatus === 'One-Way Exit' && record.passType === 'ONE_WAY'); return record.date === selectedDateKey && (!classFilter || record.className === classFilter) && (!sectionFilter || record.section === sectionFilter) && matchesSearch && statusMatch; }), [records, selectedDateKey, classFilter, sectionFilter, query, statusFilter, cardFilter]);
   const pageSize = Number(perPage); const pageCount = Math.max(1, Math.ceil(filteredRecords.length / pageSize)); const currentPage = Math.min(page, pageCount); const visibleRecords = filteredRecords.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const todayRecords = records.filter((record) => record.date === dateKey());
-  const counts = { today: todayRecords.length, pending: todayRecords.filter(isPendingExit).length, out: records.filter(isCurrentlyOut).length, overdue: records.filter(isOverdue).length, returned: records.filter(isReturned).length };
+  const counts = { today: Number(stats.today_total ?? todayRecords.length) || 0, pending: Number(stats.today_issued ?? todayRecords.filter(isPendingExit).length) || 0, out: Number(stats.today_checked_out ?? records.filter(isCurrentlyOut).length) || 0, overdue: Number(stats.overdue_count ?? records.filter(isOverdue).length) || 0, returned: Number(stats.today_returned ?? records.filter(isReturned).length) || 0 };
   const toggleCardFilter = (value) => { const nextValue = cardFilter === value ? '' : value; setCardFilter(nextValue); setStatusFilter('All Passes'); setPage(1); };
   const clearCardFilter = () => { setCardFilter(''); setStatusFilter('All Passes'); setPage(1); };
-  const emptyMessage = cardFilter === 'Currently Out' ? 'No students are currently out of campus.' : cardFilter === 'Overdue' ? 'No overdue gate pass returns.' : cardFilter === 'Returned' ? 'No students have returned yet.' : 'No gate passes found.';
-  summaryCardHandler = toggleCardFilter;
-  clearSummaryCardHandler = clearCardFilter;
-  activeSummaryCard = cardFilter;
+  useEffect(() => {
+    summaryCardHandler = toggleCardFilter;
+    clearSummaryCardHandler = clearCardFilter;
+    activeSummaryCard = cardFilter;
+  }, [cardFilter]);
   const showError = (message) => Alert.alert('Gate pass action unavailable', message || 'Please try again.');
-  const updateRecord = async (record, action) => { try { await gatePassApi[action](record.id, session); await load(true); Alert.alert(action === 'exit' ? 'Exit recorded' : 'Return recorded', `${record.studentName} status has been updated.`); } catch (err) { showError(err.message); } };
-  const issuePass = async (newForm) => { try { await gatePassApi.create(newForm, session); setShowForm(false); await load(true); Alert.alert('Gate pass issued', 'The new gate pass is ready for exit.'); } catch (err) { showError(err.message); } };
+  const updateRecord = async (record, action) => { setActionLoading(true); try { await gatePassApi[action](record.id, session); await load(true); Alert.alert(action === 'exit' ? 'Exit recorded' : 'Return recorded', `${record.studentName} status has been updated.`); } catch (err) { showError(err.message); } finally { setActionLoading(false); } };
+  const issuePass = async (newForm) => { setActionLoading(true); try { const classRecord = classes.find((item) => (item.name || item.label) === newForm.className); const student = students.find((item) => item.id === newForm.studentId); await gatePassApi.create({ ...newForm, classId: classRecord?.id || student?.classId, divisionId: student?.divisionId, expectedReturnTime: newForm.returnRequired ? `${newForm.date}T${newForm.expectedReturnTime || '17:00'}` : null }, session); setShowForm(false); await load(true); Alert.alert('Gate pass issued', 'The new gate pass is ready for exit.'); } catch (err) { showError(err.message); } finally { setActionLoading(false); } };
   const exportCsv = async () => { if (!filteredRecords.length) { Alert.alert('Nothing to export', 'No gate passes match the current filters.'); return; } const headers = ['Pass Number', 'Date', 'Student Name', 'Class', 'Section', 'Roll Number', 'Time', 'Reason', 'Escort', 'Pass Type', 'Return Requirement', 'Status']; const rows = filteredRecords.map((record) => [record.passNumber, record.date, record.studentName, record.className, record.section, record.rollNumber || 'N/A', record.issueTime, record.reason, `${record.escortType}: ${record.escortName}`, record.passType === 'ONE_WAY' ? 'One-Way Exit' : 'Returnable', record.returnRequired ? record.expectedReturnTime : 'No return expected', statusLabels[record.status] || record.status]); try { await Share.share({ title: 'Gate Pass CSV', message: [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n') }); } catch { showError('Unable to open the share sheet.'); } };
   const slipHtml = (items) => `<html><head><style>body{font-family:Arial;color:#17343B;margin:24px}.slip{border:1px solid #D9E7E4;border-radius:10px;padding:18px;margin-bottom:18px;page-break-inside:avoid}.brand{font-size:12px;color:#0D8B82;font-weight:bold}.title{font-size:20px;font-weight:bold;margin:8px 0 16px}.row{margin:7px 0;font-size:12px}.key{font-weight:bold;color:#6A7F83}.status{margin-top:14px;padding:9px;background:#E5F4F0;font-weight:bold}</style></head><body>${items.map((record) => `<section class="slip"><div class="brand">EduCampus360</div><div class="title">Student Gate Pass</div><div class="row"><span class="key">Pass Number:</span> ${htmlEscape(record.passNumber)}</div><div class="row"><span class="key">Student:</span> ${htmlEscape(record.studentName)}</div><div class="row"><span class="key">Class & Section:</span> ${htmlEscape(record.className)}-${htmlEscape(record.section)}</div><div class="row"><span class="key">Roll Number:</span> ${htmlEscape(record.rollNumber || 'N/A')}</div><div class="row"><span class="key">Date / Issue Time:</span> ${htmlEscape(formatDate(record.date))} / ${htmlEscape(formatTime(record.issueTime))}</div><div class="row"><span class="key">Reason:</span> ${htmlEscape(record.reason)}</div><div class="row"><span class="key">Escort:</span> ${htmlEscape(record.escortType)}: ${htmlEscape(record.escortName)}</div><div class="row"><span class="key">Pass Type:</span> ${record.passType === 'ONE_WAY' ? 'One-Way Exit' : 'Returnable'}</div><div class="row"><span class="key">Return:</span> ${record.returnRequired ? htmlEscape(formatTime(record.expectedReturnTime)) : 'No return expected'}</div><div class="status">${htmlEscape(statusLabels[record.status] || record.status)}</div></section>`).join('')}</body></html>`;
   const printPdf = async (items, title) => { if (!items.length) { Alert.alert('Nothing to print', 'No gate passes match the current filters.'); return; } try { if (Platform.OS === 'web') { await Print.printAsync({ html: slipHtml(items) }); return; } const result = await Print.printToFileAsync({ html: slipHtml(items) }); if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri, { mimeType: 'application/pdf', dialogTitle: title }); else await Share.share({ title, message: result.uri }); } catch { showError('Unable to generate the PDF.'); } };

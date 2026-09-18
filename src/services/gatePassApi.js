@@ -1,57 +1,107 @@
-import { apiRequest, isApiConfigured } from './api';
-import { dateKey, gatePassMockClasses, gatePassMockRecords, gatePassStudents, nextMockPassNumber } from './gatePassMock';
+import { apiRequest } from './api';
 
-let mockRecords = gatePassMockRecords.map((record) => ({ ...record }));
-const recordsFromPayload = (payload) => payload?.data || payload?.records || payload?.gatePasses || payload || [];
+const arrayFromPayload = (payload, keys = []) => {
+  const candidates = [payload, payload?.data, ...keys.map((key) => payload?.[key]), ...keys.map((key) => payload?.data?.[key])];
+  return candidates.find(Array.isArray) || [];
+};
+
+const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
+const dateKey = (date = new Date()) => {
+  const value = new Date(date);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+};
+const dateTimeForApi = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 16);
+  return String(value).replace(' ', 'T').slice(0, 16);
+};
+const normalizeStatus = (status) => status === 'CHECKED_OUT' ? 'OUT' : status || 'ISSUED';
+const normalizeStudent = (student) => ({
+  ...student,
+  id: firstValue(student?.id, student?.student_id),
+  name: firstValue(student?.name, [student?.first_name, student?.last_name].filter(Boolean).join(' '), student?.student_name, 'Unnamed student'),
+  classId: firstValue(student?.classId, student?.class_id),
+  className: firstValue(student?.className, student?.class_name),
+  divisionId: firstValue(student?.divisionId, student?.division_id),
+  section: firstValue(student?.section, student?.division_name, student?.division),
+  rollNumber: firstValue(student?.rollNumber, student?.roll_no),
+  admissionNumber: firstValue(student?.admissionNumber, student?.admission_no),
+});
+const normalizeRecord = (record) => ({
+  ...record,
+  id: firstValue(record?.id, record?.gate_pass_id),
+  passNumber: firstValue(record?.passNumber, record?.pass_number, record?.id, 'Gate pass'),
+  status: normalizeStatus(record?.status),
+  date: firstValue(record?.date, record?.out_time?.slice?.(0, 10), dateKey()),
+  studentId: firstValue(record?.studentId, record?.student_id),
+  studentName: firstValue(record?.studentName, record?.student_name, [record?.first_name, record?.last_name].filter(Boolean).join(' '), 'Unnamed student'),
+  className: firstValue(record?.className, record?.class_name),
+  section: firstValue(record?.section, record?.division_name, record?.division),
+  rollNumber: firstValue(record?.rollNumber, record?.roll_no),
+  admissionNumber: firstValue(record?.admissionNumber, record?.admission_no),
+  issueTime: firstValue(record?.issueTime, record?.out_time?.slice?.(11, 16)),
+  exitTime: firstValue(record?.exitTime, record?.actual_exit_time, record?.out_time),
+  returnTime: firstValue(record?.returnTime, record?.actual_return_time),
+  reason: firstValue(record?.reason, record?.reason_type, record?.reason_details, 'Not specified'),
+  escortType: firstValue(record?.escortType, record?.relation_with_student, ''),
+  escortName: firstValue(record?.escortName, record?.accompanied_by, ''),
+  passType: record?.is_one_way ? 'ONE_WAY' : 'RETURNABLE',
+  returnRequired: record?.is_one_way === false || Boolean(record?.expected_return_time),
+  expectedReturnTime: firstValue(record?.expectedReturnTime, record?.expected_return_time),
+});
+const unwrap = (payload) => payload?.data || payload;
 
 export const gatePassApi = {
-  async list(session) {
-    if (!isApiConfigured) return mockRecords.map((record) => ({ ...record }));
-    return recordsFromPayload(await apiRequest('/api/gate-pass', { token: session?.token }));
-  },
-  async getStudents(session) {
-    if (!isApiConfigured) return gatePassStudents;
-    const payload = await apiRequest('/api/teacher/students', { token: session?.token });
-    return payload?.data || payload?.students || [];
-  },
   async getClasses(session) {
-    if (!isApiConfigured) return gatePassMockClasses;
-    const payload = await apiRequest('/api/classes', { token: session?.token });
-    return payload?.data || payload?.classes || [];
+    const payload = await apiRequest('/academics/classes', { token: session?.token });
+    return arrayFromPayload(payload, ['classes']).map((item) => typeof item === 'string' ? { id: item, name: item, label: item } : { ...item, id: firstValue(item.id, item.class_id), name: firstValue(item.name, item.class_name), label: firstValue(item.name, item.class_name) });
+  },
+  async getDivisions(classId, session) {
+    const payload = await apiRequest('/academics/divisions', { token: session?.token, query: { class_id: classId } });
+    return arrayFromPayload(payload, ['divisions', 'sections']);
+  },
+  async getStudents(classId, session) {
+    const payload = await apiRequest('/students', { token: session?.token, query: { class_id: classId, status: 'Active' } });
+    return arrayFromPayload(payload, ['students']).map(normalizeStudent);
+  },
+  async list(session, params = {}) {
+    const payload = await apiRequest('/gate-passes', { token: session?.token, query: params });
+    return arrayFromPayload(payload, ['gate_passes', 'gatePasses', 'records']).map(normalizeRecord);
+  },
+  async stats(session) {
+    const payload = await apiRequest('/gate-passes/stats', { token: session?.token });
+    return unwrap(payload) || {};
   },
   async create(input, session) {
-    if (isApiConfigured) {
-      const payload = await apiRequest('/api/gate-pass', { method: 'POST', token: session?.token, body: input });
-      return payload?.data || payload;
-    }
-    const student = gatePassStudents.find((item) => item.id === input.studentId);
-    if (!student) throw new Error('The selected student is invalid.');
-    const record = { ...input, ...student, id: `gate-pass-${Date.now()}`, passNumber: nextMockPassNumber(mockRecords, input.date), status: 'ISSUED', issueTime: new Date().toTimeString().slice(0, 5), exitTime: null, returnTime: null };
-    mockRecords = [record, ...mockRecords];
-    return { ...record };
+    const payload = await apiRequest('/gate-passes', { method: 'POST', token: session?.token, body: {
+      student_id: input.studentId,
+      class_id: input.classId,
+      division_id: input.divisionId,
+      reason_type: input.reason,
+      reason_details: input.notes || input.reason,
+      accompanied_by: input.escortName,
+      relation_with_student: input.escortType || '',
+      contact_number: input.escortContact,
+      out_time: dateTimeForApi(input.exitDateTime || `${input.date}T${input.issueTime}`),
+      is_one_way: input.passType === 'ONE_WAY',
+      expected_return_time: input.returnRequired ? dateTimeForApi(input.expectedReturnTime) : null,
+      approved_by: input.approvedBy || '',
+      security_remarks: input.notes || '',
+    } });
+    return normalizeRecord(unwrap(payload));
   },
-  async exit(id, session) {
-    if (isApiConfigured) {
-      const payload = await apiRequest(`/api/gate-pass/${id}/exit`, { method: 'POST', token: session?.token });
-      return payload?.data || payload;
-    }
-    const record = mockRecords.find((item) => item.id === id);
-    if (!record || record.status !== 'ISSUED') throw new Error('This gate pass cannot be exited.');
-    record.status = 'OUT';
-    record.exitTime = new Date().toTimeString().slice(0, 5);
-    return { ...record };
+  async getById(id, session) {
+    const payload = await apiRequest(`/gate-passes/${id}`, { token: session?.token });
+    return normalizeRecord(unwrap(payload));
   },
-  async returnPass(id, session) {
-    if (isApiConfigured) {
-      const payload = await apiRequest(`/api/gate-pass/${id}/return`, { method: 'POST', token: session?.token });
-      return payload?.data || payload;
-    }
-    const record = mockRecords.find((item) => item.id === id);
-    if (!record || record.status !== 'OUT') throw new Error('This gate pass cannot be returned.');
-    record.status = 'RETURNED';
-    record.returnTime = new Date().toTimeString().slice(0, 5);
-    return { ...record };
+  async updateStatus(id, body, session) {
+    const payload = await apiRequest(`/gate-passes/${id}/status`, { method: 'PUT', token: session?.token, body });
+    return normalizeRecord(unwrap(payload));
   },
+  async exit(id, session) { return this.updateStatus(id, { status: 'CHECKED_OUT' }, session); },
+  async returnPass(id, session) { return this.updateStatus(id, { status: 'RETURNED', actual_return_time: new Date().toISOString().slice(0, 16), remarks: 'Returned safely to campus' }, session); },
+  async cancel(id, session) { return this.updateStatus(id, { status: 'CANCELLED' }, session); },
+  async remove(id, session) { return apiRequest(`/gate-passes/${id}`, { method: 'DELETE', token: session?.token }); },
 };
 
 export { dateKey };

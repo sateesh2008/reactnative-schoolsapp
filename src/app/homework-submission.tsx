@@ -40,9 +40,13 @@ export default function HomeworkSubmissionRoute() {
     setSubmitting(true);
     setError('');
     try {
-      const result = await homeworkApi.submitAssignment({ homeworkId: item.id, notes: comments.trim() });
-      if (!result?.available) {
-        setError('Unable to submit homework. Please try again when the submission service is available.');
+      const result = await homeworkApi.submitHomework(item.id, {
+        student_id: item.target_student_id,
+        content: comments.trim(),
+        attachment_url: item.attachment_url || null,
+      });
+      if (!result?.success) {
+        setError(result?.error || 'Unable to submit homework. Please try again.');
         return;
       }
       Alert.alert('Homework submitted successfully', 'Your assignment was submitted.', [{ text: 'OK', onPress: () => router.back() }]);

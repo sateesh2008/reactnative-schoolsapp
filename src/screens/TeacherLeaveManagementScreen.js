@@ -261,8 +261,8 @@ export default function TeacherLeaveManagementScreen({ session }) {
             : record,
         ),
       );
-    } catch {
-      Alert.alert('Unable to update leave status', 'Please try again.');
+    } catch (requestError) {
+      Alert.alert('Unable to update leave status', requestError?.message || 'Please try again.');
     }
   };
 

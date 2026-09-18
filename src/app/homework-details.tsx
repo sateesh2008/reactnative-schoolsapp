@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { useState } from 'react';
-import { Alert, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { homeworkApi } from '../services/homeworkApi';
 
 const colors = { ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF', canvas: '#F4F8F6', blue: '#0D8B82', paleBlue: '#E5F4F0', green: '#1E8E5E', paleGreen: '#E8F8F1', orange: '#A76E00', paleOrange: '#FFF7DF', red: '#B94E4E' };
 
@@ -18,6 +19,11 @@ type HomeworkAssignment = {
   instructions?: string;
   status?: string;
   submissionStatus?: string;
+  target_student_id?: number;
+  attachment_url?: string | null;
+  description?: string;
+  teacher?: string;
+  title?: string;
 };
 
 const parseAssignment = (value: string | string[] | undefined): HomeworkAssignment | null => {
@@ -42,15 +48,36 @@ export default function HomeworkDetailsRoute() {
   const router = useRouter();
   const { assignment } = useLocalSearchParams<{ assignment?: string }>();
   const item = parseAssignment(assignment);
+  const [homework, setHomework] = useState<HomeworkAssignment | null>(item);
+  const [loading, setLoading] = useState(Boolean(item?.id));
+  const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
+
+  useEffect(() => {
+    if (!item?.id) return;
+    let active = true;
+    const loadHomework = async () => {
+      const authenticated = await homeworkApi.fetchHomeworkById(item.id);
+      const result = authenticated.success ? authenticated : await homeworkApi.fetchPublicHomework(item.id);
+      if (!active) return;
+      if (result.success) setHomework(result.data as HomeworkAssignment);
+      else setError(result.error || 'Unable to load homework details.');
+      setLoading(false);
+    };
+    void loadHomework();
+    return () => { active = false; };
+  }, [item?.id]);
 
   if (!item) {
     return <SafeAreaView style={styles.safe}><View style={styles.notFound}><Text style={styles.notFoundTitle}>Homework not found</Text><Pressable style={styles.primaryButton} onPress={() => router.back()}><Text style={styles.primaryButtonText}>Return to Homework</Text></Pressable></View></SafeAreaView>;
   }
 
-  const assignmentDetails = { ...item, className: item.className || 'Class_1 - A', schoolName: item.schoolName || 'Demo School', assignedDate: displayDate(item.assignedDate || '18/08/2026'), dueDate: displayDate(item.dueDate || '20/08/2026'), instructor: item.instructor || 'sudarsan kumar', instructions: item.instructions || item.topic, status: item.status === 'Active' ? 'Overdue' : item.status || 'Overdue', submissionStatus: item.submissionStatus || 'Pending Submission' };
+  const source = homework || item;
+  if (loading) return <SafeAreaView style={styles.safe}><View style={styles.notFound}><ActivityIndicator color={colors.blue} /><Text style={styles.body}>Loading homework details...</Text></View></SafeAreaView>;
+  if (error) return <SafeAreaView style={styles.safe}><View style={styles.notFound}><Text style={styles.notFoundTitle}>{error}</Text><Pressable style={styles.primaryButton} onPress={() => router.back()}><Text style={styles.primaryButtonText}>Return to Homework</Text></Pressable></View></SafeAreaView>;
+  const assignmentDetails = { ...source, className: source.className || 'N/A', schoolName: source.schoolName || 'N/A', assignedDate: displayDate(source.assignedDate), dueDate: displayDate(source.dueDate), instructor: source.instructor || source.teacher || 'N/A', instructions: source.instructions || source.description || source.topic || 'No description provided.', status: source.status || 'Pending', submissionStatus: source.submissionStatus || 'Pending Submission' };
   const message = buildShareMessage(assignmentDetails);
-  const shareLink = `educampus360://homework-details?assignment=${encodeURIComponent(JSON.stringify(item))}`;
+  const shareLink = `educampus360://share/homework/${assignmentDetails.id}`;
 
   const copyLink = async () => {
     setCopying(true);

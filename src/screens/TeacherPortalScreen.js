@@ -18,6 +18,8 @@ import { teacherApi } from "../services/teacherApi";
 import { teacherDashboardMock } from "../services/teacherMock";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
 import TeacherExamsMarksScreen from "./TeacherExamsMarksScreen";
+import TeacherOMRScreen from "./TeacherOMRScreen";
+import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
@@ -649,13 +651,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === "OMR System") {
-      return (
-        <ModulePlaceholder
-          title="OMR System"
-          icon="scan-outline"
-          description="OMR evaluation workflows can be connected to this module in a future release."
-        />
-      );
+      return <OMRSystemScreen onSelectModule={setActiveModule} onBack={() => setActiveModule("Home")} />;
+    }
+
+    if (["OMR Dashboard", "Exam Sessions", "Answer Keys", "Hardware & Optical Scanner", "Results & Leaderboards"].includes(activeModule)) {
+      const omrTabs = {
+        "OMR Dashboard": "My Exam (JEE)",
+        "Exam Sessions": "Sessions (1)",
+        "Answer Keys": "Answer Keys",
+        "Hardware & Optical Scanner": "Scanner & Reader",
+        "Results & Leaderboards": "Results & Ranks",
+      };
+      return <TeacherOMRScreen session={session} initialTab={omrTabs[activeModule]} initialMenu={activeModule} onBack={() => setActiveModule("OMR System")} />;
     }
 
     return (

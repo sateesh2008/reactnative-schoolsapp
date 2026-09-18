@@ -29,8 +29,14 @@ function StatusBadge({ status }) {
   return <View style={[styles.statusBadge, tone[0]]}><Text style={[styles.statusText, tone[1]]}>{status}</Text></View>;
 }
 
-function Metric({ title, value, label ,backgroundColor }) {
-  return <View style={[styles.metric, { backgroundColor }]}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricTitle}>{title}</Text><Text style={styles.metricMeta}>{label}</Text></View>;
+function Metric({ title, value, label, backgroundColor }) {
+  const icon = title === 'Total Enrolled' ? 'people-outline'
+    : title === 'Marked Entries' ? 'checkmark-done-outline'
+      : title === 'Present Today' ? 'checkmark-circle-outline'
+        : title === 'Absent Count' ? 'close-circle-outline'
+          : 'time-outline';
+
+  return <View style={[styles.metric, { backgroundColor }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon name={icon} size={16} color={colors.blue} /><Text style={styles.metricTitle}>{title}</Text></View><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricMeta}>{label}</Text></View>;
 }
 
 function SelectModal({ visible, value, options, onSelect, onClose }) {

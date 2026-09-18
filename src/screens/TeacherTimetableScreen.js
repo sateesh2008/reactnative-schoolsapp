@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '../services/api';
+import { teacherAttendanceApi, teacherApi } from '../services/teacherApi';
 
 const colors = {
   ink: '#17343B',
@@ -98,6 +100,8 @@ function Icon({ name, size = 18, color = colors.ink }) {
 
 function FilterSelect({ label, value, options, onChange, accentColor = colors.blue }) {
   const [open, setOpen] = useState(false);
+  const normalizedOptions = Array.isArray(options) ? options : [];
+  const optionLabel = (option) => typeof option === 'string' ? option : option?.label || option?.name || option?.id || 'Option';
 
   return (
     <View style={styles.field}>
@@ -115,18 +119,22 @@ function FilterSelect({ label, value, options, onChange, accentColor = colors.bl
                 <Icon name="close" size={20} color={colors.ink} />
               </Pressable>
             </View>
-            {options.map((option) => (
-              <Pressable
-                key={option}
-                style={[styles.optionRow, value === option && styles.optionActive]}
-                onPress={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-              >
-                <Text style={[styles.optionText, value === option && styles.optionTextActive]}>{option}</Text>
-              </Pressable>
-            ))}
+            {normalizedOptions.map((option) => {
+              const optionText = optionLabel(option);
+              const optionValue = typeof option === 'string' ? option : option?.id || optionText;
+              return (
+                <Pressable
+                  key={optionValue}
+                  style={[styles.optionRow, value === optionValue || value === optionText ? styles.optionActive : null]}
+                  onPress={() => {
+                    onChange(typeof option === 'string' ? option : optionText);
+                    setOpen(false);
+                  }}
+                >
+                  <Text style={[styles.optionText, (value === optionValue || value === optionText) && styles.optionTextActive]}>{optionText}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </Pressable>
       </Modal>
@@ -155,38 +163,141 @@ function getDisplayEntries(entries) {
   }));
 }
 
-export default function TeacherTimetableScreen() {
+const normalizeTimetableRecords = (items) => {
+  const source = Array.isArray(items) ? items : [];
+  return source.map((entry, index) => ({
+    ...entry,
+    id: entry.id || `timetable-${index}`,
+    className: entry.className || entry.class_name || entry.targetClass || 'Class_1',
+    section: entry.section || entry.division || entry.division_name || entry.section_name || 'Sec A',
+    academicSession: entry.academicSession || entry.academic_session || '2026-2027',
+    day: entry.day || entry.day_name || 'Monday',
+    period: entry.period || entry.period_name || entry.slot || 'Period_1',
+    startTime: entry.startTime || entry.start_time || '09:00',
+    endTime: entry.endTime || entry.end_time || '09:40',
+    subject: entry.subject || entry.subject_name || 'Subject',
+    teacher: entry.teacher || entry.teacher_name || entry.faculty_name || 'Staff',
+    room: entry.room || entry.room_no || entry.allocation || entry.roomNumber || 'TBA',
+    type: entry.type || (entry.subject === 'Lunch' || entry.subject === 'Break' ? 'break' : 'lecture'),
+  }));
+};
+
+export default function TeacherTimetableScreen({ session, initialTab = 'Class Timetable' }) {
   const [records, setRecords] = useState(classTimetableSeed);
   const [teacherRecords, setTeacherRecords] = useState(teacherTimetableSeed);
-  const [tab, setTab] = useState('Class Timetable');
+  const [tab, setTab] = useState(() => initialTab || 'Class Timetable');
   const [academicSession, setAcademicSession] = useState('2026-2027');
   const [className, setClassName] = useState('Class_1');
   const [sectionFilter, setSectionFilter] = useState('All Divisions / Sections (Full Class)');
   const [showAllPeriods, setShowAllPeriods] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
   const [selectedCell, setSelectedCell] = useState(null);
   const [facultyMember, setFacultyMember] = useState('sudarsan kumar (324)');
   const [assignedOnly, setAssignedOnly] = useState(true);
+  const [classOptions, setClassOptions] = useState([
+    { id: 'Class_1', label: 'Class_1' },
+    { id: 'Class_2', label: 'Class_2' },
+  ]);
+  const [sectionOptions, setSectionOptions] = useState(['All Divisions / Sections (Full Class)']);
 
-  const classOptions = useMemo(() => {
-    const set = new Set(records.map((item) => item.className));
-    return Array.from(set);
-  }, [records]);
+  useEffect(() => {
+    let active = true;
+
+    const fetchTimetable = async () => {
+      if (!session) {
+        if (active) {
+          setRecords(classTimetableSeed);
+          setTeacherRecords(teacherTimetableSeed);
+          setClassOptions(Array.from(new Set(classTimetableSeed.map((item) => item.className))).map((item) => ({ id: item, label: item })));
+        }
+        return;
+      }
+
+      if (active) {
+        setLoading(true);
+        setRefreshError('');
+      }
+
+      try {
+        const [defaultClasses, liveTimetable] = await Promise.all([
+          teacherAttendanceApi.getAcademicClasses(session),
+          teacherApi.getTimetable(session),
+        ]);
+
+        if (!active) return;
+
+        const nextRecords = normalizeTimetableRecords((Array.isArray(liveTimetable) && liveTimetable.length ? liveTimetable : classTimetableSeed));
+        const classList = (defaultClasses.length ? defaultClasses : Array.from(new Set(nextRecords.map((item) => item.className))).map((item) => ({ id: item, label: item })))
+          .map((item) => {
+            const rawId = item.id ?? item.value ?? item.label ?? item.name ?? item;
+            const rawLabel = item.label ?? item.name ?? item.id ?? item.value ?? item;
+            return { id: String(rawId), label: String(rawLabel) };
+          });
+
+        const selectedClass = classList.find((option) => option.label === className || option.id === className) || classList[0];
+        if (selectedClass && session) {
+          try {
+            const divisions = await teacherAttendanceApi.getAcademicDivisions(session, selectedClass.id);
+            const names = divisions.length
+              ? divisions.map((item) => item.label || item.name || item.id || 'Section')
+              : Array.from(new Set(nextRecords.filter((item) => item.className === selectedClass.label).map((item) => item.section)));
+            if (active) setSectionOptions(['All Divisions / Sections (Full Class)', ...names]);
+          } catch (requestError) {
+            const fallback = Array.from(new Set(nextRecords.filter((item) => item.className === selectedClass.label).map((item) => item.section)));
+            if (active) setSectionOptions(['All Divisions / Sections (Full Class)', ...fallback]);
+            if (requestError instanceof ApiError && requestError.status !== 404) {
+              if (active) setRefreshError(requestError.message);
+            }
+          }
+        }
+
+        if (active) {
+          setRecords(nextRecords);
+          setTeacherRecords((Array.isArray(liveTimetable) && liveTimetable.length ? normalizeTimetableRecords(liveTimetable) : teacherTimetableSeed));
+          setClassOptions(classList.length ? classList : [{ id: 'Class_1', label: 'Class_1' }]);
+          const currentClassMatches = classList.find((option) => option.label === className || option.id === className);
+          if (!currentClassMatches && classList.length) {
+            setClassName(classList[0].label);
+          }
+        }
+      } catch (requestError) {
+        if (active) {
+          setRefreshError(requestError instanceof ApiError ? requestError.message : 'Unable to refresh timetable data.');
+          setRecords(classTimetableSeed);
+          setTeacherRecords(teacherTimetableSeed);
+          setClassOptions(Array.from(new Set(classTimetableSeed.map((item) => item.className))).map((item) => ({ id: item, label: item })));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    };
+
+    void fetchTimetable();
+    return () => { active = false; };
+  }, [className, session]);
 
   const sectionOptionsForClass = useMemo(() => {
-    const set = new Set(
-      records
-        .filter((item) => item.className === className)
-        .map((item) => item.section),
-    );
-    return Array.from(set);
-  }, [className, records]);
+    const fallbackValues = sectionOptions.length > 1
+      ? sectionOptions.slice(1)
+      : Array.from(new Set(
+          records
+            .filter((item) => item.className === className)
+            .map((item) => item.section),
+        ));
+
+    return ['All Divisions / Sections (Full Class)', ...fallbackValues];
+  }, [className, records, sectionOptions]);
 
   const filteredRecords = useMemo(() => {
     return records.filter((item) => {
       if (item.academicSession !== academicSession) return false;
       if (item.className !== className) return false;
-      if (sectionFilter !== 'All Divisions / Sections (Full Class)' && item.section !== sectionFilter.replace('All Divisions / Sections', '').trim()) {
+      if (sectionFilter !== 'All Divisions / Sections (Full Class)' && item.section !== sectionFilter) {
         return false;
       }
       return true;
@@ -251,12 +362,11 @@ export default function TeacherTimetableScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRecords([...classTimetableSeed]);
-      setTeacherRecords([...teacherTimetableSeed]);
-      setRefreshing(false);
-    }, 600);
+    setLoading(true);
+    setRefreshError('');
   };
+
+  const statusMessage = refreshError || (loading ? 'Loading timetable...' : '');
 
   const handlePrintSchedule = () => {
     Alert.alert('Print Schedule', 'This action is ready to connect to a print/export service.');
@@ -368,7 +478,7 @@ export default function TeacherTimetableScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topTabs}>
-        {['Class Timetable', 'Teachers Timetable'].map((item) => (
+        {['Class Timetable', 'Teacher Timetable'].map((item) => (
           <Pressable
             key={item}
             style={[styles.topTab, tab === item && styles.topTabActive]}
@@ -396,6 +506,12 @@ export default function TeacherTimetableScreen() {
             </Pressable>
             <Text style={styles.sessionLabel}>Session: {academicSession}</Text>
           </View>
+
+          {statusMessage ? (
+            <View style={styles.statusBanner}>
+              <Text style={styles.statusText}>{statusMessage}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.summaryGrid}>
             <SummaryCard icon="school-outline" title="Class" value={className} label="Grade Target" tint={colors.paleBlue} accent={colors.blue} />
@@ -624,6 +740,8 @@ const styles = StyleSheet.create({
   matrixWrap: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, overflow: 'hidden' },
   matrixTable: { minWidth: 700 },
   teacherMatrixTable: { minWidth: 760 },
+  statusBanner: { backgroundColor: '#FFF5EA', borderWidth: 1, borderColor: '#F2D8B3', borderRadius: 10, padding: 10, marginBottom: 12 },
+  statusText: { color: '#B96A1A', fontSize: 11, fontWeight: '700' },
   headerRow: { flexDirection: 'row', backgroundColor: colors.navy },
   periodHeaderCell: {
     width: 120,

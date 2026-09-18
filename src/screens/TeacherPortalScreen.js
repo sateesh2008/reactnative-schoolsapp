@@ -21,6 +21,7 @@ import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
 import TeacherLeaveManagementScreen from "./TeacherLeaveManagementScreen";
+import TeacherTimetableScreen from "./TeacherTimetableScreen";
 
 const colors = {
   ink: "#17343B",
@@ -492,24 +493,31 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [error, setError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
-
-  const loadDashboard = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await teacherApi.getDashboard(session);
-      setDashboardData(data);
-    } catch (err) {
-      setError("Unable to load dashboard data. Showing local demo data.");
-      setDashboardData(defaultDashboard);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [timetableMenuOpen, setTimetableMenuOpen] = useState(false);
+  const [timetableSubmodule, setTimetableSubmodule] = useState("Class Timetable");
 
   useEffect(() => {
-    loadDashboard();
+    let active = true;
+
+    const fetchDashboard = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await teacherApi.getDashboard(session);
+        if (active) setDashboardData(data);
+      } catch {
+        if (active) {
+          setError("Unable to load dashboard data. Showing local demo data.");
+          setDashboardData(defaultDashboard);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void fetchDashboard();
+    return () => { active = false; };
   }, [session]);
 
   const handleNavigate = (module) => {
@@ -589,10 +597,9 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
     if (activeModule === "Timetable") {
       return (
-        <ModulePlaceholder
-          title="Timetable"
-          icon="time-outline"
-          description="View the daily and weekly class timetable for faculty planning."
+        <TeacherTimetableScreen
+          session={session}
+          initialTab={timetableSubmodule}
         />
       );
     }
@@ -730,6 +737,11 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   setHomeworkMenuOpen((value) => !value);
                   return;
                 }
+                if (item.label === "Timetable") {
+                  setTimetableMenuOpen(true);
+                  setActiveModule(module);
+                  return;
+                }
                 setActiveModule(module);
               }}
               style={({ pressed }) => [
@@ -752,6 +764,61 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           );
         })}
       </View>
+
+      <Modal
+        transparent
+        visible={timetableMenuOpen}
+        animationType="slide"
+        onRequestClose={() => setTimetableMenuOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setTimetableMenuOpen(false)}
+        >
+          <View style={styles.moreSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Timetable</Text>
+              <Pressable onPress={() => setTimetableMenuOpen(false)}>
+                <Icon name="close" size={22} color={colors.ink} />
+              </Pressable>
+            </View>
+            {['Class Timetable', 'Teacher Timetable'].map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => {
+                  setTimetableSubmodule(item);
+                  setTimetableMenuOpen(false);
+                  setActiveModule('Timetable');
+                }}
+                style={({ pressed }) => [
+                  styles.moreItem,
+                  timetableSubmodule === item && styles.moreItemActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.moreItemIconWrap}>
+                  <Icon name="time-outline" size={18} color={colors.blue} />
+                </View>
+                <View style={styles.moreItemCopy}>
+                  <Text
+                    style={[
+                      styles.moreItemTitle,
+                      timetableSubmodule === item && styles.moreItemTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  <Text style={styles.moreItemDescription}>
+                    {item === 'Class Timetable'
+                      ? 'View the class weekly timetable matrix'
+                      : 'View the faculty weekly teaching schedule'}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal
         transparent

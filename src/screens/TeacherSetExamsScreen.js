@@ -159,7 +159,7 @@ function ExamListItem({ item, onView, onSubjects }) {
   );
 }
 
-export default function TeacherSetExamsScreen({ session }) {
+export default function TeacherSetExamsScreen({ session, onSelectModule }) {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -179,6 +179,7 @@ export default function TeacherSetExamsScreen({ session }) {
     endDate: '',
     startTime: '09:00',
     endTime: '10:00',
+    description: '',
     status: 'Scheduled',
     subjects: [],
   });
@@ -265,6 +266,7 @@ export default function TeacherSetExamsScreen({ session }) {
         endDate: form.endDate,
         startTime: form.startTime,
         endTime: form.endTime,
+        description: form.description.trim(),
         status: form.status || 'Scheduled',
         subjects: form.subjects.length ? form.subjects : ['General'],
       }, session);
@@ -279,6 +281,7 @@ export default function TeacherSetExamsScreen({ session }) {
         endDate: '',
         startTime: '09:00',
         endTime: '10:00',
+        description: '',
         status: 'Scheduled',
         subjects: [],
       });
@@ -300,6 +303,25 @@ export default function TeacherSetExamsScreen({ session }) {
         <Text style={styles.headerTitle}>Schedule & Configure Examination</Text>
         <Text style={styles.headerMeta}>Exam Suite</Text>
         <Text style={styles.headerCopy}>Create new examination sessions, set start/end dates, assign targeted classes and configure timetables</Text>
+      </View>
+
+      <View style={styles.tabRow}>
+        {['Overview', 'Schedule Exam', 'Exam Schedules', 'Attendance', 'Attendance History', 'Marks Entry', 'Publish Results', 'Class Reports', 'Hall Tickets'].map((tab) => (
+          <Pressable
+            key={tab}
+            onPress={() => onSelectModule && onSelectModule(
+              tab === 'Attendance' ? 'Exam Attendance'
+                : tab === 'Marks Entry' ? 'Exam Result'
+                  : tab === 'Publish Results' ? 'Publish Result'
+                    : tab === 'Class Reports' ? 'Class Result'
+                      : tab === 'Hall Tickets' ? 'Hall Ticket'
+                        : 'Set Exams',
+            )}
+            style={[styles.tabPill, (tab === 'Overview' || tab === 'Schedule Exam' || tab === 'Exam Schedules') && styles.tabPillActive]}
+          >
+            <Text style={[styles.tabText, (tab === 'Overview' || tab === 'Schedule Exam' || tab === 'Exam Schedules') && styles.tabTextActive]}>{tab}</Text>
+          </Pressable>
+        ))}
       </View>
 
       <View style={styles.actionRow}>
@@ -526,6 +548,19 @@ export default function TeacherSetExamsScreen({ session }) {
               </View>
 
               <View style={styles.fieldWrap}>
+                <Text style={styles.fieldLabel}>Description / Instructions</Text>
+                <TextInput
+                  value={form.description}
+                  onChangeText={(text) => setForm((current) => ({ ...current, description: text }))}
+                  placeholder="Add instructions for students and invigilators"
+                  placeholderTextColor={colors.muted}
+                  style={[styles.input, styles.multilineInput]}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <View style={styles.fieldWrap}>
                 <Text style={styles.fieldLabel}>Subjects</Text>
                 <View style={styles.subjectContainer}>
                   {subjectPool.map((subject) => {
@@ -586,6 +621,11 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.ink, fontSize: 24, fontWeight: '900' },
   headerMeta: { color: colors.blue, fontSize: 12, fontWeight: '900', marginTop: 6, textTransform: 'uppercase' },
   headerCopy: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  tabRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  tabPill: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
+  tabPillActive: { backgroundColor: colors.paleBlue, borderColor: colors.blue },
+  tabText: { color: colors.muted, fontSize: 10, fontWeight: '700' },
+  tabTextActive: { color: colors.blue },
   actionRow: { marginBottom: 14 },
   primaryButton: {
     backgroundColor: colors.blue,
@@ -742,6 +782,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 12,
   },
+  multilineInput: { minHeight: 86, paddingTop: 10 },
   subjectContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   subjectToggle: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 10 },
   subjectToggleActive: { backgroundColor: colors.paleBlue, borderColor: colors.blue },

@@ -15,8 +15,23 @@ const initialSession = {
 
 const initialAnswerKey = Array.from({ length: 10 }, (_, index) => ({ question: index + 1, answer: ['A', 'B', 'C', 'D'][index % 4] }));
 const initialResults = [
-  { id: 'omr-result-1', student: 'Aarav Sharma', rollNo: '01', exam: 'My Exam (JEE)', correct: 42, incorrect: 6, unanswered: 2, score: 162, percentage: 81, rank: 1 },
-  { id: 'omr-result-2', student: 'Diya Nair', rollNo: '02', exam: 'My Exam (JEE)', correct: 38, incorrect: 9, unanswered: 3, score: 143, percentage: 71.5, rank: 2 },
+  {
+    id: 'omr-result-1',
+    examId: 'omr-session-1',
+    examName: 'My Exam (JEE)',
+    studentName: 'Joshi y',
+    rollNumber: 'ADM0100',
+    admissionNumber: 'ADM0100',
+    booklet: 'Set A',
+    totalScore: -50,
+    maxScore: 720,
+    correct: 2,
+    wrong: 58,
+    blank: 120,
+    rank: 1,
+    score: -50,
+    percentage: -6.94,
+  },
 ];
 
 let sessions = [initialSession];

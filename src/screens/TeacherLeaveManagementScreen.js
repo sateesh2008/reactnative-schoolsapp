@@ -39,7 +39,7 @@ function Select({ label, value, options, onChange }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable style={[styles.select, label === 'Absence category' && styles.categorySelect]} onPress={() => setOpen(true)}>
+      <Pressable style={styles.select} onPress={() => setOpen(true)}>
         <Text style={styles.selectText}>{value || 'Select an option'}</Text>
         <Icon name="chevron-down" size={16} color={colors.muted} />
       </Pressable>
@@ -69,7 +69,7 @@ function Select({ label, value, options, onChange }) {
 
 function Summary({ title, value, label, icon, tint, accent }) {
   return (
-    <View style={[styles.summary, { backgroundColor: tint, borderColor: accent }]}>
+    <View style={styles.summary}>
       <View style={[styles.summaryIcon, { backgroundColor: tint }]}>
         <Icon name={icon} color={accent} />
       </View>
@@ -82,7 +82,7 @@ function Summary({ title, value, label, icon, tint, accent }) {
 
 function LeaveCard({ item, onApprove, onReject, onView }) {
   return (
-    <View style={[styles.card, item.status === 'Approved' ? styles.approvedCard : item.status === 'Rejected' ? styles.rejectedCard : styles.pendingCard]}>
+    <View style={styles.card}>
       <View style={styles.cardTop}>
         <Text style={styles.serial}>{item.id.replace('leave-', '').padStart(2, '0')}</Text>
 
@@ -496,7 +496,6 @@ const styles = StyleSheet.create({
   field: { marginBottom: 11 },
   fieldLabel: { color: colors.ink, fontSize: 10, fontWeight: '900', marginBottom: 6 },
   select: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.white },
-  categorySelect: { backgroundColor: '#FFF3D9', borderColor: '#D9A441' },
   selectText: { color: colors.ink, fontSize: 12, flex: 1 },
   textarea: { minHeight: 86, backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 10, textAlignVertical: 'top', color: colors.ink },
   submitButton: { backgroundColor: colors.blue, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
@@ -506,9 +505,6 @@ const styles = StyleSheet.create({
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, minHeight: 42, marginBottom: 12 },
   searchInput: { flex: 1, color: colors.ink, fontSize: 12 },
   card: { backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 12 },
-  pendingCard: { backgroundColor: '#FFF8EA', borderColor: '#EBCB92' },
-  approvedCard: { backgroundColor: '#EAF8F2', borderColor: '#A9D6C9' },
-  rejectedCard: { backgroundColor: '#FFF0F0', borderColor: '#E5B2B2' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   serial: { color: colors.blue, fontWeight: '900', minWidth: 24 },
   cardIdentity: { flex: 1 },

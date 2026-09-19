@@ -357,7 +357,7 @@ function LegacyAddAssignment({ visible, classes, session, onClose, onSaved }) {
 
 export default function TeacherHomeworkScreen({ session }) {
   const [items, setItems] = useState([]);
-  const [year, setYear] = useState("2028-2029");
+  const [year, setYear] = useState("2026-2027");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState("10");

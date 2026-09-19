@@ -133,11 +133,15 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
           assigned.classes.length ? Promise.resolve([]) : teacherAttendanceApi.getAcademicClasses(session),
         ]);
         if (active) {
+          const nextClasses = assigned.classes.length ? assigned.classes : academicClasses;
+          const nextSections = assigned.sections;
           setData((current) => ({
             ...current,
-            classes: assigned.classes.length ? assigned.classes : academicClasses,
-            sections: assigned.sections,
+            classes: nextClasses,
+            sections: nextSections,
           }));
+          setClassSelection((current) => current || nextClasses[0] || null);
+          setSectionSelection((current) => current || nextSections[0] || null);
         }
       } catch (requestError) {
         if (active) setError(requestError instanceof ApiError ? requestError.message : 'Unable to load assigned classes and divisions.');
@@ -157,7 +161,11 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         const divisions = await teacherAttendanceApi.getAcademicDivisions(session, classId);
         if (active && divisions.length) {
           setData((current) => ({ ...current, sections: divisions }));
-          setSectionSelection(null);
+          setSectionSelection((current) => (
+            divisions.some((division) => String(division.id) === String(current?.id))
+              ? current
+              : divisions[0]
+          ));
         }
       } catch (requestError) {
         if (active) setError(requestError instanceof ApiError ? requestError.message : 'Unable to load divisions for the selected class.');
@@ -289,10 +297,10 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
     try {
       const historyDateValue = formatDate(date);
       const result = await teacherAttendanceApi.getAttendanceHistory({
-        class_id: classId,
-        division_id: divisionId,
-        from: historyDateValue,
-        to: historyDateValue,
+        classId,
+        divisionId,
+        startDate: historyDateValue,
+        endDate: historyDateValue,
         page: historyPage,
         limit: 20,
       }, session);
@@ -313,10 +321,36 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   useEffect(() => { if (activeTab === 'History Log') void loadHistory(); }, [activeTab, loadHistory]);
 
   const exportCsv = async () => {
-    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Date', 'Class', 'Section', 'Subject', 'Student', 'Roll/Admission', 'Status'], ...data.records.map((record) => [context.date, className, section, subject, record.name, record.roll || record.admissionNumber || record.studentId, record.status])];
-    try { await Share.share({ title: `Attendance ${context.date}`, message: rows.map((row) => row.map(escapeCsv).join(',')).join('\n') }); }
-    catch { Alert.alert('Export unavailable', 'Unable to open the Android share sheet.'); }
+    setActionLoading(true);
+    try {
+      const result = await teacherAttendanceApi.exportAttendance({
+        date: context.date,
+        classId,
+        divisionId,
+        format: 'CSV',
+      }, session);
+      const exportData = result?.data || result;
+      const downloadUrl = exportData?.download_url || exportData?.file_url || exportData?.url;
+      const csv = typeof exportData === 'string'
+        ? exportData
+        : exportData?.csv || exportData?.content;
+      if (!downloadUrl && !csv) {
+        throw new Error('The server returned an empty attendance export.');
+      }
+      await Share.share({
+        title: `Attendance ${context.date}`,
+        message: downloadUrl || csv,
+      });
+    } catch (requestError) {
+      Alert.alert(
+        'Export unavailable',
+        requestError instanceof ApiError
+          ? requestError.message
+          : 'Unable to export attendance from the server. Please try again.',
+      );
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const renderRecord = (record) => (
@@ -360,7 +394,7 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         {activeTab === 'Daily Log / Marking' ? <><View style={styles.metricGrid}><Metric title="Total Enrolled" value={summary.totalEnrolled} label="MATRIX VOLUME" backgroundColor={colors.paleBlue} /><Metric title="Marked Entries" value={summary.markedEntries} label="SYNCED" backgroundColor={colors.paleRed} /><Metric title="Present Today" value={summary.presentToday} label="ACTIVE STATUS" backgroundColor={colors.paleGreen} /><Metric title="Absent Count" value={summary.absentCount} label="MISSING" backgroundColor={colors.paleRed} /><Metric title="Late Arrivals" value={summary.lateArrivals} label="AUDIT LAG" backgroundColor={colors.paleOrange} /></View>{renderDailyLog()}</> : null}
         {activeTab === 'Biometric' ? <TeacherBiometricSuite session={session} /> : null}
         {activeTab === 'History Log' ? <View><Text style={styles.sectionTitle}>Attendance History</Text>{historyLoading ? <ActivityIndicator color={colors.blue} style={styles.loader} /> : null}{history.length ? <><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.historyDates}>{history.map((entry) => <Pressable key={`${entry.date}-${entry.className}-${entry.subject}`} style={[styles.historyDate, entry.date === historyDate && styles.historyDateActive]} onPress={() => setHistoryDate(entry.date)}><Text style={styles.historyDateText}>{entry.date}</Text></Pressable>)}</ScrollView><View style={styles.historyCard}><Text style={styles.historyTitle}>{selectedHistory?.date || 'No selected record'}</Text>{selectedHistory ? <Text style={styles.historyText}>Class: {selectedHistory.className}  Subject: {selectedHistory.subject}{'\n'}Total students: {selectedHistory.summary?.total ?? selectedHistory.records?.length ?? 0}  Present: {selectedHistory.summary?.present ?? 0}  Absent: {selectedHistory.summary?.absent ?? 0}  Late: {selectedHistory.summary?.late ?? 0}{'\n'}Submission status: Submitted</Text> : null}</View><View style={styles.pagination}><Pressable style={styles.bulkButton} disabled={historyPage === 1 || historyLoading} onPress={() => setHistoryPage((page) => Math.max(1, page - 1))}><Text style={styles.bulkText}>Previous</Text></Pressable><Text style={styles.historyText}>Page {historyPage}</Text><Pressable style={styles.bulkButton} disabled={!historyHasNext || historyLoading} onPress={() => setHistoryPage((page) => page + 1)}><Text style={styles.bulkText}>Next</Text></Pressable></View></> : !historyLoading ? <EmptyState title="No data available" message="No submitted attendance history available." /> : null}</View> : null}
-        {activeTab === 'Export' ? <View><Text style={styles.sectionTitle}>Export Attendance</Text><View style={styles.exportCard}><Text style={styles.exportText}>Export the selected date, class, subject, and current attendance statuses as CSV.</Text><Pressable style={styles.primaryButton} onPress={exportCsv}><Icon name="download-outline" size={17} color={colors.white} /><Text style={styles.primaryText}>Export CSV</Text></Pressable></View></View> : null}
+        {activeTab === 'Export' ? <View><Text style={styles.sectionTitle}>Export Attendance</Text><View style={styles.exportCard}><Text style={styles.exportText}>Export the selected date, class, subject, and current attendance statuses from the server.</Text><Pressable style={styles.primaryButton} disabled={actionLoading} onPress={exportCsv}>{actionLoading ? <ActivityIndicator color={colors.white} /> : <><Icon name="download-outline" size={17} color={colors.white} /><Text style={styles.primaryText}>Export CSV</Text></>}</Pressable></View></View> : null}
       </ScrollView>
       <SelectModal visible={selecting === 'class'} value={classSelection} options={data.classes} onSelect={(option) => { setClassSelection(option); setHistoryPage(1); }} onClose={() => setSelecting(null)} />
       <SelectModal visible={selecting === 'section'} value={sectionSelection} options={data.sections} onSelect={(option) => { setSectionSelection(option); setHistoryPage(1); }} onClose={() => setSelecting(null)} />

@@ -4,6 +4,7 @@ const recordsFrom = (payload) => {
   const records =
     payload?.announcements ||
     payload?.data?.announcements ||
+    payload?.data?.data ||
     payload?.data ||
     payload ||
     [];
@@ -28,5 +29,42 @@ export const announcementsApi = {
       date: announcement.created_at || announcement.date || '',
       creator: announcement.creator_name || announcement.created_by_name || 'School Administration',
     }));
+  },
+
+  async getAnnouncement(session, id) {
+    return apiRequest(`/announcements/${id}`, { token: session?.token });
+  },
+
+  async getPublicAnnouncement(id) {
+    return apiRequest(`/announcements/public/${id}`);
+  },
+
+  async createAnnouncement(session, announcement) {
+    return apiRequest('/announcements', {
+      method: 'POST',
+      token: session?.token,
+      body: announcement,
+    });
+  },
+
+  async markAsRead(session, id) {
+    return apiRequest(`/announcements/${id}/read`, {
+      method: 'POST',
+      token: session?.token,
+    });
+  },
+
+  async markAllAsRead(session) {
+    return apiRequest('/announcements/read-all', {
+      method: 'POST',
+      token: session?.token,
+    });
+  },
+
+  async deleteAnnouncement(session, id) {
+    return apiRequest(`/announcements/${id}`, {
+      method: 'DELETE',
+      token: session?.token,
+    });
   },
 };

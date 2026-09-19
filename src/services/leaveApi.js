@@ -23,4 +23,19 @@ export const leaveApi = {
       body: data,
     });
   },
+
+  async updateStatus(session, id, status, rejectionReason = '') {
+    return apiRequest(`/leaves/${id}/status`, {
+      method: 'PATCH',
+      token: session?.token,
+      body: { status, rejection_reason: rejectionReason },
+    });
+  },
+
+  async deleteLeave(session, id) {
+    return apiRequest(`/leaves/${id}`, {
+      method: 'DELETE',
+      token: session?.token,
+    });
+  },
 };

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ApiError } from '../services/api';
 import { biometricApi } from '../services/biometricApi';
 
 const colors = { ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF', canvas: '#F4F8F6', blue: '#0D8B82', navy: '#123B43', paleBlue: '#E5F4F0', green: '#1E8E5E', paleGreen: '#E8F8F1', red: '#B94E4E', paleRed: '#FDECEC', orange: '#A76E00', paleOrange: '#FFF7DF' };
@@ -78,10 +79,12 @@ export default function TeacherBiometricSuite({ session }) {
     setLoading(true); setError('');
     try {
       const next = await biometricApi.getSnapshot(session);
-      const enrollments = await biometricApi.getEnrollments(session);
-      const punches = await biometricApi.getPunches(session);
-      setSnapshot({ ...next, enrollments, punches });
-    } catch { setError('Unable to load biometric data.'); }
+      setSnapshot(next);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError
+        ? requestError.message
+        : 'Unable to load biometric data.');
+    }
     finally { setLoading(false); }
   };
 

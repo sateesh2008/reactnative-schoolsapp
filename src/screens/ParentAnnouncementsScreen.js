@@ -66,6 +66,8 @@ export default function ParentAnnouncementsScreen({
   session,
   selectedStudentId,
   onSessionExpired,
+  title = "Announcements",
+  eventOnly = false,
 }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,13 @@ export default function ParentAnnouncementsScreen({
         session,
         selectedStudentId,
       );
-      setAnnouncements(records);
+      setAnnouncements(
+        eventOnly
+          ? records.filter((record) =>
+              String(record.type).toLowerCase().includes("event"),
+            )
+          : records,
+      );
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
@@ -96,7 +104,8 @@ export default function ParentAnnouncementsScreen({
   };
 
   useEffect(() => {
-    loadAnnouncements();
+    const timer = setTimeout(() => loadAnnouncements(), 0);
+    return () => clearTimeout(timer);
   }, [session, selectedStudentId]);
 
   return (
@@ -117,9 +126,9 @@ export default function ParentAnnouncementsScreen({
             <Ionicons name="megaphone-outline" size={23} color={colors.blue} />
           </View>
           <View>
-            <Text style={styles.title}>Announcements</Text>
+            <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>
-              School messages and notifications
+              {eventOnly ? "School events and activities" : "School messages and notifications"}
             </Text>
           </View>
         </View>
@@ -128,7 +137,7 @@ export default function ParentAnnouncementsScreen({
       {loading ? (
         <View style={styles.state}>
           <ActivityIndicator color={colors.blue} />
-          <Text style={styles.stateText}>Loading announcements...</Text>
+          <Text style={styles.stateText}>Loading {title.toLowerCase()}...</Text>
         </View>
       ) : error ? (
         <View style={styles.errorBox}>
@@ -144,7 +153,7 @@ export default function ParentAnnouncementsScreen({
             size={30}
             color={colors.muted}
           />
-          <Text style={styles.emptyTitle}>No announcements</Text>
+          <Text style={styles.emptyTitle}>No {title.toLowerCase()}</Text>
           <Text style={styles.emptyText}>
             New school notices will appear here.
           </Text>
@@ -155,12 +164,13 @@ export default function ParentAnnouncementsScreen({
           const [cardBackground, cardAccent] =
             announcementCardColors[index % announcementCardColors.length];
           return (
-            <View
+            <Pressable
               key={announcement.id || `${announcement.title}-${index}`}
               style={[
                 styles.card,
                 { backgroundColor: cardBackground, borderColor: cardAccent },
               ]}
+              onPress={() => announcement.id && announcementsApi.markAsRead(session, announcement.id)}
             >
               <View style={styles.cardHeader}>
                 <View style={styles.typeRow}>
@@ -193,7 +203,7 @@ export default function ParentAnnouncementsScreen({
                 </Text>
                 <Text style={styles.metaText}>{announcement.creator}</Text>
               </View>
-            </View>
+            </Pressable>
           );
         })
       )}

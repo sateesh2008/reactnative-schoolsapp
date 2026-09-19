@@ -6,7 +6,15 @@ const state = {
   punches: [],
 };
 
-const recordsFrom = (payload, key) => payload?.[key] || payload?.data || payload || [];
+const recordsFrom = (payload, key) => {
+  const candidates = [
+    payload?.[key],
+    payload?.data?.[key],
+    payload?.data,
+    payload,
+  ];
+  return candidates.find((value) => Array.isArray(value)) || [];
+};
 
 const requestOrMock = async (path, options, key, fallback) => {
   if (!isApiConfigured) return fallback;
@@ -17,18 +25,26 @@ const requestOrMock = async (path, options, key, fallback) => {
 export const biometricApi = {
   async getSnapshot(session) {
     if (isApiConfigured) {
-      const payload = await apiRequest('/api/biometric/snapshot', { token: session?.token });
+      const [devices, enrollments, punches] = await Promise.all([
+        this.getDevices(session),
+        this.getEnrollments(session),
+        this.getPunches(session),
+      ]);
       return {
-        devices: payload?.devices || [],
-        enrollments: payload?.enrollments || [],
-        punches: payload?.punches || [],
+        devices,
+        enrollments,
+        punches,
       };
     }
     return { devices: [...state.devices], enrollments: [...state.enrollments], punches: [...state.punches] };
   },
 
+  async getDevices(session) {
+    return requestOrMock('/biometric/devices', { token: session?.token }, 'devices', [...state.devices]);
+  },
+
   async registerDevice(device, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/devices', { method: 'POST', token: session?.token, body: device });
+    if (isApiConfigured) return apiRequest('/biometric/devices', { method: 'POST', token: session?.token, body: device });
     const saved = { ...device, id: `mock-device-${Date.now()}`, status: 'Unknown', lastSeen: null, hasCredentials: Boolean(device.username || device.password) };
     delete saved.password;
     state.devices = [...state.devices, saved];
@@ -36,34 +52,34 @@ export const biometricApi = {
   },
 
   async deleteDevice(id, session) {
-    if (isApiConfigured) return apiRequest(`/api/biometric/devices/${id}`, { method: 'DELETE', token: session?.token });
+    if (isApiConfigured) return apiRequest(`/biometric/devices/${id}`, { method: 'DELETE', token: session?.token });
     state.devices = state.devices.filter((device) => device.id !== id);
     return { ok: true };
   },
 
   async testConnection(device, session) {
-    if (isApiConfigured) return apiRequest(`/api/biometric/devices/${device.id}/test`, { method: 'POST', token: session?.token });
+    if (isApiConfigured) return apiRequest(`/biometric/devices/${device.id}/test`, { method: 'POST', token: session?.token });
     return { status: 'Unknown', simulated: true, message: 'Connection testing requires the biometric backend.' };
   },
 
   async getEnrollments(session) {
-    return requestOrMock('/api/biometric/enrollments', { token: session?.token }, 'enrollments', [...state.enrollments]);
+    return requestOrMock('/biometric/enrollments', { token: session?.token }, 'enrollments', [...state.enrollments]);
   },
 
   async getEnrollmentCandidates({ category, className, section }, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/enrollment-candidates', { token: session?.token, query: { category, class: className, section } });
+    if (isApiConfigured) return apiRequest('/biometric/enrollment-candidates', { token: session?.token, query: { category, class: className, section } });
     return [];
   },
 
   async saveEnrollment(enrollment, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/enrollments', { method: 'POST', token: session?.token, body: enrollment });
+    if (isApiConfigured) return apiRequest('/biometric/enrollments', { method: 'POST', token: session?.token, body: enrollment });
     const saved = { ...enrollment, id: `mock-enrollment-${Date.now()}`, status: 'Mapped', lastSync: null };
     state.enrollments = [...state.enrollments, saved];
     return saved;
   },
 
   async updateEnrollment(id, enrollment, session) {
-    if (isApiConfigured) return apiRequest(`/api/biometric/enrollments/${id}`, { method: 'PUT', token: session?.token, body: enrollment });
+    if (isApiConfigured) return apiRequest(`/biometric/enrollments/${id}`, { method: 'PUT', token: session?.token, body: enrollment });
     const current = state.enrollments.find((item) => item.id === id);
     if (!current) throw new Error('Enrollment was not found.');
     const updated = { ...current, ...enrollment, status: 'Mapped' };
@@ -72,7 +88,7 @@ export const biometricApi = {
   },
 
   async bulkImportEnrollments(enrollments, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/bulk-import', { method: 'POST', token: session?.token, body: { enrollments } });
+    if (isApiConfigured) return apiRequest('/biometric/enrollments/bulk-import', { method: 'POST', token: session?.token, body: { enrollments } });
     const existingUids = new Set(state.enrollments.map((item) => String(item.biometricUid)));
     const imported = enrollments.map((item, index) => ({ ...item, id: `mock-enrollment-${Date.now()}-${index}`, status: 'Mapped', lastSync: null }));
     state.enrollments = [...state.enrollments, ...imported.filter((item) => !existingUids.has(String(item.biometricUid)))];
@@ -80,12 +96,12 @@ export const biometricApi = {
   },
 
   async getAutoMapCandidates(category, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/auto-map/candidates', { token: session?.token, query: { category } });
+    if (isApiConfigured) return apiRequest('/biometric/enrollments/auto-map/candidates', { token: session?.token, query: { category } });
     return [];
   },
 
   async autoMapEnrollments(category, candidates, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/enrollments/auto-map', { method: 'POST', token: session?.token, body: { category, candidates } });
+    if (isApiConfigured) return apiRequest('/biometric/enrollments/auto-map', { method: 'POST', token: session?.token, body: { category, candidates } });
     const existingUids = new Set(state.enrollments.map((item) => String(item.biometricUid)));
     const result = { mapped: 0, skipped: 0, alreadyMapped: 0, failed: 0, failures: [] };
     candidates.forEach((candidate) => {
@@ -99,17 +115,17 @@ export const biometricApi = {
   },
 
   async deleteEnrollment(id, session) {
-    if (isApiConfigured) return apiRequest(`/api/biometric/enrollments/${id}`, { method: 'DELETE', token: session?.token });
+    if (isApiConfigured) return apiRequest(`/biometric/enrollments/${id}`, { method: 'DELETE', token: session?.token });
     state.enrollments = state.enrollments.filter((enrollment) => enrollment.id !== id);
     return { ok: true };
   },
 
   async getPunches(session) {
-    return requestOrMock('/api/biometric/punches', { token: session?.token }, 'punches', [...state.punches]);
+    return requestOrMock('/biometric/punches', { token: session?.token }, 'punches', [...state.punches]);
   },
 
   async simulatePunch(punch, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/webhook/test', { method: 'POST', token: session?.token, body: punch });
+    if (isApiConfigured) return apiRequest('/biometric/webhook/test', { method: 'POST', token: session?.token, body: punch });
     const mapping = state.enrollments.find((enrollment) => String(enrollment.biometricUid) === String(punch.biometricUid));
     const event = {
       ...punch,
@@ -124,7 +140,7 @@ export const biometricApi = {
   },
 
   async simulateWebhookEvent({ apiKey, biometricUid, timestamp }, session) {
-    if (isApiConfigured) return apiRequest('/api/biometric/event', { method: 'POST', token: session?.token, headers: { 'x-api-key': apiKey }, body: { biometric_uid: biometricUid, timestamp } });
+    if (isApiConfigured) return apiRequest('/biometric/event', { method: 'POST', token: session?.token, headers: { 'x-api-key': apiKey }, body: { biometric_uid: biometricUid, timestamp } });
     return { available: false, simulated: true, biometric_uid: biometricUid, timestamp, status: 'Unmapped' };
   },
 };

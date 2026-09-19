@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { teacherApi } from '../services/teacherApi';
+import { examAttendanceApi, examResultApi, teacherApi } from '../services/teacherApi';
 import TeacherSetExamsScreen from './TeacherSetExamsScreen';
 import TeacherTimetableScreen from './TeacherTimetableScreen';
 
@@ -43,21 +43,6 @@ const examModules = [
   { label: 'Class Result', description: 'View class-wise examination performance and results.', icon: 'bar-chart-outline' },
   { label: 'Attendance Result', description: 'View examination attendance and attendance-based reports.', icon: 'stats-chart-outline' },
   { label: 'Hall Ticket', description: 'Create and manage student examination hall tickets.', icon: 'receipt-outline' },
-];
-
-const mockAttendanceRecords = [
-  { id: 1, rollNo: '01', admissionNo: 'ADM-101', name: 'Aarav Sharma', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Present' },
-  { id: 2, rollNo: '02', admissionNo: 'ADM-102', name: 'Diya Nair', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Absent' },
-  { id: 3, rollNo: '03', admissionNo: 'ADM-103', name: 'Rohan Verma', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Late' },
-  { id: 4, rollNo: '04', admissionNo: 'ADM-104', name: 'Meera Iyer', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Present' },
-  { id: 5, rollNo: '05', admissionNo: 'ADM-105', name: 'Kabir Sen', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Not Marked' },
-];
-
-const mockmarks = [
-  { id: 1, rollNo: '01', name: 'Aarav Sharma', admissionNo: 'ADM-101', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 92, grade: 'A+', status: 'Submitted' },
-  { id: 2, rollNo: '02', name: 'Diya Nair', admissionNo: 'ADM-102', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 78, grade: 'B+', status: 'Draft' },
-  { id: 3, rollNo: '03', name: 'Rohan Verma', admissionNo: 'ADM-103', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 85, grade: 'A', status: 'Pending' },
-  { id: 4, rollNo: '04', name: 'Meera Iyer', admissionNo: 'ADM-104', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 66, grade: 'B', status: 'Submitted' },
 ];
 
 const mockResultData = [
@@ -142,6 +127,72 @@ function normalizeExamValue(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function ExamHubScreen({ session, onSelectModule }) {
+  const [exams, setExams] = useState([]);
+  const [terms, setTerms] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      const results = await Promise.allSettled([
+        teacherApi.getExams(session),
+        teacherApi.getExamTerms(session),
+        teacherApi.getExamTypes(session),
+      ]);
+      if (!active) return;
+      const [examsResult, termsResult, typesResult] = results;
+      if (examsResult.status === 'fulfilled') setExams(Array.isArray(examsResult.value) ? examsResult.value : []);
+      else setError('Unable to load examination schedules.');
+      if (termsResult.status === 'fulfilled') setTerms(Array.isArray(termsResult.value) ? termsResult.value : []);
+      if (typesResult.status === 'fulfilled') setTypes(Array.isArray(typesResult.value) ? typesResult.value : []);
+      setLoading(false);
+    };
+    void load();
+    return () => { active = false; };
+  }, [session]);
+
+  const scheduled = exams.filter((exam) => String(exam.status).toLowerCase() === 'scheduled').length;
+  const completed = exams.filter((exam) => String(exam.status).toLowerCase() === 'completed').length;
+  const published = exams.filter((exam) => Number(exam.publish_status || exam.publishStatus) === 1 || String(exam.publish_status).toLowerCase() === 'published').length;
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerCard}>
+        <Text style={styles.pageTitle}>Exams / Marks</Text>
+        <Text style={styles.pageSubtitle}>Examination, Marks & Academic Assessment Management</Text>
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.summaryGrid}>
+        <SummaryCard title="Total Exams" value={String(exams.length)} label="All sessions" tint={colors.paleBlue} accent={colors.blue} icon="book-outline" />
+        <SummaryCard title="Scheduled" value={String(scheduled)} label="Upcoming" tint={colors.paleOrange} accent={colors.orange} icon="time-outline" />
+        <SummaryCard title="Completed" value={String(completed)} label="Conducted" tint={colors.paleTeal} accent={colors.teal} icon="checkmark-done-outline" />
+        <SummaryCard title="Published" value={String(published)} label="Live results" tint={colors.softLilac} accent={colors.plum} icon="share-outline" />
+      </View>
+      <View style={styles.listCard}>
+        <Text style={styles.sectionTitle}>Exam data sources</Text>
+        <Text style={styles.listText}>{terms.length} academic terms · {types.length} exam types</Text>
+        {loading ? <ActivityIndicator color={colors.blue} style={styles.loadingWrap} /> : exams.slice(0, 5).map((exam) => (
+          <View key={exam.id} style={styles.resultRow}>
+            <Text style={styles.listTitle}>{exam.name}</Text>
+            <Text style={styles.listText}>{exam.targetClass} · {exam.startDate || 'Date TBD'} · {exam.status || 'Scheduled'}</Text>
+          </View>
+        ))}
+        {!loading && !exams.length ? <Text style={styles.emptyText}>No examinations found on the server.</Text> : null}
+      </View>
+      <View style={styles.gridWrap}>
+        {examModules.map((item, index) => (
+          <LandingCard key={item.label} item={item} index={index} onPress={(label) => onSelectModule && onSelectModule(label)} />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
 function ViewExamsScreen({ session, onBack, onSelectModule }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -214,6 +265,29 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
     setSubjectsExam(null);
     setSubjectDraft([]);
   };
+
+  const openSubjects = async (exam) => {
+    setSubjectsExam(exam);
+    setSubjectDraft([]);
+    try {
+      const subjects = await teacherApi.getExamSubjects(exam.id, session);
+      setSubjectDraft(Array.isArray(subjects) ? subjects.map((subject) => subject.name || subject.subject_name || subject.title || String(subject)) : []);
+    } catch {
+      setSubjectDraft(exam.subjects || []);
+    }
+  };
+
+  const deleteExam = (exam) => Alert.alert('Delete exam?', `${exam.name} will be removed from the server.`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try {
+        await teacherApi.deleteExam(exam.id, session);
+        setRecords((current) => current.filter((item) => item.id !== exam.id));
+      } catch (requestError) {
+        Alert.alert('Delete failed', requestError?.message || 'Unable to delete the exam.');
+      }
+    } },
+  ]);
 
   const handleAddSubject = () => {
     setSubjectDraft((current) => [...current, `Subject ${current.length + 1}`]);
@@ -331,8 +405,7 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
                   style={styles.secondaryButton}
                   onPress={(event) => {
                     event.stopPropagation();
-                    setSubjectsExam(exam);
-                    setSubjectDraft(exam.subjects || []);
+                    void openSubjects(exam);
                   }}
                 >
                   <Text style={styles.secondaryButtonText}>Manage Subjects</Text>
@@ -345,6 +418,9 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
                   }}
                 >
                   <Text style={styles.ghostButtonText}>View Details</Text>
+                </Pressable>
+                <Pressable style={styles.ghostButton} onPress={(event) => { event.stopPropagation(); deleteExam(exam); }}>
+                  <Text style={[styles.ghostButtonText, { color: colors.red }]}>Delete</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -423,121 +499,343 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
 }
 
 function ExamAttendanceScreen({ session, onBack }) {
-  const [selectedExam, setSelectedExam] = useState('Unit Test');
-  const [selectedClass, setSelectedClass] = useState('Class 1');
-  const [selectedSection, setSelectedSection] = useState('A');
-  const [selectedSubject, setSelectedSubject] = useState('Mathematics');
+  const [exams, setExams] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [attendance, setAttendance] = useState({});
+  const [remarks, setRemarks] = useState({});
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedDivisionId, setSelectedDivisionId] = useState('');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const totalStudents = mockAttendanceRecords.length;
-  const present = mockAttendanceRecords.filter((record) => record.status === 'Present').length;
-  const absent = mockAttendanceRecords.filter((record) => record.status === 'Absent').length;
-  const notMarked = mockAttendanceRecords.filter((record) => record.status === 'Not Marked').length;
+  useEffect(() => {
+    let active = true;
+    Promise.all([teacherApi.getExams(session), examAttendanceApi.getClasses(session)])
+      .then(([nextExams, nextClasses]) => {
+        if (!active) return;
+        setExams(nextExams || []);
+        setClasses(nextClasses || []);
+        setSelectedExamId(String(nextExams?.[0]?.id || ''));
+        setSelectedClassId(String(nextClasses?.[0]?.id || ''));
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError?.message || 'Unable to load exam attendance filters.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedClassId) return;
+    let active = true;
+    examAttendanceApi.getDivisions(selectedClassId, session).then((nextDivisions) => {
+      if (!active) return;
+      setDivisions(nextDivisions || []);
+      setSelectedDivisionId(String(nextDivisions?.[0]?.id || ''));
+    }).catch(() => {
+      if (active) setDivisions([]);
+    });
+    return () => { active = false; };
+  }, [selectedClassId, session]);
+
+  useEffect(() => {
+    if (!selectedExamId) return;
+    let active = true;
+    examAttendanceApi.getSubjects(selectedExamId, session).then((nextSubjects) => {
+      if (!active) return;
+      setSubjects(nextSubjects || []);
+      setSelectedSubjectId(String(nextSubjects?.[0]?.id || ''));
+    }).catch((requestError) => {
+      if (active) setError(requestError?.message || 'Unable to load exam subjects.');
+    });
+    return () => { active = false; };
+  }, [selectedExamId, selectedClassId, session, exams]);
+
+  useEffect(() => {
+    if (!selectedSubjectId || !selectedClassId) {
+      return;
+    }
+    let active = true;
+    const loadTimer = setTimeout(() => {
+      setRosterLoading(true);
+      Promise.all([
+        examAttendanceApi.getSubjectMarks(selectedSubjectId, session),
+        examAttendanceApi.getStudents(selectedClassId, selectedDivisionId, session),
+      ]).then(([marks, nextStudents]) => {
+      if (!active) return;
+      const marksByStudent = new Map((marks || []).map((mark) => [String(mark.student_id || mark.studentId), mark]));
+      const normalizedStudents = (nextStudents || []).map((student) => ({
+        ...student,
+        id: student.id || student.student_id,
+        name: student.name || [student.first_name, student.last_name].filter(Boolean).join(' ') || student.student_name || 'Unnamed student',
+      }));
+      const nextAttendance = {};
+      const nextRemarks = {};
+      normalizedStudents.forEach((student) => {
+        const existing = marksByStudent.get(String(student.id));
+        nextAttendance[student.id] = existing ? !Boolean(existing.is_absent) : true;
+        nextRemarks[student.id] = existing?.remarks || '';
+      });
+      setStudents(normalizedStudents);
+      setAttendance(nextAttendance);
+      setRemarks(nextRemarks);
+      }).catch((requestError) => {
+        if (active) setError(requestError?.message || 'Unable to load student attendance roster.');
+      }).finally(() => {
+        if (active) setRosterLoading(false);
+      });
+    }, 0);
+    return () => { active = false; clearTimeout(loadTimer); };
+  }, [selectedSubjectId, selectedClassId, selectedDivisionId, session]);
+
+  const selectedExam = exams.find((exam) => String(exam.id) === String(selectedExamId));
+  const selectedSubject = subjects.find((subject) => String(subject.id) === String(selectedSubjectId));
+  const visibleStudents = students.filter((student) => {
+    const query = search.trim().toLowerCase();
+    return !query || [student.name, student.admission_no, student.roll_no].some((value) => String(value || '').toLowerCase().includes(query));
+  });
+  const presentCount = Object.values(attendance).filter(Boolean).length;
+  const absentCount = students.length - presentCount;
+
+  const markAll = (isPresent) => setAttendance((current) => Object.fromEntries(students.map((student) => [student.id, isPresent])));
+  const save = async () => {
+    if (!selectedExamId || !selectedSubjectId || !selectedClassId) {
+      Alert.alert('Validation', 'Select an exam, subject, and class before saving.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await examAttendanceApi.saveAttendance({
+        exam_id: selectedExamId,
+        exam_subject_id: selectedSubjectId,
+        marksData: students.map((student) => ({
+          student_id: student.id,
+          is_absent: attendance[student.id] ? 0 : 1,
+          remarks: remarks[student.id] || null,
+        })),
+      }, session);
+      Alert.alert('Saved', 'Exam attendance has been saved successfully.');
+    } catch (requestError) {
+      Alert.alert('Save failed', requestError?.message || 'Unable to save exam attendance.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const optionLabel = (item) => item?.name || item?.class_name || item?.division_name || item?.subject_name || String(item?.id || 'Unknown');
 
   return (
-    <View style={styles.screenWrap}>
-      <ScreenHeader title="Exam Attendance" subtitle="Record and monitor student attendance during examinations" onBack={onBack} />
+    <ScrollView style={styles.screenWrap} contentContainerStyle={styles.content}>
+      <ScreenHeader title="Exam Hall Attendance" subtitle="Record student attendance per examination subject paper" onBack={onBack} />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <View style={styles.filterPanel}>
         <View style={styles.filterGrid}>
-          <FilterBadge label="Examination" value={selectedExam} options={['Unit Test', 'Mid Term', 'Quarterly Exam']} onSelect={setSelectedExam} />
-          <FilterBadge label="Date" value="24 Sep 2026" options={['24 Sep 2026', '25 Sep 2026']} onSelect={() => {}} />
-          <FilterBadge label="Class" value={selectedClass} options={['Class 1', 'Class 2', 'Class 4']} onSelect={setSelectedClass} />
-          <FilterBadge label="Section" value={selectedSection} options={['A', 'B', 'C']} onSelect={setSelectedSection} />
-          <FilterBadge label="Subject" value={selectedSubject} options={['Mathematics', 'Science', 'English']} onSelect={setSelectedSubject} />
+          <FilterBadge label="Examination" value={optionLabel(selectedExam)} options={exams.map(optionLabel)} onSelect={(value) => setSelectedExamId(String(exams.find((exam) => optionLabel(exam) === value)?.id || ''))} />
+          <FilterBadge label="Subject Paper" value={optionLabel(selectedSubject)} options={subjects.map(optionLabel)} onSelect={(value) => setSelectedSubjectId(String(subjects.find((subject) => optionLabel(subject) === value)?.id || ''))} />
+          <FilterBadge label="Class" value={optionLabel(classes.find((item) => String(item.id) === String(selectedClassId)))} options={classes.map(optionLabel)} onSelect={(value) => setSelectedClassId(String(classes.find((item) => optionLabel(item) === value)?.id || ''))} />
+          <FilterBadge label="Division" value={optionLabel(divisions.find((item) => String(item.id) === String(selectedDivisionId)))} options={divisions.map(optionLabel)} onSelect={(value) => setSelectedDivisionId(String(divisions.find((item) => optionLabel(item) === value)?.id || ''))} />
         </View>
       </View>
-
       <View style={styles.summaryGrid}>
-        <SummaryCard title="Total Students" value={String(totalStudents)} label="Students" tint={colors.paleBlue} accent={colors.blue} icon="people-outline" />
-        <SummaryCard title="Present" value={String(present)} label="Present" tint={colors.paleTeal} accent={colors.teal} icon="checkmark-circle-outline" />
-        <SummaryCard title="Absent" value={String(absent)} label="Absent" tint={colors.paleOrange} accent={colors.orange} icon="close-circle-outline" />
-        <SummaryCard title="Not Marked" value={String(notMarked)} label="Pending" tint={colors.softLilac} accent={colors.plum} icon="time-outline" />
+        <SummaryCard title="Total Students" value={String(students.length)} label="Students" tint={colors.paleBlue} accent={colors.blue} icon="people-outline" />
+        <SummaryCard title="Present" value={String(presentCount)} label="Present" tint={colors.paleTeal} accent={colors.teal} icon="checkmark-circle-outline" />
+        <SummaryCard title="Absent" value={String(absentCount)} label="Absent" tint={colors.paleOrange} accent={colors.orange} icon="close-circle-outline" />
       </View>
-
       <View style={styles.buttonRow}>
-        <Pressable style={styles.secondaryButton} onPress={() => Alert.alert('Attendance', 'All students marked as present.')}> 
-          <Text style={styles.secondaryButtonText}>Mark All Present</Text>
-        </Pressable>
-        <Pressable style={styles.primaryButton} onPress={() => {
-          if (!selectedExam || !selectedClass || !selectedSubject) {
-            Alert.alert('Validation', 'Please select an examination, class and subject before saving.');
-            return;
-          }
-          Alert.alert('Saved', 'Exam attendance has been saved successfully.');
-        }}> 
-          <Text style={styles.primaryButtonText}>Save Attendance</Text>
-        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={() => markAll(true)}><Text style={styles.secondaryButtonText}>Mark All Present</Text></Pressable>
+        <Pressable style={styles.secondaryButton} onPress={() => markAll(false)}><Text style={styles.secondaryButtonText}>Mark All Absent</Text></Pressable>
+        <Pressable style={styles.primaryButton} disabled={saving || loading} onPress={save}><Text style={styles.primaryButtonText}>{saving ? 'Saving...' : 'Save Attendance'}</Text></Pressable>
       </View>
-
+      <View style={styles.searchField}>
+        <Icon name="search-outline" size={16} color={colors.muted} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Search student or roll no..." placeholderTextColor={colors.muted} style={styles.searchInput} />
+      </View>
       <View style={styles.listWrap}>
-        {mockAttendanceRecords.map((record) => (
-          <View key={record.id} style={styles.resultRow}>
-            <Text style={styles.rowLabel}>{record.rollNo}</Text>
-            <Text style={styles.rowLabel}>{record.admissionNo}</Text>
-            <Text style={styles.rowLabel}>{record.name}</Text>
-            <Text style={styles.rowLabel}>{record.className}</Text>
-            <Text style={styles.rowLabel}>{record.section}</Text>
-            <View style={styles.statusBox}><Text style={styles.statusText}>{record.status}</Text></View>
-            <Text style={styles.rowLabel}>{record.exam}</Text>
-            <Text style={styles.rowLabel}>{record.subject}</Text>
+        {loading || rosterLoading ? <ActivityIndicator color={colors.blue} style={styles.loadingWrap} /> : visibleStudents.length ? visibleStudents.map((student) => (
+          <View key={student.id} style={styles.resultRow}>
+            <Text style={styles.rowLabel}>{student.roll_no || '--'}</Text>
+            <Text style={styles.rowLabel}>{student.name}</Text>
+            <Text style={styles.rowLabel}>{student.admission_no || '--'}</Text>
+            <Pressable style={[styles.statusBox, attendance[student.id] ? styles.statusScheduled : styles.statusComplete]} onPress={() => setAttendance((current) => ({ ...current, [student.id]: !current[student.id] }))}>
+              <Text style={styles.statusText}>{attendance[student.id] ? 'Present' : 'Absent'}</Text>
+            </Pressable>
+            <TextInput value={remarks[student.id] || ''} onChangeText={(value) => setRemarks((current) => ({ ...current, [student.id]: value }))} placeholder="Remarks" placeholderTextColor={colors.muted} style={styles.searchInput} />
           </View>
-        ))}
+        )) : <Text style={styles.emptyText}>Select exam, subject, class, and division to load students.</Text>}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
-function ExamResultScreen({ onBack }) {
-  const [selectedExam, setSelectedExam] = useState('Unit Test');
-  const [selectedClass, setSelectedClass] = useState('Class 1');
-  const [selectedSection, setSelectedSection] = useState('A');
-  const [selectedSubject, setSelectedSubject] = useState('Mathematics');
+function ExamResultScreen({ session, onBack }) {
+  const [exams, setExams] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [marks, setMarks] = useState({});
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedDivisionId, setSelectedDivisionId] = useState('');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const totalStudents = mockmarks.length;
-  const marksEntered = mockmarks.filter((item) => Number(item.obtainedMarks) >= 0).length;
-  const pending = mockmarks.filter((item) => item.status === 'Pending').length;
-  const average = (mockmarks.reduce((sum, item) => sum + Number(item.obtainedMarks), 0) / totalStudents).toFixed(1);
+  useEffect(() => {
+    let active = true;
+    Promise.all([teacherApi.getExams(session), examResultApi.getClasses(session)])
+      .then(([nextExams, nextClasses]) => {
+        if (!active) return;
+        setExams(nextExams || []);
+        setClasses(nextClasses || []);
+        setSelectedExamId(String(nextExams?.[0]?.id || ''));
+        setSelectedClassId(String(nextClasses?.[0]?.id || ''));
+      })
+      .catch((requestError) => { if (active) setError(requestError?.message || 'Unable to load marks filters.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedClassId) return;
+    let active = true;
+    examResultApi.getDivisions(selectedClassId, session).then((nextDivisions) => {
+      if (!active) return;
+      setDivisions(nextDivisions || []);
+      setSelectedDivisionId(String(nextDivisions?.[0]?.id || ''));
+    }).catch(() => { if (active) setDivisions([]); });
+    return () => { active = false; };
+  }, [selectedClassId, session]);
+
+  useEffect(() => {
+    if (!selectedExamId) return;
+    let active = true;
+    examResultApi.getSubjects(selectedExamId, session).then((nextSubjects) => {
+      if (!active) return;
+      setSubjects(nextSubjects || []);
+      setSelectedSubjectId(String(nextSubjects?.[0]?.id || ''));
+    }).catch((requestError) => { if (active) setError(requestError?.message || 'Unable to load exam subjects.'); });
+    return () => { active = false; };
+  }, [selectedExamId, session]);
+
+  useEffect(() => {
+    if (!selectedSubjectId || !selectedClassId) return;
+    let active = true;
+    const loadTimer = setTimeout(() => {
+      setRosterLoading(true);
+      Promise.all([
+        examResultApi.getSubjectMarks(selectedSubjectId, session),
+        examResultApi.getStudents(selectedClassId, selectedDivisionId, session),
+      ]).then(([existingMarks, nextStudents]) => {
+        if (!active) return;
+        const marksByStudent = new Map((existingMarks || []).map((mark) => [String(mark.student_id || mark.studentId), mark]));
+        const normalizedStudents = (nextStudents || []).map((student) => ({
+          ...student,
+          id: student.id || student.student_id,
+          name: student.name || [student.first_name, student.last_name].filter(Boolean).join(' ') || student.student_name || 'Unnamed student',
+        }));
+        const nextMarks = {};
+        normalizedStudents.forEach((student) => {
+          const existing = marksByStudent.get(String(student.id));
+          nextMarks[student.id] = {
+            marks_obtained: existing?.marks_obtained ?? '',
+            is_absent: Number(existing?.is_absent || 0),
+            remarks: existing?.remarks || '',
+          };
+        });
+        setStudents(normalizedStudents);
+        setMarks(nextMarks);
+      }).catch((requestError) => {
+        if (active) setError(requestError?.message || 'Unable to load student marks.');
+      }).finally(() => { if (active) setRosterLoading(false); });
+    }, 0);
+    return () => { active = false; clearTimeout(loadTimer); };
+  }, [selectedSubjectId, selectedClassId, selectedDivisionId, session]);
+
+  const selectedSubject = subjects.find((subject) => String(subject.id) === String(selectedSubjectId));
+  const maxMarks = Number(selectedSubject?.max_marks || 100);
+  const passMarks = Number(selectedSubject?.pass_marks || 35);
+  const visibleStudents = students.filter((student) => {
+    const query = search.trim().toLowerCase();
+    return !query || [student.name, student.admission_no, student.roll_no].some((value) => String(value || '').toLowerCase().includes(query));
+  });
+  const scored = Object.values(marks).filter((mark) => !mark.is_absent && mark.marks_obtained !== '' && Number.isFinite(Number(mark.marks_obtained)));
+  const scores = scored.map((mark) => Number(mark.marks_obtained));
+  const average = scores.length ? (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1) : '0.0';
+  const highest = scores.length ? Math.max(...scores) : 0;
+  const passed = scores.filter((score) => score >= passMarks).length;
+  const optionLabel = (item) => item?.name || item?.class_name || item?.division_name || item?.subject_name || String(item?.id || 'Unknown');
+
+  const updateMark = (studentId, field, value) => {
+    if (field === 'marks_obtained' && value !== '' && Number(value) > maxMarks) {
+      Alert.alert('Invalid marks', `Marks cannot exceed ${maxMarks}.`);
+      return;
+    }
+    setMarks((current) => ({ ...current, [studentId]: { ...current[studentId], [field]: value } }));
+  };
+  const toggleAbsent = (studentId) => setMarks((current) => ({
+    ...current,
+    [studentId]: { ...current[studentId], is_absent: current[studentId]?.is_absent ? 0 : 1, marks_obtained: current[studentId]?.is_absent ? current[studentId]?.marks_obtained || '' : '0' },
+  }));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await examResultApi.saveMarks({
+        exam_id: selectedExamId,
+        exam_subject_id: selectedSubjectId,
+        marksData: students.map((student) => ({
+          student_id: student.id,
+          marks_obtained: marks[student.id]?.is_absent ? 0 : (marks[student.id]?.marks_obtained === '' ? null : Number(marks[student.id]?.marks_obtained)),
+          is_absent: marks[student.id]?.is_absent || 0,
+          remarks: marks[student.id]?.remarks || null,
+        })),
+      }, session);
+      Alert.alert('Saved', 'Performance marks synced successfully.');
+    } catch (requestError) {
+      Alert.alert('Save failed', requestError?.message || 'Unable to save marks.');
+    } finally { setSaving(false); }
+  };
 
   return (
-    <View style={styles.screenWrap}>
-      <ScreenHeader title="Exam Result" subtitle="Enter, review and manage student examination marks" onBack={onBack} />
-      <View style={styles.filterPanel}>
-        <View style={styles.filterGrid}>
-          <FilterBadge label="Examination" value={selectedExam} options={['Unit Test', 'Mid Term']} onSelect={setSelectedExam} />
-          <FilterBadge label="Class" value={selectedClass} options={['Class 1', 'Class 2']} onSelect={setSelectedClass} />
-          <FilterBadge label="Section" value={selectedSection} options={['A', 'B']} onSelect={setSelectedSection} />
-          <FilterBadge label="Subject" value={selectedSubject} options={['Mathematics', 'Science']} onSelect={setSelectedSubject} />
-        </View>
-      </View>
-
+    <ScrollView style={styles.screenWrap} contentContainerStyle={styles.content}>
+      <ScreenHeader title="Performance & Marks Entry" subtitle="Record subject scores and synchronize results to student portals" onBack={onBack} />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.filterPanel}><View style={styles.filterGrid}>
+        <FilterBadge label="Examination" value={optionLabel(exams.find((exam) => String(exam.id) === String(selectedExamId)))} options={exams.map(optionLabel)} onSelect={(value) => setSelectedExamId(String(exams.find((exam) => optionLabel(exam) === value)?.id || ''))} />
+        <FilterBadge label="Subject Paper" value={optionLabel(selectedSubject)} options={subjects.map(optionLabel)} onSelect={(value) => setSelectedSubjectId(String(subjects.find((subject) => optionLabel(subject) === value)?.id || ''))} />
+        <FilterBadge label="Class" value={optionLabel(classes.find((item) => String(item.id) === String(selectedClassId)))} options={classes.map(optionLabel)} onSelect={(value) => setSelectedClassId(String(classes.find((item) => optionLabel(item) === value)?.id || ''))} />
+        <FilterBadge label="Division" value={optionLabel(divisions.find((item) => String(item.id) === String(selectedDivisionId)))} options={divisions.map(optionLabel)} onSelect={(value) => setSelectedDivisionId(String(divisions.find((item) => optionLabel(item) === value)?.id || ''))} />
+      </View></View>
       <View style={styles.summaryGrid}>
-        <SummaryCard title="Total Students" value={String(totalStudents)} label="Students" tint={colors.paleBlue} accent={colors.blue} icon="people-outline" />
-        <SummaryCard title="Marks Entered" value={String(marksEntered)} label="Records" tint={colors.paleTeal} accent={colors.teal} icon="checkmark-done-outline" />
-        <SummaryCard title="Pending" value={String(pending)} label="Pending" tint={colors.paleOrange} accent={colors.orange} icon="time-outline" />
-        <SummaryCard title="Average Marks" value={`${average}`} label="Average" tint={colors.softLilac} accent={colors.plum} icon="stats-chart-outline" />
+        <SummaryCard title="Subject Max" value={String(maxMarks)} label={`Pass ${passMarks}`} tint={colors.paleBlue} accent={colors.blue} icon="trophy-outline" />
+        <SummaryCard title="Average" value={average} label="Scored students" tint={colors.paleOrange} accent={colors.orange} icon="stats-chart-outline" />
+        <SummaryCard title="Highest" value={String(highest)} label="Top score" tint={colors.paleTeal} accent={colors.teal} icon="trending-up-outline" />
+        <SummaryCard title="Pass Rate" value={`${scores.length ? Math.round((passed / scores.length) * 100) : 0}%`} label={`${passed}/${scores.length}`} tint={colors.softLilac} accent={colors.plum} icon="checkmark-circle-outline" />
       </View>
-
-      <View style={styles.buttonRow}>
-        <Pressable style={styles.secondaryButton} onPress={() => Alert.alert('Saved draft', 'Marks draft has been saved.')}><Text style={styles.secondaryButtonText}>Save Draft</Text></Pressable>
-        <Pressable style={styles.primaryButton} onPress={() => Alert.alert('Submitted', 'Marks submitted successfully.')}><Text style={styles.primaryButtonText}>Submit Marks</Text></Pressable>
-      </View>
-
+      <View style={styles.searchField}><Icon name="search-outline" size={16} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Search by student name or roll..." placeholderTextColor={colors.muted} style={styles.searchInput} /></View>
+      <Pressable style={styles.primaryButton} disabled={saving || loading || !students.length} onPress={save}><Text style={styles.primaryButtonText}>{saving ? 'Saving...' : 'Sync Marks to Portal'}</Text></Pressable>
       <View style={styles.listWrap}>
-        {mockmarks.map((record) => (
-          <View key={record.id} style={styles.resultRow}>
-            <Text style={styles.rowLabel}>{record.rollNo}</Text>
-            <Text style={styles.rowLabel}>{record.name}</Text>
-            <Text style={styles.rowLabel}>{record.admissionNo}</Text>
-            <Text style={styles.rowLabel}>{record.className}</Text>
-            <Text style={styles.rowLabel}>{record.section}</Text>
-            <Text style={styles.rowLabel}>{record.subject}</Text>
-            <Text style={styles.rowLabel}>{record.maximumMarks}</Text>
-            <Text style={styles.rowLabel}>{record.obtainedMarks}</Text>
-            <Text style={styles.rowLabel}>{record.grade}</Text>
-            <Text style={styles.rowLabel}>{record.status}</Text>
-          </View>
-        ))}
+        {loading || rosterLoading ? <ActivityIndicator color={colors.blue} style={styles.loadingWrap} /> : visibleStudents.length ? visibleStudents.map((student) => {
+          const mark = marks[student.id] || {};
+          const score = Number(mark.marks_obtained);
+          const hasScore = !mark.is_absent && mark.marks_obtained !== '' && Number.isFinite(score);
+          return <View key={student.id} style={styles.resultRow}><Text style={styles.rowLabel}>{student.roll_no || '--'}</Text><Text style={styles.rowLabel}>{student.name}</Text><Pressable style={[styles.statusBox, mark.is_absent ? styles.statusComplete : styles.statusScheduled]} onPress={() => toggleAbsent(student.id)}><Text style={styles.statusText}>{mark.is_absent ? 'Absent' : 'Present'}</Text></Pressable><TextInput editable={!mark.is_absent} keyboardType="decimal-pad" value={mark.is_absent ? '' : String(mark.marks_obtained ?? '')} onChangeText={(value) => updateMark(student.id, 'marks_obtained', value)} placeholder={`0 / ${maxMarks}`} placeholderTextColor={colors.muted} style={styles.searchInput} /><Text style={styles.rowLabel}>{mark.is_absent ? 'ABSENT' : !hasScore ? '-' : score >= passMarks ? 'PASS' : 'FAIL'}</Text><TextInput value={mark.remarks || ''} onChangeText={(value) => updateMark(student.id, 'remarks', value)} placeholder="Remarks" placeholderTextColor={colors.muted} style={styles.searchInput} /></View>;
+        }) : <Text style={styles.emptyText}>Select exam, subject, class, and division to load students.</Text>}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -708,7 +1006,7 @@ export default function TeacherExamsMarksScreen({ session, module = 'Exams / Mar
   }
 
   if (activeModule === 'Exam Result') {
-    return <ExamResultScreen onBack={() => onSelectModule && onSelectModule('Exams / Marks')} />;
+    return <ExamResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} />;
   }
 
   if (activeModule === 'Publish Result') {
@@ -727,20 +1025,7 @@ export default function TeacherExamsMarksScreen({ session, module = 'Exams / Mar
     return <HallTicketScreen onBack={() => onSelectModule && onSelectModule('Exams / Marks')} />;
   }
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerCard}>
-        <Text style={styles.pageTitle}>Exams / Marks</Text>
-        <Text style={styles.pageSubtitle}>Examination, Marks & Academic Assessment Management</Text>
-      </View>
-
-      <View style={styles.gridWrap}>
-        {examModules.map((item, index) => (
-          <LandingCard key={item.label} item={item} index={index} onPress={(label) => onSelectModule && onSelectModule(label)} />
-        ))}
-      </View>
-    </ScrollView>
-  );
+  return <ExamHubScreen session={session} onSelectModule={onSelectModule} />;
 }
 
 const styles = StyleSheet.create({

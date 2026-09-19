@@ -18,6 +18,7 @@ import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
 import { feesApi } from "../services/feesApi";
 import { homeworkApi } from "../services/homeworkApi";
+import { announcementsApi } from "../services/announcementsApi";
 import { parentApi } from "../services/parentApi";
 import ParentAdditionalModuleScreen from "./ParentAdditionalModuleScreen";
 import ParentAnnouncementsScreen from "./ParentAnnouncementsScreen";
@@ -45,7 +46,6 @@ const colors = {
   red: "#C65353",
 };
 
-const notices = [];
 const attendanceSeed = [];
 
 const navItems = [
@@ -327,28 +327,30 @@ function HomeContent({
           </View>
           <SectionTitle title="Latest Notifications" />
           <View style={dashboardStyles.listCard}>
-            <Text style={dashboardStyles.emptyText}>No new notifications</Text>
+            {dashboard.announcements.length ? (
+              dashboard.announcements.map((announcement) => (
+                <Pressable
+                  key={announcement.id || announcement.title}
+                  style={dashboardStyles.notificationRow}
+                  onPress={() => goTo("Messaging / Notifications")}
+                >
+                  <View style={dashboardStyles.notificationCopy}>
+                    <Text style={dashboardStyles.notificationTitle}>
+                      {announcement.title}
+                    </Text>
+                    <Text style={dashboardStyles.notificationMessage} numberOfLines={1}>
+                      {announcement.message}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-forward" size={16} color={colors.muted} />
+                </Pressable>
+              ))
+            ) : (
+              <Text style={dashboardStyles.emptyText}>No new notifications</Text>
+            )}
           </View>
         </>
       )}
-    </View>
-  );
-}
-
-function NoticeRow({ notice }) {
-  return (
-    <View style={styles.noticeRow}>
-      <View style={[styles.noticeDot, { backgroundColor: notice.color }]} />
-      <View style={{ flex: 1 }}>
-        <View style={styles.noticeMeta}>
-          <Text style={[styles.noticeType, { color: notice.color }]}>
-            {notice.type.toUpperCase()}
-          </Text>
-          <Text style={styles.noticeDate}>{notice.date}</Text>
-        </View>
-        <Text style={styles.noticeTitle}>{notice.title}</Text>
-      </View>
-      <Icon name="chevron-forward" size={16} color="#A3ADBB" />
     </View>
   );
 }
@@ -423,6 +425,16 @@ function DetailContent({
         onSessionExpired={onSessionExpired}
       />
     );
+  if (section === "Events")
+    return (
+      <ParentAnnouncementsScreen
+        session={session}
+        selectedStudentId={selectedStudentId}
+        onSessionExpired={onSessionExpired}
+        title="Events"
+        eventOnly
+      />
+    );
   if (section === "Leave")
     return (
       <ParentLeaveScreen
@@ -439,7 +451,7 @@ function DetailContent({
         onSessionExpired={onSessionExpired}
       />
     );
-  if (["Student Profile", "Events", "Documents"].includes(section))
+  if (["Student Profile", "Documents"].includes(section))
     return (
       <ParentAdditionalModuleScreen
         title={section}
@@ -735,9 +747,7 @@ function NoticesContent() {
         </View>
       </View>
       <View style={styles.panel}>
-        {notices.map((notice) => (
-          <NoticeRow key={notice.title} notice={notice} />
-        ))}
+        <Text style={styles.subtle}>Open Messaging / Notifications to view announcements.</Text>
       </View>
     </>
   );
@@ -786,8 +796,6 @@ function ProfileModal({ visible, onClose, session }) {
 }
 
 export default function ParentPortalScreen({ onLogout, session }) {
-  const unreadMessages = 3;
-  const unreadNotifications = 5;
   const [activeTab, setActiveTab] = useState("Home");
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -798,6 +806,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
     fees: "₹0",
     homeworkDetail: "No data available",
     classes: [],
+    announcements: [],
     schoolName: session?.schoolName || "",
     studentCount: students.length,
   });
@@ -847,16 +856,17 @@ export default function ParentPortalScreen({ onLogout, session }) {
 
       const results = await Promise.allSettled([
         feesApi.getSummary(session, activeStudentId),
-        attendanceApi.getSummary("2026-09-11", session, activeStudentId),
+        attendanceApi.getSummary(new Date().toISOString().slice(0, 10), session, activeStudentId),
         homeworkApi.getAssignments(session, activeStudentId),
         examsApi.getResults(session, activeStudentId),
+          announcementsApi.getAnnouncements(session, activeStudentId),
       ]);
-      const [feesResult, attendanceResult, homeworkResult, examsResult] =
+      const [feesResult, attendanceResult, homeworkResult, examsResult, announcementsResult] =
         results;
       const failedServices = results
         .map((result, index) =>
           result.status === "rejected"
-            ? `${["fees", "attendance", "homework", "exams"][index]}: ${result.reason?.message || "request failed"}`
+            ? `${["fees", "attendance", "homework", "exams", "announcements"][index]}: ${result.reason?.message || "request failed"}`
             : null,
         )
         .filter(Boolean);
@@ -866,15 +876,19 @@ export default function ParentPortalScreen({ onLogout, session }) {
       const homework =
         homeworkResult.status === "fulfilled" ? homeworkResult.value : [];
       const exams = examsResult.status === "fulfilled" ? examsResult.value : [];
+      const announcements =
+        announcementsResult.status === "fulfilled"
+          ? announcementsResult.value
+          : [];
       setDashboard({
         loading: false,
-        error: "",
         attendance: `${attendance?.attendanceRate ?? 0}%`,
         fees: `₹${Number(fees?.institutionalDues || 0).toLocaleString("en-IN")}`,
         homeworkDetail: homework?.length
           ? `${homework.length} available`
           : "No data available",
         classes: [],
+        announcements: announcements.slice(0, 3),
         schoolName: session?.schoolName || "",
         studentCount: nextStudents.length,
         examCount: exams.length,
@@ -917,7 +931,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
         </View>
         <View style={styles.headerActions}>
           <Pressable
-            accessibilityLabel={`${unreadMessages} unread messages`}
+            accessibilityLabel="Open announcements"
             onPress={() => setActiveTab("Messaging / Notifications")}
             style={styles.headerIconButton}
           >
@@ -926,15 +940,15 @@ export default function ParentPortalScreen({ onLogout, session }) {
               size={19}
               color="#C8DBF2"
             />
-            <Text style={styles.unreadBadge}>{unreadMessages}</Text>
+            <Text style={styles.unreadBadge}>{dashboard.announcements.length}</Text>
           </Pressable>
           <Pressable
-            accessibilityLabel={`${unreadNotifications} unread notifications`}
+            accessibilityLabel="Open notifications"
             onPress={() => setActiveTab("Messaging / Notifications")}
             style={styles.headerIconButton}
           >
             <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            <Text style={styles.unreadBadge}>{unreadNotifications}</Text>
+            <Text style={styles.unreadBadge}>{dashboard.announcements.length}</Text>
           </Pressable>
           <Pressable onPress={handleLogout} style={styles.logout}>
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />

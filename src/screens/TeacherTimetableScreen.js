@@ -183,8 +183,9 @@ const normalizeTimetableRecords = (items) => {
 };
 
 export default function TeacherTimetableScreen({ session, initialTab = 'Class Timetable' }) {
-  const [records, setRecords] = useState(classTimetableSeed);
-  const [teacherRecords, setTeacherRecords] = useState(teacherTimetableSeed);
+  const [records, setRecords] = useState([]);
+  const [teacherRecords, setTeacherRecords] = useState([]);
+  const [periodSlots, setPeriodSlots] = useState([]);
   const [tab, setTab] = useState(() => initialTab || 'Class Timetable');
   const [academicSession, setAcademicSession] = useState('2026-2027');
   const [className, setClassName] = useState('Class_1');
@@ -196,10 +197,7 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
   const [selectedCell, setSelectedCell] = useState(null);
   const [facultyMember, setFacultyMember] = useState('sudarsan kumar (324)');
   const [assignedOnly, setAssignedOnly] = useState(true);
-  const [classOptions, setClassOptions] = useState([
-    { id: 'Class_1', label: 'Class_1' },
-    { id: 'Class_2', label: 'Class_2' },
-  ]);
+  const [classOptions, setClassOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState(['All Divisions / Sections (Full Class)']);
 
   useEffect(() => {
@@ -208,9 +206,10 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
     const fetchTimetable = async () => {
       if (!session) {
         if (active) {
-          setRecords(classTimetableSeed);
-          setTeacherRecords(teacherTimetableSeed);
-          setClassOptions(Array.from(new Set(classTimetableSeed.map((item) => item.className))).map((item) => ({ id: item, label: item })));
+          setRecords([]);
+          setTeacherRecords([]);
+          setPeriodSlots([]);
+          setClassOptions([]);
         }
         return;
       }
@@ -221,14 +220,15 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
       }
 
       try {
-        const [defaultClasses, liveTimetable] = await Promise.all([
+        const [defaultClasses, liveTimetable, liveSessions] = await Promise.all([
           teacherAttendanceApi.getAcademicClasses(session),
-          teacherApi.getTimetable(session),
+          teacherApi.getTimetable(session, { academic_year_id: academicSession }),
+          teacherApi.getTimetableSessions(session, academicSession),
         ]);
 
         if (!active) return;
 
-        const nextRecords = normalizeTimetableRecords((Array.isArray(liveTimetable) && liveTimetable.length ? liveTimetable : classTimetableSeed));
+        const nextRecords = normalizeTimetableRecords(liveTimetable);
         const classList = (defaultClasses.length ? defaultClasses : Array.from(new Set(nextRecords.map((item) => item.className))).map((item) => ({ id: item, label: item })))
           .map((item) => {
             const rawId = item.id ?? item.value ?? item.label ?? item.name ?? item;
@@ -255,7 +255,13 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
 
         if (active) {
           setRecords(nextRecords);
-          setTeacherRecords((Array.isArray(liveTimetable) && liveTimetable.length ? normalizeTimetableRecords(liveTimetable) : teacherTimetableSeed));
+          setTeacherRecords(normalizeTimetableRecords(liveTimetable));
+          setPeriodSlots((liveSessions || []).map((item, index) => ({
+            id: item.id || item.session_name || `session-${index}`,
+            name: item.session_name || item.name || `Period ${index + 1}`,
+            startTime: item.start_time || item.startTime || '',
+            endTime: item.end_time || item.endTime || '',
+          })).filter((item) => item.startTime && item.endTime));
           setClassOptions(classList.length ? classList : [{ id: 'Class_1', label: 'Class_1' }]);
           const currentClassMatches = classList.find((option) => option.label === className || option.id === className);
           if (!currentClassMatches && classList.length) {
@@ -265,9 +271,9 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
       } catch (requestError) {
         if (active) {
           setRefreshError(requestError instanceof ApiError ? requestError.message : 'Unable to refresh timetable data.');
-          setRecords(classTimetableSeed);
-          setTeacherRecords(teacherTimetableSeed);
-          setClassOptions(Array.from(new Set(classTimetableSeed.map((item) => item.className))).map((item) => ({ id: item, label: item })));
+          setRecords([]);
+          setTeacherRecords([]);
+          setClassOptions([]);
         }
       } finally {
         if (active) {
@@ -305,13 +311,14 @@ export default function TeacherTimetableScreen({ session, initialTab = 'Class Ti
   }, [academicSession, className, records, sectionFilter]);
 
   const periodList = useMemo(() => {
+    const sourcePeriods = periodSlots.length ? periodSlots : [];
     if (showAllPeriods) {
-      return periodTemplates;
+      return sourcePeriods;
     }
-    return periodTemplates.filter((period) =>
+    return sourcePeriods.filter((period) =>
       filteredRecords.some((item) => item.period === period.id),
     );
-  }, [filteredRecords, showAllPeriods]);
+  }, [filteredRecords, periodSlots, showAllPeriods]);
 
   const columnEntries = useMemo(() => {
     const map = {};

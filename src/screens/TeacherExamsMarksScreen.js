@@ -375,6 +375,7 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
             key={tab}
             onPress={() => onSelectModule && onSelectModule(
               tab === 'Attendance' ? 'Exam Attendance'
+                : tab === 'Attendance History' ? 'Attendance Result'
                 : tab === 'Marks Entry' ? 'Exam Result'
                   : tab === 'Publish Results' ? 'Publish Result'
                     : tab === 'Class Reports' ? 'Class Result'
@@ -948,8 +949,8 @@ function ExamResultScreen({ session, onBack, onSelectModule }) {
 
   const navigateTab = (tab) => {
     if (!onSelectModule) return;
-    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
-    if (moduleMap[tab] && tab !== 'Marks Entry') onSelectModule(moduleMap[tab]);
+    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -1064,8 +1065,8 @@ function PublishResultScreen({ session, onBack, onSelectModule }) {
 
   const navigateTab = (tab) => {
     if (!onSelectModule) return;
-    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Marks Entry': 'Exam Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
-    if (moduleMap[tab] && tab !== 'Publish Results') onSelectModule(moduleMap[tab]);
+    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -1221,8 +1222,8 @@ function ClassResultScreen({ session, onBack, onSelectModule }) {
 
   const navigateTab = (tab) => {
     if (!onSelectModule) return;
-    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Hall Tickets': 'Hall Ticket' };
-    if (moduleMap[tab] && tab !== 'Class Reports') onSelectModule(moduleMap[tab]);
+    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -1370,8 +1371,8 @@ function AttendanceResultScreen({ session, onBack, onSelectModule }) {
 
   const navigateTab = (tab) => {
     if (!onSelectModule) return;
-    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
-    if (moduleMap[tab] && tab !== 'Attendance History') onSelectModule(moduleMap[tab]);
+    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -1415,19 +1416,135 @@ const hallTicketExam = {
   ],
 };
 
-function HallTicketScreen({ onBack, onSelectModule }) {
+function HallTicketScreen({ onBack, onSelectModule, session }) {
+  const defaultExamination = 'Periodic Text (Class_4)';
+  const defaultTargetClass = 'All Classes';
+  const defaultDivision = 'All Divisions';
   const [candidates, setCandidates] = useState(() => hallTicketExam.candidates.map((candidate) => ({ ...candidate, selected: true })));
   const [search, setSearch] = useState('');
   const [previewCandidate, setPreviewCandidate] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState({ venue: hallTicketExam.venue, reportingTime: hallTicketExam.reportingTime, guidelines: hallTicketExam.guidelines.join('\n') });
+  const [examinationOptions, setExaminationOptions] = useState([{ id: 'default-exam', label: defaultExamination }]);
+  const [classOptions, setClassOptions] = useState([{ id: 'all-classes', label: defaultTargetClass }]);
+  const [divisionOptions, setDivisionOptions] = useState([{ id: 'all-divisions', label: defaultDivision }]);
+  const [loadingOptions, setLoadingOptions] = useState({ examinations: false, classes: false, divisions: false });
+  const [selectedExamination, setSelectedExamination] = useState(defaultExamination);
+  const [selectedTargetClass, setSelectedTargetClass] = useState(defaultTargetClass);
+  const [selectedDivision, setSelectedDivision] = useState(defaultDivision);
+
+  useEffect(() => {
+    let active = true;
+    const loadExaminations = async () => {
+      setLoadingOptions((current) => ({ ...current, examinations: true }));
+      try {
+        const exams = await teacherApi.getExams(session);
+        if (!active) return;
+        const normalized = (Array.isArray(exams) ? exams : [])
+          .map((exam) => {
+            const examName = exam?.name || exam?.title || 'Examination';
+            const targetClass = exam?.targetClass || exam?.targetScope || exam?.className || 'Global (All Classes)';
+            const label = targetClass && targetClass !== 'Global (All Classes)' ? `${examName} (${targetClass})` : examName;
+            return { id: exam?.id ?? label, label };
+          })
+          .filter((option, index, items) => items.findIndex((item) => item.label === option.label) === index)
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        const nextOptions = normalized.length ? normalized : [{ id: 'default-exam', label: defaultExamination }];
+        setExaminationOptions(nextOptions);
+        setSelectedExamination((currentValue) => {
+          if (nextOptions.some((option) => option.label === currentValue)) return currentValue;
+          return nextOptions[0].label;
+        });
+      } catch (_error) {
+        if (!active) return;
+        setExaminationOptions([{ id: 'default-exam', label: defaultExamination }]);
+      } finally {
+        if (active) {
+          setLoadingOptions((current) => ({ ...current, examinations: false }));
+        }
+      }
+    };
+
+    void loadExaminations();
+    return () => { active = false; };
+  }, [session]);
+
+  useEffect(() => {
+    let active = true;
+    const loadClasses = async () => {
+      setLoadingOptions((current) => ({ ...current, classes: true }));
+      try {
+        const classes = await teacherAttendanceApi.getAcademicClasses(session);
+        if (!active) return;
+        const normalized = [{ id: 'all-classes', label: defaultTargetClass }, ...((Array.isArray(classes) ? classes : []).map((item) => ({
+          id: item?.id ?? item?.value ?? item?.name ?? String(item),
+          label: item?.label || item?.name || item?.className || String(item),
+        })))]
+          .filter((option, index, items) => items.findIndex((item) => item.label === option.label) === index);
+        setClassOptions(normalized);
+        setSelectedTargetClass((currentValue) => {
+          if (normalized.some((option) => option.label === currentValue)) return currentValue;
+          return defaultTargetClass;
+        });
+      } catch (_error) {
+        if (!active) return;
+        setClassOptions([{ id: 'all-classes', label: defaultTargetClass }]);
+      } finally {
+        if (active) {
+          setLoadingOptions((current) => ({ ...current, classes: false }));
+        }
+      }
+    };
+
+    void loadClasses();
+    return () => { active = false; };
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedTargetClass || selectedTargetClass === defaultTargetClass) {
+      return;
+    }
+
+    let active = true;
+    const selectedClass = classOptions.find((option) => option.label === selectedTargetClass) || classOptions[0];
+    if (!selectedClass || selectedClass.id === 'all-classes' || selectedClass.label === defaultTargetClass) {
+      return;
+    }
+
+    const loadDivisions = async () => {
+      setLoadingOptions((current) => ({ ...current, divisions: true }));
+      try {
+        const divisions = await teacherAttendanceApi.getAcademicDivisions(session, selectedClass.id);
+        if (!active) return;
+        const normalized = [{ id: 'all-divisions', label: defaultDivision }, ...((Array.isArray(divisions) ? divisions : []).map((item) => ({
+          id: item?.id ?? item?.value ?? item?.name ?? String(item),
+          label: item?.label || item?.name || item?.divisionName || item?.section || String(item),
+        })))]
+          .filter((option, index, items) => items.findIndex((item) => item.label === option.label) === index);
+        setDivisionOptions(normalized);
+        setSelectedDivision((currentValue) => (normalized.some((option) => option.label === currentValue) ? currentValue : defaultDivision));
+      } catch (_error) {
+        if (!active) return;
+        setDivisionOptions([{ id: 'all-divisions', label: defaultDivision }]);
+        setSelectedDivision(defaultDivision);
+      } finally {
+        if (active) {
+          setLoadingOptions((current) => ({ ...current, divisions: false }));
+        }
+      }
+    };
+
+    void loadDivisions();
+    return () => { active = false; };
+  }, [classOptions, selectedTargetClass, session]);
 
   const selectedCandidates = candidates.filter((candidate) => candidate.selected);
   const visibleCandidates = candidates.filter((candidate) => [candidate.name, candidate.rollNo, candidate.admissionNo].some((value) => String(value).toLowerCase().includes(search.trim().toLowerCase())));
 
   const navigateTab = (tab) => {
     if (!onSelectModule) return;
-    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result' };
+    const moduleMap = { 'Schedule Exam': 'Set Exams', 'Exam Schedules': 'View Exams', Attendance: 'Exam Attendance', 'Attendance History': 'Attendance Result', 'Marks Entry': 'Exam Result', 'Publish Results': 'Publish Result', 'Class Reports': 'Class Result', 'Hall Tickets': 'Hall Ticket' };
     if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
@@ -1436,17 +1553,24 @@ function HallTicketScreen({ onBack, onSelectModule }) {
   const showBatchNotice = () => Alert.alert('Batch PDF', `${selectedCandidates.length} selected candidate(s) are ready for batch PDF generation.`);
   const saveSettings = () => { setSettingsOpen(false); Alert.alert('Settings saved', 'Venue and candidate guidelines have been updated for this session.'); };
 
+  const activeExamination = selectedExamination || defaultExamination;
+  const activeTargetClass = selectedTargetClass || defaultTargetClass;
+  const activeDivision = selectedDivision || defaultDivision;
+  const activeDivisionOptions = activeTargetClass === defaultTargetClass
+    ? [{ id: 'all-divisions', label: defaultDivision }]
+    : divisionOptions;
+
   return (
     <View style={styles.screenWrap}>
       <ScreenHeader title="Admit Card & Hall Ticket Console" subtitle="Exam Suite" onBack={onBack} />
       <Text style={styles.pageDescription}>Configure exam venues, timelines, student rules, and issue printable A4 hall tickets with QR verification</Text>
       <View style={styles.tabRow}>{['Overview', 'Schedule Exam', 'Exam Schedules', 'Attendance', 'Attendance History', 'Marks Entry', 'Publish Results', 'Class Reports', 'Hall Tickets'].map((tab) => <Pressable key={tab} style={[styles.tabPill, tab === 'Hall Tickets' && styles.tabPillActive]} onPress={() => navigateTab(tab)}><Text style={[styles.tabText, tab === 'Hall Tickets' && styles.tabTextActive]}>{tab}</Text></Pressable>)}</View>
       <View style={styles.hallGeneratorCard}><Text style={styles.sectionTitle}>Hall Ticket Generator</Text><Text style={styles.listText}>Configure exam venues, and issue print-ready Admit Cards.</Text><View style={styles.hallActionRow}><Pressable style={styles.hallActionActive}><Text style={styles.hallActionTextActive}>2 per A4 (Save 50% Paper)</Text></Pressable><Pressable style={styles.primaryButton} onPress={() => Alert.alert('Published', 'Hall tickets published successfully to students.')}><Text style={styles.primaryButtonText}>Publish to Students</Text></Pressable><Pressable style={styles.secondaryButton} onPress={() => setSettingsOpen(true)}><Text style={styles.secondaryButtonText}>Venue &amp; Guidelines</Text></Pressable><Pressable style={styles.secondaryButton} onPress={showBatchNotice}><Text style={styles.secondaryButtonText}>Batch PDF ({selectedCandidates.length})</Text></Pressable></View></View>
-      <View style={styles.filterPanel}><Text style={styles.sectionTitle}>Examination Configuration</Text><View style={styles.filterGrid}><FilterBadge label="Examination *" value={hallTicketExam.examination} options={[hallTicketExam.examination]} onSelect={() => {}} /><FilterBadge label="Target Class" value={hallTicketExam.targetClass} options={[hallTicketExam.targetClass]} onSelect={() => {}} /><FilterBadge label="Section / Division" value={hallTicketExam.division} options={[hallTicketExam.division]} onSelect={() => {}} /></View></View>
+      <View style={styles.filterPanel}><Text style={styles.sectionTitle}>Examination Configuration</Text><View style={styles.filterGrid}><FilterBadge label="Examination *" value={loadingOptions.examinations ? 'Loading examinations...' : activeExamination} options={examinationOptions} onSelect={(option) => setSelectedExamination(option?.label || option || defaultExamination)} /><FilterBadge label="Target Class" value={loadingOptions.classes ? 'Loading classes...' : activeTargetClass} options={classOptions} onSelect={(option) => { const nextClass = option?.label || option || defaultTargetClass; setSelectedTargetClass(nextClass); setSelectedDivision(nextClass === defaultTargetClass ? defaultDivision : (currentValue) => currentValue === defaultDivision ? defaultDivision : currentValue); }} /><FilterBadge label="Section / Division" value={loadingOptions.divisions ? 'Loading divisions...' : activeDivision} options={activeDivisionOptions} onSelect={(option) => setSelectedDivision(option?.label || option || defaultDivision)} /></View></View>
       <View style={styles.hallTwoColumn}><View style={styles.hallPanel}><View style={styles.hallPanelHeader}><Text style={styles.sectionTitle}>Exam Venue &amp; Config</Text><Pressable style={styles.ghostButton} onPress={() => setSettingsOpen(true)}><Text style={styles.ghostButtonText}>Edit Settings</Text></Pressable></View><Text style={styles.listText}>Venue Center</Text><Text style={styles.hallValue}>{settings.venue}</Text><Text style={styles.listText}>Reporting Time</Text><Text style={styles.hallValue}>{settings.reportingTime}</Text></View><View style={styles.hallPanel}><Text style={styles.sectionTitle}>Candidate Guidelines:</Text>{settings.guidelines.split('\n').filter(Boolean).map((guideline, index) => <Text key={guideline} style={styles.guidelineText}>{index + 1}. {guideline}</Text>)}</View></View>
       <View style={styles.hallPanel}><Text style={styles.sectionTitle}>Exam Timetable Summary</Text><Text style={styles.listText}>{hallTicketExam.subjects.length} Subjects</Text>{hallTicketExam.subjects.map((subject) => <View key={subject.name} style={styles.timetableRow}><Text style={styles.listTitle}>{subject.name}</Text><Text style={styles.listText}>{subject.date}  •  {subject.time}  •  {subject.marks}</Text></View>)}</View>
       <View style={styles.hallPanel}><TextInput value={search} onChangeText={setSearch} placeholder="Search by name, roll no, or admission no..." placeholderTextColor={colors.muted} style={styles.searchInput} /><Text style={styles.selectedCount}>Selected Candidates: {selectedCandidates.length} / {candidates.length}</Text>{visibleCandidates.map((candidate) => <View key={candidate.id} style={styles.candidateRow}><Pressable onPress={() => toggleCandidate(candidate.id)} style={[styles.checkbox, candidate.selected && styles.checkboxSelected]}><Text style={styles.checkboxText}>{candidate.selected ? '✓' : ''}</Text></Pressable><Text style={styles.candidateCell}>{candidate.rollNo}</Text><Text style={styles.candidateCellWide}>{candidate.name}</Text><Text style={styles.candidateCell}>{candidate.admissionNo}</Text><Text style={styles.candidateCell}>{candidate.classSection}</Text><View style={styles.candidateActions}><Pressable style={styles.ghostButton} onPress={() => setPreviewCandidate(candidate)}><Text style={styles.ghostButtonText}>Preview</Text></Pressable><Pressable style={styles.secondaryButton} onPress={showPdfNotice}><Text style={styles.secondaryButtonText}>PDF</Text></Pressable></View></View>)}</View>
-      <Modal animationType="slide" transparent visible={Boolean(previewCandidate)} onRequestClose={() => setPreviewCandidate(null)}><View style={styles.modalOverlay}><ScrollView contentContainerStyle={styles.a4Preview}><Text style={styles.a4School}>EduCampus360 School</Text><Text style={styles.a4Title}>ADMIT CARD / HALL TICKET</Text><Text style={styles.a4Exam}>{hallTicketExam.examination}</Text>{previewCandidate ? <><Text style={styles.modalInfo}>Student: {previewCandidate.name}</Text><Text style={styles.modalInfo}>Admission No: {previewCandidate.admissionNo}</Text><Text style={styles.modalInfo}>Roll No: {previewCandidate.rollNo}</Text><Text style={styles.modalInfo}>Class &amp; Section: {previewCandidate.classSection}</Text></> : null}<Text style={styles.modalInfo}>Venue: {settings.venue}</Text><Text style={styles.modalInfo}>Reporting Time: {settings.reportingTime}</Text><Text style={styles.a4Section}>Exam Timetable</Text>{hallTicketExam.subjects.map((subject) => <Text key={subject.name} style={styles.modalInfo}>{subject.name}  |  {subject.date}  |  {subject.time}  |  {subject.marks}</Text>)}<Text style={styles.a4Section}>Candidate Guidelines</Text>{settings.guidelines.split('\n').filter(Boolean).map((guideline, index) => <Text key={guideline} style={styles.modalInfo}>{index + 1}. {guideline}</Text>)}<View style={styles.qrPlaceholder}><Icon name="qr-code-outline" size={42} color={colors.ink} /><Text style={styles.listText}>QR verification placeholder</Text></View><View style={styles.modalActions}><Pressable style={styles.secondaryButton} onPress={() => setPreviewCandidate(null)}><Text style={styles.secondaryButtonText}>Close</Text></Pressable><Pressable style={styles.primaryButton} onPress={() => Alert.alert('Print unavailable', 'Connect the print/PDF service to print this A4 hall ticket.')}><Text style={styles.primaryButtonText}>Print</Text></Pressable></View></ScrollView></View></Modal>
+      <Modal animationType="slide" transparent visible={Boolean(previewCandidate)} onRequestClose={() => setPreviewCandidate(null)}><View style={styles.modalOverlay}><ScrollView contentContainerStyle={styles.a4Preview}><Text style={styles.a4School}>EduCampus360 School</Text><Text style={styles.a4Title}>ADMIT CARD / HALL TICKET</Text><Text style={styles.a4Exam}>{activeExamination}</Text>{previewCandidate ? <><Text style={styles.modalInfo}>Student: {previewCandidate.name}</Text><Text style={styles.modalInfo}>Admission No: {previewCandidate.admissionNo}</Text><Text style={styles.modalInfo}>Roll No: {previewCandidate.rollNo}</Text><Text style={styles.modalInfo}>Class &amp; Section: {previewCandidate.classSection}</Text></> : null}<Text style={styles.modalInfo}>Venue: {settings.venue}</Text><Text style={styles.modalInfo}>Reporting Time: {settings.reportingTime}</Text><Text style={styles.a4Section}>Exam Timetable</Text>{hallTicketExam.subjects.map((subject) => <Text key={subject.name} style={styles.modalInfo}>{subject.name}  |  {subject.date}  |  {subject.time}  |  {subject.marks}</Text>)}<Text style={styles.a4Section}>Candidate Guidelines</Text>{settings.guidelines.split('\n').filter(Boolean).map((guideline, index) => <Text key={guideline} style={styles.modalInfo}>{index + 1}. {guideline}</Text>)}<View style={styles.qrPlaceholder}><Icon name="qr-code-outline" size={42} color={colors.ink} /><Text style={styles.listText}>QR verification placeholder</Text></View><View style={styles.modalActions}><Pressable style={styles.secondaryButton} onPress={() => setPreviewCandidate(null)}><Text style={styles.secondaryButtonText}>Close</Text></Pressable><Pressable style={styles.primaryButton} onPress={() => Alert.alert('Print unavailable', 'Connect the print/PDF service to print this A4 hall ticket.')}><Text style={styles.primaryButtonText}>Print</Text></Pressable></View></ScrollView></View></Modal>
       <Modal animationType="fade" transparent visible={settingsOpen} onRequestClose={() => setSettingsOpen(false)}><View style={styles.modalOverlay}><View style={styles.modalCard}><Text style={styles.modalTitle}>Venue &amp; Guidelines</Text><TextInput value={settings.venue} onChangeText={(value) => setSettings((current) => ({ ...current, venue: value }))} placeholder="Venue Center" placeholderTextColor={colors.muted} style={styles.subjectInput} /><TextInput value={settings.reportingTime} onChangeText={(value) => setSettings((current) => ({ ...current, reportingTime: value }))} placeholder="Reporting Time" placeholderTextColor={colors.muted} style={styles.subjectInput} /><TextInput multiline value={settings.guidelines} onChangeText={(value) => setSettings((current) => ({ ...current, guidelines: value }))} placeholder="Candidate Guidelines" placeholderTextColor={colors.muted} style={[styles.subjectInput, styles.guidelineInput]} /><View style={styles.modalActions}><Pressable style={styles.ghostButton} onPress={() => setSettingsOpen(false)}><Text style={styles.ghostButtonText}>Cancel</Text></Pressable><Pressable style={styles.primaryButton} onPress={saveSettings}><Text style={styles.primaryButtonText}>Save</Text></Pressable></View></View></View></Modal>
     </View>
   );
@@ -1514,7 +1638,7 @@ export default function TeacherExamsMarksScreen({ session, module = 'Exams / Mar
   }
 
   if (activeModule === 'Hall Ticket') {
-    return <HallTicketScreen onBack={() => onSelectModule && onSelectModule('Exams / Marks')} />;
+    return <HallTicketScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
   }
 
   return <ExamHubScreen session={session} onSelectModule={onSelectModule} />;

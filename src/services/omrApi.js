@@ -1,44 +1,60 @@
-import { apiRequest, isApiConfigured } from './api';
-
-const listFrom = (payload, keys = []) => {
-  const values = [payload, payload?.data, ...keys.map((key) => payload?.[key]), ...keys.map((key) => payload?.data?.[key])];
-  return values.find((value) => Array.isArray(value)) || [];
+const initialSession = {
+  id: 'omr-session-1',
+  name: 'My Exam (JEE)',
+  code: 'NEET',
+  pattern: 'JEE Pattern',
+  scope: 'All Classes & Sections',
+  questions: 180,
+  positiveMarks: 4,
+  negativeMarks: 1,
+  evaluated: 1,
+  keys: 1,
+  status: 'Draft',
+  createdDate: '18/09/2026',
 };
 
-const unwrap = (payload) => payload?.data || payload;
+const initialAnswerKey = Array.from({ length: 10 }, (_, index) => ({ question: index + 1, answer: ['A', 'B', 'C', 'D'][index % 4] }));
+const initialResults = [
+  {
+    id: 'omr-result-1',
+    examId: 'omr-session-1',
+    examName: 'My Exam (JEE)',
+    studentName: 'Joshi y',
+    rollNumber: 'ADM0100',
+    admissionNumber: 'ADM0100',
+    booklet: 'Set A',
+    totalScore: -50,
+    maxScore: 720,
+    correct: 2,
+    wrong: 58,
+    blank: 120,
+    rank: 1,
+    score: -50,
+    percentage: -6.94,
+  },
+];
+
+let sessions = [initialSession];
+let answerKeys = { [initialSession.id]: initialAnswerKey };
+let results = initialResults;
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export const omrApi = {
-  async listSessions(session) {
-    if (!isApiConfigured) return [];
-    return listFrom(await apiRequest('/omr/sessions', { token: session?.token }));
+  async fetchOMRDashboard() { return { sessions: clone(sessions), results: clone(results) }; },
+  async fetchOMRSessions() { return clone(sessions); },
+  async createOMRSession(input) {
+    const session = { ...input, id: `omr-session-${Date.now()}`, status: input.status || 'Draft', createdDate: new Date().toLocaleDateString('en-GB'), evaluated: 0, keys: 0 };
+    sessions = [session, ...sessions];
+    return clone(session);
   },
-  async createSession(input, session) {
-    return apiRequest('/omr/sessions', { method: 'POST', token: session?.token, body: input });
-  },
-  async deleteSession(id, session) {
-    return apiRequest(`/omr/sessions/${id}`, { method: 'DELETE', token: session?.token });
-  },
-  async publishSession(id, isPublished, session) {
-    return apiRequest(`/omr/sessions/${id}/publish`, { method: 'PATCH', token: session?.token, body: { is_published: isPublished } });
-  },
-  async getAnswerKey(id, bookletCode, session) {
-    const payload = await apiRequest(`/omr/sessions/${id}/answer-key`, { token: session?.token });
-    return unwrap(payload)?.[bookletCode] || [];
-  },
-  async saveAnswerKey(id, bookletCode, keys, session) {
-    return apiRequest(`/omr/sessions/${id}/answer-key`, { method: 'POST', token: session?.token, body: { booklet_code: bookletCode, keys } });
-  },
-  async importResponses(id, items, scanSource, session) {
-    return apiRequest(`/omr/sessions/${id}/import-csv`, { method: 'POST', token: session?.token, body: { items, scan_source: scanSource } });
-  },
-  async getPendingReviews(id, session) {
-    return listFrom(await apiRequest(`/omr/sessions/${id}/pending-reviews`, { token: session?.token }));
-  },
-  async resolveReview(id, studentId, session) {
-    return apiRequest(`/omr/pending-reviews/${id}/resolve`, { method: 'POST', token: session?.token, body: { student_id: studentId } });
-  },
-  async getResults(id, session) {
-    const payload = await apiRequest(`/omr/sessions/${id}/results`, { token: session?.token });
-    return unwrap(payload) || {};
+  async fetchAnswerKeys(examId) { return clone(answerKeys[examId] || []); },
+  async saveAnswerKey(examId, key) { answerKeys[examId] = clone(key); return clone(key); },
+  async scanOMRSheet(input) { return { ...clone(input), scanned: true, detectedAnswers: input.detectedAnswers || 10 }; },
+  async evaluateOMRSheet(input) { return { ...clone(input), evaluated: true, score: 162, percentage: 81 }; },
+  async fetchOMRResults() { return clone(results); },
+  async publishOMRResults(examId) {
+    sessions = sessions.map((session) => session.id === examId ? { ...session, status: 'Published' } : session);
+    return clone(sessions.find((session) => session.id === examId));
   },
 };

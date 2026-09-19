@@ -222,7 +222,7 @@ export const teacherApi = {
 
   async getAttendance(session) {
     if (!isApiConfigured) return teacherAttendanceMock;
-    const payload = await apiRequest('/api/teacher/attendance', { token: session?.token });
+    const payload = await apiRequest('/attendance', { token: session?.token });
     return payload?.data || payload || teacherAttendanceMock;
   },
 
@@ -350,6 +350,19 @@ export const teacherApi = {
     return payload?.data?.data || payload?.data || payload?.types || payload?.results || payload || [];
   },
 
+  async fetchExams(session) {
+    return this.getExams(session);
+  },
+
+  async fetchExamById(examId, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}`, { token: session?.token });
+      return payload?.data || payload?.exam || payload;
+    }
+
+    return localExams.find((exam) => Number(exam.id) === Number(examId)) || null;
+  },
+
   async createExam(input, session) {
     if (isApiConfigured) {
       const payload = await apiRequest('/exams', { method: 'POST', token: session?.token, body: input });
@@ -370,6 +383,28 @@ export const teacherApi = {
     return { ...exam };
   },
 
+  async updateExam(examId, input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}`, { method: 'PUT', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+
+    const index = localExams.findIndex((exam) => Number(exam.id) === Number(examId));
+    if (index < 0) throw new Error('The selected examination is no longer available.');
+    localExams[index] = { ...localExams[index], ...input };
+    return { ...localExams[index] };
+  },
+
+  async deleteExam(examId, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}`, { method: 'DELETE', token: session?.token });
+      return payload?.data || payload;
+    }
+
+    localExams = localExams.filter((exam) => Number(exam.id) !== Number(examId));
+    return { id: examId, deleted: true };
+  },
+
   async getExamSubjects(examId, session) {
     if (isApiConfigured) {
       const payload = await apiRequest(`/exams/${examId}/subjects`, { token: session?.token });
@@ -380,11 +415,158 @@ export const teacherApi = {
     return exam?.subjects || [];
   },
 
-  async deleteExam(examId, session) {
-    return apiRequest(`/exams/${examId}`, {
-      method: 'DELETE',
+  async fetchExamSubjects(examId, session) {
+    return this.getExamSubjects(examId, session);
+  },
+
+  async getExamAttendanceRoster(params = {}, session) {
+    const { examId, subjectId, classId, divisionId } = params;
+    if (!examId || !subjectId || !classId) return [];
+    const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}/attendance`, {
+      token: session?.token,
+      query: { class_id: classId, division_id: divisionId },
+    });
+    const records = payload?.data?.records || payload?.records || payload?.data?.students || payload?.students || payload?.data || payload?.results || payload || [];
+    return (Array.isArray(records) ? records : []).map((record, index) => ({
+      ...record,
+      id: record.id || record.student_id || record.studentId || `student-${index}`,
+      studentId: record.studentId || record.student_id || record.id,
+      name: record.name || record.student_name || record.studentName || 'Unnamed student',
+      rollNumber: record.rollNumber || record.roll_number || record.rollNo || record.roll || '',
+      admissionNumber: record.admissionNumber || record.admission_number || record.admissionNo || '',
+      className: record.className || record.class_name || '',
+      section: record.section || record.division || record.division_name || '',
+      status: ['Present', 'Absent'].includes(record.status) ? record.status : 'Unmarked',
+    }));
+  },
+
+  async getExamAttendanceHistory(params = {}, session) {
+    const { examId, classId, divisionId } = params;
+    if (!examId || !classId) return { subjects: [], students: [], audit: [] };
+    const payload = await apiRequest(`/exams/${examId}/attendance-history`, {
+      token: session?.token,
+      query: { class_id: classId, division_id: divisionId },
+    });
+    const source = payload?.data && !Array.isArray(payload.data) ? payload.data : payload || {};
+    const students = source.students || source.records || source.attendance || payload?.students || payload?.records || [];
+    const subjects = source.subjects || source.papers || payload?.subjects || payload?.papers || [];
+    return { subjects: Array.isArray(subjects) ? subjects : [], students: Array.isArray(students) ? students : [], audit: Array.isArray(source.audit) ? source.audit : [] };
+  },
+
+  async submitExamAttendance(data, session) {
+    const { examId, subjectId, ...body } = data || {};
+    if (!examId || !subjectId) throw new Error('Exam and subject paper are required.');
+    return apiRequest(`/exams/${examId}/subjects/${subjectId}/attendance`, {
+      method: 'POST',
+      token: session?.token,
+      body,
+    });
+  },
+
+  async getExamMarksRoster(params = {}, session) {
+    const { examId, subjectId, classId, divisionId } = params;
+    if (!examId || !subjectId || !classId) return [];
+    const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}/marks`, {
+      token: session?.token,
+      query: { class_id: classId, division_id: divisionId },
+    });
+    const records = payload?.data?.records || payload?.records || payload?.data?.students || payload?.students || payload?.data || payload?.results || payload || [];
+    return (Array.isArray(records) ? records : []).map((record, index) => ({
+      ...record,
+      id: record.id || record.student_id || record.studentId || `student-${index}`,
+      studentId: record.studentId || record.student_id || record.id,
+      name: record.name || record.student_name || record.studentName || 'Unnamed student',
+      rollNumber: record.rollNumber || record.roll_number || record.rollNo || record.roll || '',
+      admissionNumber: record.admissionNumber || record.admission_number || record.admissionNo || '',
+      className: record.className || record.class_name || '',
+      section: record.section || record.division || record.division_name || '',
+      maximumMarks: Number(record.maximumMarks ?? record.maximum_marks ?? record.maxMarks ?? record.max_marks ?? 100),
+      obtainedMarks: record.obtainedMarks ?? record.obtained_marks ?? record.marks ?? '',
+      passingMarks: record.passingMarks ?? record.passing_marks ?? record.passMarks ?? record.pass_marks ?? '',
+      remarks: record.remarks || '',
+    }));
+  },
+
+  async submitExamMarks(data, session) {
+    const { examId, subjectId, ...body } = data || {};
+    if (!examId || !subjectId) throw new Error('Exam and subject paper are required.');
+    return apiRequest(`/exams/${examId}/subjects/${subjectId}/marks`, {
+      method: 'POST',
+      token: session?.token,
+      body,
+    });
+  },
+
+  async publishExamResults(examId, session) {
+    if (!examId) throw new Error('The examination ID is missing.');
+    const payload = await apiRequest(`/exams/${examId}/publish-results`, {
+      method: 'POST',
       token: session?.token,
     });
+    return payload?.data || payload;
+  },
+
+  async recallExamResults(examId, session) {
+    if (!examId) throw new Error('The examination ID is missing.');
+    const payload = await apiRequest(`/exams/${examId}/recall-results`, {
+      method: 'POST',
+      token: session?.token,
+    });
+    return payload?.data || payload;
+  },
+
+  async getExamReport(examId, session) {
+    if (!examId) throw new Error('The examination ID is missing.');
+    const payload = await apiRequest(`/exams/${examId}/report`, { token: session?.token });
+    return payload?.data || payload?.report || payload;
+  },
+
+  async getClassResults(params = {}, session) {
+    const { examId, classId, divisionId } = params;
+    if (!examId || !classId) return [];
+    const payload = await apiRequest(`/exams/${examId}/class-results`, {
+      token: session?.token,
+      query: { class_id: classId, division_id: divisionId },
+    });
+    const records = payload?.data?.records || payload?.records || payload?.data?.students || payload?.students || payload?.data || payload?.results || payload || [];
+    return Array.isArray(records) ? records : [];
+  },
+
+  async createExamSubject(examId, input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}/subjects`, { method: 'POST', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+
+    const exam = localExams.find((item) => Number(item.id) === Number(examId));
+    if (!exam) throw new Error('The selected examination is no longer available.');
+    const subject = { ...input, id: input.id || `subject-${Date.now()}` };
+    exam.subjects = [...(exam.subjects || []), subject];
+    return { ...subject };
+  },
+
+  async updateExamSubject(examId, subjectId, input, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}`, { method: 'PUT', token: session?.token, body: input });
+      return payload?.data || payload;
+    }
+
+    const exam = localExams.find((item) => Number(item.id) === Number(examId));
+    const index = exam?.subjects?.findIndex((subject) => String(subject.id) === String(subjectId));
+    if (!exam || index === undefined || index < 0) throw new Error('The selected subject is no longer available.');
+    exam.subjects[index] = { ...exam.subjects[index], ...input };
+    return { ...exam.subjects[index] };
+  },
+
+  async deleteExamSubject(examId, subjectId, session) {
+    if (isApiConfigured) {
+      const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}`, { method: 'DELETE', token: session?.token });
+      return payload?.data || payload;
+    }
+
+    const exam = localExams.find((item) => Number(item.id) === Number(examId));
+    if (exam) exam.subjects = (exam.subjects || []).filter((subject) => String(subject.id) !== String(subjectId));
+    return { id: subjectId, deleted: true };
   },
 
   async getTimetable(session, params = {}) {
@@ -410,13 +592,13 @@ export const teacherApi = {
 
   async getNotices(session) {
     if (!isApiConfigured) return teacherNotices;
-    const payload = await apiRequest('/api/teacher/notices', { token: session?.token });
+    const payload = await apiRequest('/notices', { token: session?.token });
     return payload?.data || payload?.notices || teacherNotices;
   },
 
   async getNotifications(session) {
     if (!isApiConfigured) return [];
-    const payload = await apiRequest('/api/teacher/notifications', { token: session?.token });
+    const payload = await apiRequest('/notifications', { token: session?.token });
     return payload?.data || payload?.notifications || [];
   },
 

@@ -17,6 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { teacherApi } from "../services/teacherApi";
 import { teacherDashboardMock } from "../services/teacherMock";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
+import TeacherExamsMarksScreen from "./TeacherExamsMarksScreen";
+import TeacherOMRScreen from "./TeacherOMRScreen";
+import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
@@ -493,6 +496,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [error, setError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
+  const [examsMenuOpen, setExamsMenuOpen] = useState(false);
   const [timetableMenuOpen, setTimetableMenuOpen] = useState(false);
   const [timetableSubmodule, setTimetableSubmodule] = useState("Class Timetable");
 
@@ -585,14 +589,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
-    if (activeModule === "Exams / Marks") {
-      return (
-        <ModulePlaceholder
-          title="Exams / Marks"
-          icon="ribbon-outline"
-          description="Mark evaluation, grade review, and score publishing will appear here."
-        />
-      );
+      if ([
+        "Exams / Marks",
+        "Set Exams",
+        "View Exams",
+        "Exam Attendance",
+        "Exam Result",
+        "Publish Result",
+        "Class Result",
+        "Attendance Result",
+        "Hall Ticket",
+      ].includes(activeModule)) {
+        return <TeacherExamsMarksScreen session={session} module={activeModule} onSelectModule={setActiveModule} />;
     }
 
     if (activeModule === "Timetable") {
@@ -643,13 +651,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === "OMR System") {
-      return (
-        <ModulePlaceholder
-          title="OMR System"
-          icon="scan-outline"
-          description="OMR evaluation workflows can be connected to this module in a future release."
-        />
-      );
+      return <OMRSystemScreen onSelectModule={setActiveModule} onBack={() => setActiveModule("Home")} />;
+    }
+
+    if (["OMR Dashboard", "Exam Sessions", "Answer Keys", "Hardware & Optical Scanner", "Results & Leaderboards"].includes(activeModule)) {
+      const omrTabs = {
+        "OMR Dashboard": "My Exam (JEE)",
+        "Exam Sessions": "Sessions (1)",
+        "Answer Keys": "Answer Keys",
+        "Hardware & Optical Scanner": "Scanner & Reader",
+        "Results & Leaderboards": "Results & Ranks",
+      };
+      return <TeacherOMRScreen session={session} initialTab={omrTabs[activeModule]} initialMenu={activeModule} onBack={() => setActiveModule("OMR System")} />;
     }
 
     return (
@@ -889,6 +902,56 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       <Modal
         transparent
+        visible={examsMenuOpen}
+        animationType="slide"
+        onRequestClose={() => setExamsMenuOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setExamsMenuOpen(false)}
+        >
+          <View style={styles.moreSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Exams</Text>
+              <Pressable onPress={() => setExamsMenuOpen(false)}>
+                <Icon name="close" size={22} color={colors.ink} />
+              </Pressable>
+            </View>
+            <Text style={styles.moreMenuIntro}>Examination scheduling, attendance, results and publishing</Text>
+            {[
+              ['Set Exam', 'Set Exams', 'calendar-outline'],
+              ['View Exam', 'View Exams', 'documents-outline'],
+              ['Exam Attendance', 'Exam Attendance', 'checkmark-done-outline'],
+              ['Exam Result', 'Exam Result', 'clipboard-outline'],
+              ['Publish Exam', 'Publish Result', 'megaphone-outline'],
+              ['Class Results', 'Class Result', 'bar-chart-outline'],
+              ['Attendance History', 'Attendance Result', 'stats-chart-outline'],
+              ['Hall Tickets', 'Hall Ticket', 'receipt-outline'],
+            ].map(([label, module, icon]) => (
+              <Pressable
+                key={label}
+                onPress={() => {
+                  setExamsMenuOpen(false);
+                  setActiveModule(module);
+                }}
+                style={({ pressed }) => [styles.moreItem, pressed && styles.pressed]}
+              >
+                <View style={styles.moreItemIconWrap}>
+                  <Icon name={icon} size={18} color={colors.blue} />
+                </View>
+                <View style={styles.moreItemCopy}>
+                  <Text style={styles.moreItemTitle}>{label}</Text>
+                  <Text style={styles.moreItemDescription}>Open {label.toLowerCase()} workflow</Text>
+                </View>
+                <Icon name="chevron-forward" size={17} color={colors.muted} />
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        transparent
         visible={moreOpen}
         animationType="slide"
         onRequestClose={() => setMoreOpen(false)}
@@ -907,7 +970,14 @@ export default function TeacherPortalScreen({ session, onLogout }) {
             {moreNavItems.map((item) => (
               <Pressable
                 key={item}
-                onPress={() => handleNavigate(item)}
+                onPress={() => {
+                  if (item === "Exams / Marks") {
+                    setMoreOpen(false);
+                    setExamsMenuOpen(true);
+                    return;
+                  }
+                  handleNavigate(item);
+                }}
                 style={({ pressed }) => [
                   styles.moreItem,
                   activeModule === item && styles.moreItemActive,
@@ -922,13 +992,13 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   />
                 </View>
                 <View style={styles.moreItemCopy}>
-                  <Text
+                    <Text
                     style={[
                       styles.moreItemTitle,
                       activeModule === item && styles.moreItemTextActive,
                     ]}
                   >
-                    {item}
+                      {item === "Exams / Marks" ? "Exams" : item}
                   </Text>
                   <Text style={styles.moreItemDescription}>
                     {item === "My Students"
@@ -1274,10 +1344,7 @@ const styles = StyleSheet.create({
     paddingTop: 9,
     paddingBottom: 10,
     minHeight: 74,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -3 },
+    boxShadow: "0px -3px 10px rgba(0, 0, 0, 0.08)",
     elevation: 8,
   },
   navItem: {
@@ -1315,6 +1382,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "900" },
+  moreMenuIntro: { color: colors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8 },
   moreItem: {
     flexDirection: "row",
     alignItems: "center",

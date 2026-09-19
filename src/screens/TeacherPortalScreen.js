@@ -1344,10 +1344,7 @@ const styles = StyleSheet.create({
     paddingTop: 9,
     paddingBottom: 10,
     minHeight: 74,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -3 },
+    boxShadow: "0px -3px 10px rgba(0, 0, 0, 0.08)",
     elevation: 8,
   },
   navItem: {

@@ -45,21 +45,6 @@ const examModules = [
   { label: 'Hall Tickets', module: 'Hall Ticket', description: 'Create and manage student examination hall tickets.', icon: 'receipt-outline' },
 ];
 
-const mockAttendanceRecords = [
-  { id: 1, rollNo: '01', admissionNo: 'ADM-101', name: 'Aarav Sharma', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Present' },
-  { id: 2, rollNo: '02', admissionNo: 'ADM-102', name: 'Diya Nair', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Absent' },
-  { id: 3, rollNo: '03', admissionNo: 'ADM-103', name: 'Rohan Verma', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Late' },
-  { id: 4, rollNo: '04', admissionNo: 'ADM-104', name: 'Meera Iyer', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Present' },
-  { id: 5, rollNo: '05', admissionNo: 'ADM-105', name: 'Kabir Sen', className: 'Class 1', section: 'A', exam: 'Unit Test', subject: 'Mathematics', status: 'Not Marked' },
-];
-
-const mockmarks = [
-  { id: 1, rollNo: '01', name: 'Aarav Sharma', admissionNo: 'ADM-101', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 92, grade: 'A+', status: 'Submitted' },
-  { id: 2, rollNo: '02', name: 'Diya Nair', admissionNo: 'ADM-102', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 78, grade: 'B+', status: 'Draft' },
-  { id: 3, rollNo: '03', name: 'Rohan Verma', admissionNo: 'ADM-103', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 85, grade: 'A', status: 'Pending' },
-  { id: 4, rollNo: '04', name: 'Meera Iyer', admissionNo: 'ADM-104', className: 'Class 1', section: 'A', subject: 'Mathematics', maximumMarks: 100, obtainedMarks: 66, grade: 'B', status: 'Submitted' },
-];
-
 const mockResultData = [
   { id: 1, student: 'Aarav Sharma', className: 'Class 1', section: 'A', exam: 'Unit Test', totalMarks: 100, obtainedMarks: 92, percentage: 92, grade: 'A+', resultStatus: 'Pass' },
   { id: 2, student: 'Diya Nair', className: 'Class 1', section: 'A', exam: 'Unit Test', totalMarks: 100, obtainedMarks: 78, percentage: 78, grade: 'B+', resultStatus: 'Pass' },
@@ -148,6 +133,72 @@ function formatExamDate(exam) {
 
 function normalizeExamValue(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function ExamHubScreen({ session, onSelectModule }) {
+  const [exams, setExams] = useState([]);
+  const [terms, setTerms] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      const results = await Promise.allSettled([
+        teacherApi.getExams(session),
+        teacherApi.getExamTerms(session),
+        teacherApi.getExamTypes(session),
+      ]);
+      if (!active) return;
+      const [examsResult, termsResult, typesResult] = results;
+      if (examsResult.status === 'fulfilled') setExams(Array.isArray(examsResult.value) ? examsResult.value : []);
+      else setError('Unable to load examination schedules.');
+      if (termsResult.status === 'fulfilled') setTerms(Array.isArray(termsResult.value) ? termsResult.value : []);
+      if (typesResult.status === 'fulfilled') setTypes(Array.isArray(typesResult.value) ? typesResult.value : []);
+      setLoading(false);
+    };
+    void load();
+    return () => { active = false; };
+  }, [session]);
+
+  const scheduled = exams.filter((exam) => String(exam.status).toLowerCase() === 'scheduled').length;
+  const completed = exams.filter((exam) => String(exam.status).toLowerCase() === 'completed').length;
+  const published = exams.filter((exam) => Number(exam.publish_status || exam.publishStatus) === 1 || String(exam.publish_status).toLowerCase() === 'published').length;
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerCard}>
+        <Text style={styles.pageTitle}>Exams / Marks</Text>
+        <Text style={styles.pageSubtitle}>Examination, Marks & Academic Assessment Management</Text>
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.summaryGrid}>
+        <SummaryCard title="Total Exams" value={String(exams.length)} label="All sessions" tint={colors.paleBlue} accent={colors.blue} icon="book-outline" />
+        <SummaryCard title="Scheduled" value={String(scheduled)} label="Upcoming" tint={colors.paleOrange} accent={colors.orange} icon="time-outline" />
+        <SummaryCard title="Completed" value={String(completed)} label="Conducted" tint={colors.paleTeal} accent={colors.teal} icon="checkmark-done-outline" />
+        <SummaryCard title="Published" value={String(published)} label="Live results" tint={colors.softLilac} accent={colors.plum} icon="share-outline" />
+      </View>
+      <View style={styles.listCard}>
+        <Text style={styles.sectionTitle}>Exam data sources</Text>
+        <Text style={styles.listText}>{terms.length} academic terms · {types.length} exam types</Text>
+        {loading ? <ActivityIndicator color={colors.blue} style={styles.loadingWrap} /> : exams.slice(0, 5).map((exam) => (
+          <View key={exam.id} style={styles.resultRow}>
+            <Text style={styles.listTitle}>{exam.name}</Text>
+            <Text style={styles.listText}>{exam.targetClass} · {exam.startDate || 'Date TBD'} · {exam.status || 'Scheduled'}</Text>
+          </View>
+        ))}
+        {!loading && !exams.length ? <Text style={styles.emptyText}>No examinations found on the server.</Text> : null}
+      </View>
+      <View style={styles.gridWrap}>
+        {examModules.map((item, index) => (
+          <LandingCard key={item.label} item={item} index={index} onPress={(label) => onSelectModule && onSelectModule(label)} />
+        ))}
+      </View>
+    </ScrollView>
+  );
 }
 
 function normalizeExamSubject(subject, index) {
@@ -260,6 +311,18 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
     setSubjectsExam(null);
     setSubjectDraft([]);
   };
+
+  const deleteExam = (exam) => Alert.alert('Delete exam?', `${exam.name} will be removed from the server.`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try {
+        await teacherApi.deleteExam(exam.id, session);
+        setRecords((current) => current.filter((item) => item.id !== exam.id));
+      } catch (requestError) {
+        Alert.alert('Delete failed', requestError?.message || 'Unable to delete the exam.');
+      }
+    } },
+  ]);
 
   const handleAddSubject = () => {
     setSubjectEditor({ name: '', code: '', examDate: formatExamDate(subjectsExam), startTime: subjectsExam?.startTime || subjectsExam?.start_time || '', endTime: subjectsExam?.endTime || subjectsExam?.end_time || '', maximumMarks: '', passingMarks: '', assignedTeacher: '' });
@@ -422,6 +485,9 @@ function ViewExamsScreen({ session, onBack, onSelectModule }) {
                   }}
                 >
                   <Text style={styles.ghostButtonText}>View Details</Text>
+                </Pressable>
+                <Pressable style={styles.ghostButton} onPress={(event) => { event.stopPropagation(); deleteExam(exam); }}>
+                  <Text style={[styles.ghostButtonText, { color: colors.red }]}>Delete</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -623,7 +689,7 @@ function ExamAttendanceScreen({ session, onBack, onSelectModule }) {
     setError('');
     try {
       const result = await teacherApi.getExamAttendanceRoster({ examId: selectedExam.id, subjectId: selectedSubject.id, classId: selectedClass.id, divisionId: selectedDivision?.id }, session);
-      setStudents(Array.isArray(result) && result.length ? result : (!isApiConfigured ? mockAttendanceRecords.map((record) => ({ ...record, rollNumber: record.rollNo, admissionNumber: record.admissionNo, status: record.status === 'Not Marked' ? 'Unmarked' : record.status })) : []));
+      setStudents(Array.isArray(result) && result.length ? result : []);
     } catch (requestError) {
       setStudents([]);
       setError(requestError?.message || 'Unable to load registered students.');
@@ -789,8 +855,7 @@ function ExamResultScreen({ session, onBack, onSelectModule }) {
     setError('');
     try {
       const result = await teacherApi.getExamMarksRoster({ examId: selectedExam.id, subjectId: selectedSubject.id, classId: selectedClass.id, divisionId: selectedDivision?.id }, session);
-      const fallback = !isApiConfigured ? mockmarks.map((record) => ({ ...record, studentId: record.id, rollNumber: record.rollNo, admissionNumber: record.admissionNo, maximumMarks: Number(record.maximumMarks || 100), obtainedMarks: record.obtainedMarks ?? '', remarks: '' })) : [];
-      const next = Array.isArray(result) && result.length ? result : fallback;
+      const next = Array.isArray(result) && result.length ? result : [];
       setStudents(next);
       setInitialStudents(next.map((student) => ({ id: student.id, obtainedMarks: String(student.obtainedMarks ?? ''), remarks: student.remarks || '' })));
     } catch (requestError) {
@@ -1452,20 +1517,7 @@ export default function TeacherExamsMarksScreen({ session, module = 'Exams / Mar
     return <HallTicketScreen onBack={() => onSelectModule && onSelectModule('Exams / Marks')} />;
   }
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerCard}>
-        <Text style={styles.pageTitle}>Exams / Marks</Text>
-        <Text style={styles.pageSubtitle}>Examination, Marks & Academic Assessment Management</Text>
-      </View>
-
-      <View style={styles.gridWrap}>
-        {examModules.map((item, index) => (
-          <LandingCard key={item.label} item={item} index={index} onPress={(label) => onSelectModule && onSelectModule(label)} />
-        ))}
-      </View>
-    </ScrollView>
-  );
+  return <ExamHubScreen session={session} onSelectModule={onSelectModule} />;
 }
 
 const styles = StyleSheet.create({

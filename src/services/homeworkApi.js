@@ -1,5 +1,4 @@
 import { apiRequest, isApiConfigured } from './api';
-import { parentHomeworkRecords } from './homeworkMock';
 
 export const homeworkApi = {
   async fetchHomeworkById(id, session) {
@@ -37,7 +36,7 @@ export const homeworkApi = {
   },
 
   async getAssignments(session, studentId) {
-    if (!isApiConfigured) return parentHomeworkRecords;
+    if (!isApiConfigured) return [];
     const payload = await apiRequest('/homework', {
       token: session?.token,
       query: { student_id: studentId },

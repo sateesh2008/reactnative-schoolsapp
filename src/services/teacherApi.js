@@ -131,8 +131,8 @@ const normalizeAssignedFilters = (payload) => {
 
 const attendanceQuery = ({ date, classId, divisionId, className, section } = {}) => normalizePayrollDateParams({
   date,
-  class_id: classId || className,
-  division_id: divisionId || section,
+  classId: classId || className,
+  divisionId: divisionId || section,
 });
 
 const logApi = (method, path, details) => {
@@ -196,20 +196,41 @@ export const teacherApi = {
 
   async getStudents(session) {
     if (!isApiConfigured) return [];
-    const payload = await apiRequest('/api/teacher/students', { token: session?.token });
-    return payload?.data || payload?.students || [];
+    const payload = await apiRequest('/students', { token: session?.token });
+    const records = payload?.data?.data || payload?.data || payload?.students || payload?.results || payload || [];
+    return Array.isArray(records) ? records : [];
+  },
+
+  async createStudent(input, session) {
+    return apiRequest('/students', { method: 'POST', token: session?.token, body: input });
+  },
+
+  async updateStudent(id, input, session) {
+    return apiRequest(`/students/${id}`, { method: 'PUT', token: session?.token, body: input });
+  },
+
+  async deleteStudent(id, session) {
+    return apiRequest(`/students/${id}`, { method: 'DELETE', token: session?.token });
+  },
+
+  async getParentChildren(session) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/parents/children', { token: session?.token });
+    const records = payload?.data?.data || payload?.data || payload?.children || payload || [];
+    return Array.isArray(records) ? records : [];
   },
 
   async getAttendance(session) {
     if (!isApiConfigured) return teacherAttendanceMock;
-    const payload = await apiRequest('/api/teacher/attendance', { token: session?.token });
+    const payload = await apiRequest('/attendance', { token: session?.token });
     return payload?.data || payload || teacherAttendanceMock;
   },
 
   async getHomework(session) {
-    if (!isApiConfigured) return localHomework.map((assignment) => ({ ...assignment }));
-    const payload = await apiRequest('/teacher/homework', { token: session?.token });
-    return payload?.data || payload?.homework || [];
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/homework', { token: session?.token });
+    const records = payload?.data?.data || payload?.data || payload?.assignments || payload?.homework || payload || [];
+    return Array.isArray(records) ? records : [];
   },
 
   async createHomework(input, session) {
@@ -304,8 +325,29 @@ export const teacherApi = {
 
   async getExams(session) {
     if (!isApiConfigured) return localExams.map((exam) => ({ ...exam, subjects: [...(exam.subjects || [])] }));
-    const payload = await apiRequest('/api/teacher/exams', { token: session?.token });
-    return payload?.data || payload?.results || localExams;
+    const payload = await apiRequest('/exams', { token: session?.token });
+    const records = payload?.data?.data || payload?.data || payload?.exams || payload?.results || payload || [];
+    return (Array.isArray(records) ? records : []).map((exam) => ({
+      ...exam,
+      name: exam.name || exam.exam_name || exam.title || 'Examination',
+      targetClass: exam.targetClass || exam.class_name || exam.className || 'Global (All Classes)',
+      section: exam.section || exam.division_name || exam.division || null,
+      startDate: exam.startDate || exam.start_date || exam.exam_date || '',
+      endDate: exam.endDate || exam.end_date || exam.exam_date || '',
+      startTime: exam.startTime || exam.start_time || '',
+      endTime: exam.endTime || exam.end_time || '',
+      subjects: exam.subjects || exam.exam_subjects || [],
+    }));
+  },
+
+  async getExamTerms(session) {
+    const payload = await apiRequest('/exams/terms', { token: session?.token });
+    return payload?.data?.data || payload?.data || payload?.terms || payload?.results || payload || [];
+  },
+
+  async getExamTypes(session) {
+    const payload = await apiRequest('/exams/types', { token: session?.token });
+    return payload?.data?.data || payload?.data || payload?.types || payload?.results || payload || [];
   },
 
   async fetchExams(session) {
@@ -314,7 +356,7 @@ export const teacherApi = {
 
   async fetchExamById(examId, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}`, { token: session?.token });
+      const payload = await apiRequest(`/exams/${examId}`, { token: session?.token });
       return payload?.data || payload?.exam || payload;
     }
 
@@ -323,7 +365,7 @@ export const teacherApi = {
 
   async createExam(input, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest('/api/teacher/exams', { method: 'POST', token: session?.token, body: input });
+      const payload = await apiRequest('/exams', { method: 'POST', token: session?.token, body: input });
       return payload?.data || payload;
     }
 
@@ -343,7 +385,7 @@ export const teacherApi = {
 
   async updateExam(examId, input, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}`, { method: 'PUT', token: session?.token, body: input });
+      const payload = await apiRequest(`/exams/${examId}`, { method: 'PUT', token: session?.token, body: input });
       return payload?.data || payload;
     }
 
@@ -355,7 +397,7 @@ export const teacherApi = {
 
   async deleteExam(examId, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}`, { method: 'DELETE', token: session?.token });
+      const payload = await apiRequest(`/exams/${examId}`, { method: 'DELETE', token: session?.token });
       return payload?.data || payload;
     }
 
@@ -365,7 +407,7 @@ export const teacherApi = {
 
   async getExamSubjects(examId, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects`, { token: session?.token });
+      const payload = await apiRequest(`/exams/${examId}/subjects`, { token: session?.token });
       return payload?.data || payload?.subjects || [];
     }
 
@@ -380,7 +422,7 @@ export const teacherApi = {
   async getExamAttendanceRoster(params = {}, session) {
     const { examId, subjectId, classId, divisionId } = params;
     if (!examId || !subjectId || !classId) return [];
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}/attendance`, {
+    const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}/attendance`, {
       token: session?.token,
       query: { class_id: classId, division_id: divisionId },
     });
@@ -401,7 +443,7 @@ export const teacherApi = {
   async getExamAttendanceHistory(params = {}, session) {
     const { examId, classId, divisionId } = params;
     if (!examId || !classId) return { subjects: [], students: [], audit: [] };
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/attendance-history`, {
+    const payload = await apiRequest(`/exams/${examId}/attendance-history`, {
       token: session?.token,
       query: { class_id: classId, division_id: divisionId },
     });
@@ -414,7 +456,7 @@ export const teacherApi = {
   async submitExamAttendance(data, session) {
     const { examId, subjectId, ...body } = data || {};
     if (!examId || !subjectId) throw new Error('Exam and subject paper are required.');
-    return apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}/attendance`, {
+    return apiRequest(`/exams/${examId}/subjects/${subjectId}/attendance`, {
       method: 'POST',
       token: session?.token,
       body,
@@ -424,7 +466,7 @@ export const teacherApi = {
   async getExamMarksRoster(params = {}, session) {
     const { examId, subjectId, classId, divisionId } = params;
     if (!examId || !subjectId || !classId) return [];
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}/marks`, {
+    const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}/marks`, {
       token: session?.token,
       query: { class_id: classId, division_id: divisionId },
     });
@@ -448,7 +490,7 @@ export const teacherApi = {
   async submitExamMarks(data, session) {
     const { examId, subjectId, ...body } = data || {};
     if (!examId || !subjectId) throw new Error('Exam and subject paper are required.');
-    return apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}/marks`, {
+    return apiRequest(`/exams/${examId}/subjects/${subjectId}/marks`, {
       method: 'POST',
       token: session?.token,
       body,
@@ -457,7 +499,7 @@ export const teacherApi = {
 
   async publishExamResults(examId, session) {
     if (!examId) throw new Error('The examination ID is missing.');
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/publish-results`, {
+    const payload = await apiRequest(`/exams/${examId}/publish-results`, {
       method: 'POST',
       token: session?.token,
     });
@@ -466,7 +508,7 @@ export const teacherApi = {
 
   async recallExamResults(examId, session) {
     if (!examId) throw new Error('The examination ID is missing.');
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/recall-results`, {
+    const payload = await apiRequest(`/exams/${examId}/recall-results`, {
       method: 'POST',
       token: session?.token,
     });
@@ -475,14 +517,14 @@ export const teacherApi = {
 
   async getExamReport(examId, session) {
     if (!examId) throw new Error('The examination ID is missing.');
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/report`, { token: session?.token });
+    const payload = await apiRequest(`/exams/${examId}/report`, { token: session?.token });
     return payload?.data || payload?.report || payload;
   },
 
   async getClassResults(params = {}, session) {
     const { examId, classId, divisionId } = params;
     if (!examId || !classId) return [];
-    const payload = await apiRequest(`/api/teacher/exams/${examId}/class-results`, {
+    const payload = await apiRequest(`/exams/${examId}/class-results`, {
       token: session?.token,
       query: { class_id: classId, division_id: divisionId },
     });
@@ -492,7 +534,7 @@ export const teacherApi = {
 
   async createExamSubject(examId, input, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects`, { method: 'POST', token: session?.token, body: input });
+      const payload = await apiRequest(`/exams/${examId}/subjects`, { method: 'POST', token: session?.token, body: input });
       return payload?.data || payload;
     }
 
@@ -505,7 +547,7 @@ export const teacherApi = {
 
   async updateExamSubject(examId, subjectId, input, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}`, { method: 'PUT', token: session?.token, body: input });
+      const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}`, { method: 'PUT', token: session?.token, body: input });
       return payload?.data || payload;
     }
 
@@ -518,7 +560,7 @@ export const teacherApi = {
 
   async deleteExamSubject(examId, subjectId, session) {
     if (isApiConfigured) {
-      const payload = await apiRequest(`/api/teacher/exams/${examId}/subjects/${subjectId}`, { method: 'DELETE', token: session?.token });
+      const payload = await apiRequest(`/exams/${examId}/subjects/${subjectId}`, { method: 'DELETE', token: session?.token });
       return payload?.data || payload;
     }
 
@@ -527,28 +569,103 @@ export const teacherApi = {
     return { id: subjectId, deleted: true };
   },
 
-  async getTimetable(session) {
+  async getTimetable(session, params = {}) {
     if (!isApiConfigured) return [];
-    const payload = await apiRequest('/api/teacher/timetable', { token: session?.token });
-    return payload?.data || payload?.timetable || [];
+    const payload = await apiRequest('/timetable/teacher', {
+      token: session?.token,
+      query: {
+        academic_year_id: params.academic_year_id,
+        staff_id: params.staff_id,
+      },
+    });
+    return payload?.data?.data || payload?.data || payload?.timetable || payload?.records || payload || [];
+  },
+
+  async getTimetableSessions(session, academicYearId) {
+    if (!isApiConfigured) return [];
+    const payload = await apiRequest('/timetable/sessions', {
+      token: session?.token,
+      query: { academic_year_id: academicYearId },
+    });
+    return payload?.data?.data || payload?.data || payload?.sessions || payload?.records || payload || [];
   },
 
   async getNotices(session) {
     if (!isApiConfigured) return teacherNotices;
-    const payload = await apiRequest('/api/teacher/notices', { token: session?.token });
+    const payload = await apiRequest('/notices', { token: session?.token });
     return payload?.data || payload?.notices || teacherNotices;
   },
 
   async getNotifications(session) {
     if (!isApiConfigured) return [];
-    const payload = await apiRequest('/api/teacher/notifications', { token: session?.token });
+    const payload = await apiRequest('/notifications', { token: session?.token });
     return payload?.data || payload?.notifications || [];
   },
 
   async getReports(session) {
     if (!isApiConfigured) return [];
-    const payload = await apiRequest('/api/teacher/reports', { token: session?.token });
-    return payload?.data || payload?.reports || [];
+    const payload = await apiRequest('/reports', { token: session?.token });
+    const records = payload?.data?.data || payload?.data || payload?.reports || payload?.results || payload || [];
+    return Array.isArray(records) ? records : [];
+  },
+};
+
+const examAttendanceItems = (payload, keys = []) => payloadItems(payload, keys);
+
+export const examAttendanceApi = {
+  async getClasses(session) {
+    const payload = await apiRequest('/academics/classes', { token: session?.token });
+    return examAttendanceItems(payload, ['classes']);
+  },
+
+  async getDivisions(classId, session) {
+    const payload = await apiRequest('/academics/divisions', {
+      token: session?.token,
+      query: { class_id: classId },
+    });
+    return examAttendanceItems(payload, ['divisions', 'sections']);
+  },
+
+  async getSubjects(examId, session) {
+    const payload = await apiRequest(`/exams/${examId}/subjects`, { token: session?.token });
+    return examAttendanceItems(payload, ['subjects', 'exam_subjects']);
+  },
+
+  async getSubjectMarks(examSubjectId, session) {
+    const payload = await apiRequest(`/exams/subject/${examSubjectId}/marks`, { token: session?.token });
+    return examAttendanceItems(payload, ['marks', 'records']);
+  },
+
+  async getStudents(classId, divisionId, session) {
+    const payload = await apiRequest('/students', {
+      token: session?.token,
+      query: { class_id: classId, division_id: divisionId },
+    });
+    return examAttendanceItems(payload, ['students']);
+  },
+
+  async saveAttendance(data, session) {
+    return apiRequest('/exams/attendance', {
+      method: 'POST',
+      token: session?.token,
+      body: data,
+    });
+  },
+};
+
+export const examResultApi = {
+  getClasses: examAttendanceApi.getClasses,
+  getDivisions: examAttendanceApi.getDivisions,
+  getSubjects: examAttendanceApi.getSubjects,
+  getSubjectMarks: examAttendanceApi.getSubjectMarks,
+  getStudents: examAttendanceApi.getStudents,
+
+  async saveMarks(data, session) {
+    return apiRequest('/exams/marks/bulk', {
+      method: 'POST',
+      token: session?.token,
+      body: data,
+    });
   },
 };
 
@@ -585,22 +702,57 @@ export const teacherAttendanceApi = {
   },
 
   async submitAttendance(data, session) {
-    logApi('POST', '/attendance', { ...data, records: `${data?.records?.length || 0} record(s)` });
+    const attendanceData = (data?.attendanceData || data?.records || []).map((record) => ({
+      student_id: record.student_id || record.studentId,
+      status: record.status,
+    }));
+    const academicYearId = session?.user?.tenant?.current_academic_year_id
+      || session?.tenant?.current_academic_year_id;
+    const body = {
+      ...data,
+      ...(academicYearId ? { academic_year_id: academicYearId } : {}),
+      attendanceData,
+    };
+    delete body.records;
+    logApi('POST', '/attendance', { ...body, attendanceData: `${attendanceData.length} record(s)` });
     return apiRequest('/attendance', {
       method: 'POST',
       token: session?.token,
-      body: { ...data, date: formatDateForPayrollApi(data?.date) },
+      body: { ...body, date: formatDateForPayrollApi(data?.date) },
     });
   },
 
   async getAttendanceHistory(params = {}, session) {
-    const query = normalizePayrollDateParams(params);
+    const query = normalizePayrollDateParams({
+      classId: params.classId || params.class_id,
+      divisionId: params.divisionId || params.division_id,
+      startDate: params.startDate || params.from,
+      endDate: params.endDate || params.to,
+      page: params.page,
+      limit: params.limit,
+    });
     logApi('GET', '/attendance/history', query);
     const payload = await apiRequest('/attendance/history', {
       token: session?.token,
       query,
     });
     return { records: normalizePayrollRecords(payload), pagination: payload?.pagination || payload?.meta || {} };
+  },
+
+  async exportAttendance(params = {}, session) {
+    const date = formatDateForPayrollApi(params.date || params.from || params.startDate);
+    const query = {
+      from: date,
+      to: formatDateForPayrollApi(params.to || params.endDate || params.date),
+      format: params.format || 'CSV',
+      classId: params.classId || params.class_id,
+      divisionId: params.divisionId || params.division_id,
+    };
+    logApi('GET', '/attendance/export', query);
+    return apiRequest('/attendance/export', {
+      token: session?.token,
+      query,
+    });
   },
 
   async triggerAutoCutoff(data, session) {

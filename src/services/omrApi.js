@@ -71,10 +71,11 @@ export const omrApi = {
   async fetchAnswerKeys(examId, session) {
     if (!examId || !isApiConfigured) return [];
     try {
-      const payload = await apiRequest(`/exams/${examId}/answer-key`, {
+      const payload = await apiRequest(`/omr/sessions/${examId}/answer-key`, {
         token: session?.token,
       });
-      return payload?.data || payload?.answer_key || payload?.answers || [];
+      const keys = payload?.keys || payload?.data?.keys || payload?.data || [];
+      return Array.isArray(keys) ? keys : [];
     } catch (error) {
       if (error?.status === 404) return [];
       throw error;
@@ -83,13 +84,18 @@ export const omrApi = {
 
   async saveAnswerKey(examId, key, session) {
     if (!examId || !isApiConfigured) return key;
+    const wrappedKey = Array.isArray(key) ? key : [key].filter(Boolean);
+
     try {
-      const payload = await apiRequest(`/exams/${examId}/answer-key`, {
-        method: "PUT",
+      const payload = await apiRequest(`/omr/sessions/${examId}/answer-key`, {
+        method: "POST",
         token: session?.token,
-        body: key,
+        body: { keys: wrappedKey },
       });
-      return payload?.data || payload || key;
+      return (
+        payload?.data ||
+        payload || { success: true, message: "Answer key updated successfully" }
+      );
     } catch (error) {
       if (error?.status === 404) return key;
       throw error;

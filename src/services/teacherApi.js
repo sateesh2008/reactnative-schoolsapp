@@ -180,6 +180,16 @@ const payloadItems = (payload, keys = []) => {
   return candidates.find((value) => Array.isArray(value)) || [];
 };
 
+const formatIsoDate = (value) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const normalizeFilterOption = (item, index) => {
   if (typeof item === "string" || typeof item === "number") {
     return { id: String(item), label: String(item), name: String(item) };
@@ -1000,15 +1010,32 @@ export const teacherApi = {
   },
 
   async createLeaveRequest(input, session) {
+    const normalizedInput = {
+      leave_type:
+        input?.leave_type ||
+        input?.leaveType ||
+        input?.category ||
+        "Casual Leave",
+      start_date: formatIsoDate(
+        input?.start_date || input?.startDate || input?.from,
+      ),
+      end_date: formatIsoDate(input?.end_date || input?.endDate || input?.to),
+      reason: input?.reason || "",
+    };
+
+    if (input?.notes) {
+      normalizedInput.notes = input.notes;
+    }
+
     if (isApiConfigured) {
       const payload = await apiRequest("/leaves/apply", {
         method: "POST",
         token: session?.token,
-        body: input,
+        body: normalizedInput,
       });
       return payload?.data || payload;
     }
-    const request = { ...input, id: `leave-request-${Date.now()}` };
+    const request = { ...normalizedInput, id: `leave-request-${Date.now()}` };
     localLeaveRequests = [request, ...localLeaveRequests];
     return { ...request };
   },

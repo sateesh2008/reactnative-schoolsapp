@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     Alert,
     Modal,
@@ -14,11 +14,11 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { announcementsApi } from "../services/announcementsApi";
 import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
 import { feesApi } from "../services/feesApi";
 import { homeworkApi } from "../services/homeworkApi";
-import { announcementsApi } from "../services/announcementsApi";
 import { parentApi } from "../services/parentApi";
 import ParentAdditionalModuleScreen from "./ParentAdditionalModuleScreen";
 import ParentAnnouncementsScreen from "./ParentAnnouncementsScreen";
@@ -45,8 +45,6 @@ const colors = {
   paleOrange: "#FFF1DF",
   red: "#C65353",
 };
-
-const attendanceSeed = [];
 
 const navItems = [
   { label: "Home", icon: "home-outline" },
@@ -338,7 +336,10 @@ function HomeContent({
                     <Text style={dashboardStyles.notificationTitle}>
                       {announcement.title}
                     </Text>
-                    <Text style={dashboardStyles.notificationMessage} numberOfLines={1}>
+                    <Text
+                      style={dashboardStyles.notificationMessage}
+                      numberOfLines={1}
+                    >
                       {announcement.message}
                     </Text>
                   </View>
@@ -346,25 +347,13 @@ function HomeContent({
                 </Pressable>
               ))
             ) : (
-              <Text style={dashboardStyles.emptyText}>No new notifications</Text>
+              <Text style={dashboardStyles.emptyText}>
+                No new notifications
+              </Text>
             )}
           </View>
         </>
       )}
-    </View>
-  );
-}
-
-function ScheduleRow({ item }) {
-  return (
-    <View style={styles.scheduleRow}>
-      <Text style={styles.scheduleTime}>{item[0]}</Text>
-      <View style={styles.scheduleLine} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.scheduleSubject}>{item[1]}</Text>
-        <Text style={styles.scheduleRoom}>{item[2]}</Text>
-      </View>
-      <Icon name="arrow-forward-outline" size={16} color={colors.blue} />
     </View>
   );
 }
@@ -461,279 +450,6 @@ function DetailContent({
   return <NoticesContent />;
 }
 
-function AttendanceContent() {
-  const [students, setStudents] = useState(attendanceSeed);
-  const [selectedAction, setSelectedAction] = useState("Daily Log / Marking");
-  const [selectedBulk, setSelectedBulk] = useState("All Present");
-  const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
-
-  const totalEnrolled = students.length;
-  const markedEntries = students.filter(
-    (student) => student.status !== "Unmarked",
-  ).length;
-  const presentToday = students.filter(
-    (student) => student.status === "Present",
-  ).length;
-  const absentCount = students.filter(
-    (student) => student.status === "Absent",
-  ).length;
-  const lateArrivals = students.filter(
-    (student) => student.status === "Late",
-  ).length;
-
-  const filteredStudents = students.filter((student) => {
-    const matchesFilter =
-      filter === "All" ||
-      (filter === "Present" && student.status === "Present") ||
-      (filter === "Absent" && student.status === "Absent");
-
-    const query = search.trim().toLowerCase();
-    const matchesSearch =
-      !query ||
-      student.name.toLowerCase().includes(query) ||
-      student.roll.includes(query);
-
-    return matchesFilter && matchesSearch;
-  });
-
-  const toggleStatus = (id) => {
-    setStudents((current) =>
-      current.map((student) => {
-        if (student.id !== id) return student;
-        const nextStatus = student.status === "Present" ? "Absent" : "Present";
-        return { ...student, status: nextStatus };
-      }),
-    );
-  };
-
-  const applyBulkAction = (value) => {
-    setStudents((current) =>
-      current.map((student) => {
-        if (value === "All Present") return { ...student, status: "Present" };
-        if (value === "All Absent") return { ...student, status: "Absent" };
-        return student;
-      }),
-    );
-  };
-
-  const runCutoff = () => {
-    setStudents((current) =>
-      current.map((student) =>
-        student.status === "Unmarked"
-          ? { ...student, status: "Absent" }
-          : student,
-      ),
-    );
-    Alert.alert(
-      "Cutoff applied",
-      "Unmarked entries have been marked Absent and parents were notified via WhatsApp.",
-    );
-  };
-
-  const submitAttendance = () => {
-    Alert.alert(
-      "Attendance submitted",
-      "Daily attendance has been synced successfully.",
-    );
-  };
-
-  return (
-    <>
-      <View style={styles.attendanceControlCard}>
-        <View style={styles.attendanceHeaderRow}>
-          <Text style={styles.attendanceTitle}>Attendance Control</Text>
-          <Pressable style={styles.primaryBadge}>
-            <Text style={styles.primaryBadgeText}>Daily Log / Marking</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.actionPillRow}>
-          {[
-            "Daily Log / Marking",
-            "History Log",
-            "Biometric",
-            "Export",
-            "Submit Attendance",
-          ].map((action) => {
-            const isSelected = selectedAction === action;
-            const isSubmit = action === "Submit Attendance";
-
-            return (
-              <Pressable
-                key={action}
-                style={[
-                  styles.actionPill,
-                  isSelected && styles.actionPillSelected,
-                  isSubmit && styles.actionPillPrimary,
-                ]}
-                onPress={() => {
-                  setSelectedAction(action);
-                  if (isSubmit) submitAttendance();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.actionPillText,
-                    isSelected && styles.actionPillTextSelected,
-                    isSubmit && styles.actionPillTextPrimary,
-                  ]}
-                >
-                  {action}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.cutoffCard}>
-          <View style={styles.cutoffLabelWrap}>
-            <Icon name="time-outline" size={16} color={colors.blue} />
-            <Text style={styles.cutoffText}>
-              10:30 AM Daily Attendance Cutoff Active
-            </Text>
-          </View>
-          <Text style={styles.cutoffSubText}>
-            Any students left unmarked by 10:30 AM on working days are
-            automatically recorded as Absent and WhatsApp alerts are dispatched
-            to parents.
-          </Text>
-          <Pressable style={styles.cutoffButton} onPress={runCutoff}>
-            <Text style={styles.cutoffButtonText}>Run Cutoff Now</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.metricGrid}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{totalEnrolled}</Text>
-            <Text style={styles.metricLabel}>Total Enrolled</Text>
-            <Text style={styles.metricMeta}>MATRIX VOLUME</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{markedEntries}</Text>
-            <Text style={styles.metricLabel}>Marked Entries</Text>
-            <Text style={styles.metricMeta}>SYNCED</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{presentToday}</Text>
-            <Text style={styles.metricLabel}>Present Today</Text>
-            <Text style={styles.metricMeta}>ACTIVE STATUS</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{absentCount}</Text>
-            <Text style={styles.metricLabel}>Absent Count</Text>
-            <Text style={styles.metricMeta}>MISSING</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{lateArrivals}</Text>
-            <Text style={styles.metricLabel}>Late Arrivals</Text>
-            <Text style={styles.metricMeta}>AUDIT LAG</Text>
-          </View>
-        </View>
-
-        <View style={styles.dateRow}>
-          <Text style={styles.dateTitle}>Date:</Text>
-          <Text style={styles.dateValue}>11-09-2026</Text>
-        </View>
-
-        <View style={styles.filterGroup}>
-          {["All Present", "All Absent"].map((option) => {
-            const isSelected = selectedBulk === option;
-            return (
-              <Pressable
-                key={option}
-                style={[
-                  styles.optionButton,
-                  isSelected && styles.optionButtonSelected,
-                ]}
-                onPress={() => {
-                  setSelectedBulk(option);
-                  applyBulkAction(option);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionButtonText,
-                    isSelected && styles.optionButtonTextSelected,
-                  ]}
-                >
-                  {option}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.searchBox}>
-          <Icon name="search-outline" size={17} color={colors.muted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search name/roll..."
-            placeholderTextColor="#9AA7B7"
-            style={styles.searchInput}
-          />
-        </View>
-
-        <View style={styles.tableHeader}>
-          <Text style={styles.tableHeaderText}>Student</Text>
-          <Text style={styles.tableHeaderText}>Status</Text>
-        </View>
-
-        {filteredStudents.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No data available</Text>
-            <Text style={styles.emptySubtitle}>
-              No records found matching your criteria
-            </Text>
-          </View>
-        ) : (
-          filteredStudents.map((student) => (
-            <Pressable
-              key={student.id}
-              style={styles.studentRow}
-              onPress={() => toggleStatus(student.id)}
-            >
-              <View style={styles.studentMetaWrap}>
-                <View style={styles.avatarChip}>
-                  <Text style={styles.avatarText}>
-                    {student.name.charAt(0)}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.studentName}>{student.name}</Text>
-                  <Text style={styles.studentRoll}>Roll {student.roll}</Text>
-                </View>
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  student.status === "Present" && styles.statusPresent,
-                  student.status === "Absent" && styles.statusAbsent,
-                  student.status === "Late" && styles.statusLate,
-                  student.status === "Unmarked" && styles.statusUnmarked,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusText,
-                    student.status === "Present" && styles.statusTextPresent,
-                    student.status === "Absent" && styles.statusTextAbsent,
-                    student.status === "Late" && styles.statusTextLate,
-                    student.status === "Unmarked" && styles.statusTextUnmarked,
-                  ]}
-                >
-                  {student.status}
-                </Text>
-              </View>
-            </Pressable>
-          ))
-        )}
-      </View>
-    </>
-  );
-}
-
 function NoticesContent() {
   return (
     <>
@@ -747,7 +463,9 @@ function NoticesContent() {
         </View>
       </View>
       <View style={styles.panel}>
-        <Text style={styles.subtle}>Open Messaging / Notifications to view announcements.</Text>
+        <Text style={styles.subtle}>
+          Open Messaging / Notifications to view announcements.
+        </Text>
       </View>
     </>
   );
@@ -823,7 +541,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
     ]);
   };
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setDashboard((current) => ({ ...current, loading: true, error: "" }));
     try {
       const children = await parentApi.getChildren(session);
@@ -856,13 +574,22 @@ export default function ParentPortalScreen({ onLogout, session }) {
 
       const results = await Promise.allSettled([
         feesApi.getSummary(session, activeStudentId),
-        attendanceApi.getSummary(new Date().toISOString().slice(0, 10), session, activeStudentId),
+        attendanceApi.getSummary(
+          new Date().toISOString().slice(0, 10),
+          session,
+          activeStudentId,
+        ),
         homeworkApi.getAssignments(session, activeStudentId),
         examsApi.getResults(session, activeStudentId),
-          announcementsApi.getAnnouncements(session, activeStudentId),
+        announcementsApi.getAnnouncements(session, activeStudentId),
       ]);
-      const [feesResult, attendanceResult, homeworkResult, examsResult, announcementsResult] =
-        results;
+      const [
+        feesResult,
+        attendanceResult,
+        homeworkResult,
+        examsResult,
+        announcementsResult,
+      ] = results;
       const failedServices = results
         .map((result, index) =>
           result.status === "rejected"
@@ -904,11 +631,11 @@ export default function ParentPortalScreen({ onLogout, session }) {
           error?.message || "Unable to load dashboard data. Please try again.",
       }));
     }
-  };
+  }, [session, selectedStudentId]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [session, selectedStudentId]);
+    void loadDashboard();
+  }, [loadDashboard]);
 
   const selectedStudent = students.find(
     (student) => String(student.id) === String(selectedStudentId),
@@ -926,7 +653,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
         <View>
           <Text style={styles.brand}>{session?.schoolName || ""}</Text>
           <Text style={styles.portal}>
-            Parent portal <Text style={styles.year}>2026–27</Text>
+            Parent portal{" "}
+            <Text style={styles.year}>{session?.academicYear || ""}</Text>
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -940,7 +668,9 @@ export default function ParentPortalScreen({ onLogout, session }) {
               size={19}
               color="#C8DBF2"
             />
-            <Text style={styles.unreadBadge}>{dashboard.announcements.length}</Text>
+            <Text style={styles.unreadBadge}>
+              {dashboard.announcements.length}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityLabel="Open notifications"
@@ -948,7 +678,9 @@ export default function ParentPortalScreen({ onLogout, session }) {
             style={styles.headerIconButton}
           >
             <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            <Text style={styles.unreadBadge}>{dashboard.announcements.length}</Text>
+            <Text style={styles.unreadBadge}>
+              {dashboard.announcements.length}
+            </Text>
           </Pressable>
           <Pressable onPress={handleLogout} style={styles.logout}>
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
@@ -1183,14 +915,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
     gap: 11,
   },
-  panel: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: 15,
-    marginBottom: 22,
-  },
   noticeDot: { width: 8, height: 8, borderRadius: 4 },
   noticeMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
   noticeType: { fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
@@ -1307,7 +1031,6 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   dayText: { color: colors.muted, fontSize: 11 },
-  dayPresent: { backgroundColor: colors.paleTeal },
   dayPresent: { backgroundColor: colors.paleTeal },
   dayToday: { backgroundColor: colors.blue },
   filterRow: {

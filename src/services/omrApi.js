@@ -1,60 +1,184 @@
-const initialSession = {
-  id: 'omr-session-1',
-  name: 'My Exam (JEE)',
-  code: 'NEET',
-  pattern: 'JEE Pattern',
-  scope: 'All Classes & Sections',
-  questions: 180,
-  positiveMarks: 4,
-  negativeMarks: 1,
-  evaluated: 1,
-  keys: 1,
-  status: 'Draft',
-  createdDate: '18/09/2026',
+import { apiRequest, isApiConfigured } from "./api";
+
+const normalizeExamSession = (item = {}, fallbackId = "exam") => ({
+  id: item.id || item.exam_id || item.examId || `${fallbackId}-${Date.now()}`,
+  name: item.name || item.exam_name || item.title || "Untitled Exam",
+  code: item.code || item.exam_code || item.subject_code || "",
+  pattern: item.pattern || item.exam_pattern || item.type || "",
+  scope:
+    item.scope ||
+    item.targetClass ||
+    item.class_name ||
+    item.className ||
+    "All Classes",
+  questions: Number(
+    item.questions ?? item.total_questions ?? item.question_count ?? 180,
+  ),
+  positiveMarks: Number(item.positiveMarks ?? item.positive_marks ?? 4),
+  negativeMarks: Number(item.negativeMarks ?? item.negative_marks ?? 1),
+  evaluated: Number(item.evaluated ?? item.evaluated_count ?? 0),
+  keys: Number(item.keys ?? item.answer_key_count ?? 0),
+  status: item.status || "Draft",
+  createdDate: item.createdDate || item.created_at || item.startDate || "",
+});
+
+const unwrapRecords = (payload, key) => {
+  const source = payload?.data?.data || payload?.data || payload || {};
+  if (Array.isArray(source)) return source;
+  if (Array.isArray(source[key])) return source[key];
+  if (Array.isArray(source?.records)) return source.records;
+  return [];
 };
 
-const initialAnswerKey = Array.from({ length: 10 }, (_, index) => ({ question: index + 1, answer: ['A', 'B', 'C', 'D'][index % 4] }));
-const initialResults = [
-  {
-    id: 'omr-result-1',
-    examId: 'omr-session-1',
-    examName: 'My Exam (JEE)',
-    studentName: 'Joshi y',
-    rollNumber: 'ADM0100',
-    admissionNumber: 'ADM0100',
-    booklet: 'Set A',
-    totalScore: -50,
-    maxScore: 720,
-    correct: 2,
-    wrong: 58,
-    blank: 120,
-    rank: 1,
-    score: -50,
-    percentage: -6.94,
-  },
-];
-
-let sessions = [initialSession];
-let answerKeys = { [initialSession.id]: initialAnswerKey };
-let results = initialResults;
-
-const clone = (value) => JSON.parse(JSON.stringify(value));
-
 export const omrApi = {
-  async fetchOMRDashboard() { return { sessions: clone(sessions), results: clone(results) }; },
-  async fetchOMRSessions() { return clone(sessions); },
-  async createOMRSession(input) {
-    const session = { ...input, id: `omr-session-${Date.now()}`, status: input.status || 'Draft', createdDate: new Date().toLocaleDateString('en-GB'), evaluated: 0, keys: 0 };
-    sessions = [session, ...sessions];
-    return clone(session);
+  async fetchOMRDashboard(session) {
+    if (!isApiConfigured) return { sessions: [], results: [] };
+    try {
+      const payload = await apiRequest("/exams", { token: session?.token });
+      return {
+        sessions: unwrapRecords(payload, "exams").map((item) =>
+          normalizeExamSession(item),
+        ),
+        results: [],
+      };
+    } catch (error) {
+      if (error?.status === 404) return { sessions: [], results: [] };
+      throw error;
+    }
   },
-  async fetchAnswerKeys(examId) { return clone(answerKeys[examId] || []); },
-  async saveAnswerKey(examId, key) { answerKeys[examId] = clone(key); return clone(key); },
-  async scanOMRSheet(input) { return { ...clone(input), scanned: true, detectedAnswers: input.detectedAnswers || 10 }; },
-  async evaluateOMRSheet(input) { return { ...clone(input), evaluated: true, score: 162, percentage: 81 }; },
-  async fetchOMRResults() { return clone(results); },
-  async publishOMRResults(examId) {
-    sessions = sessions.map((session) => session.id === examId ? { ...session, status: 'Published' } : session);
-    return clone(sessions.find((session) => session.id === examId));
+
+  async fetchOMRSessions(session) {
+    const dashboard = await this.fetchOMRDashboard(session);
+    return dashboard.sessions;
+  },
+
+  async createOMRSession(input, session) {
+    if (!isApiConfigured) return null;
+    try {
+      const payload = await apiRequest("/exams", {
+        method: "POST",
+        token: session?.token,
+        body: input,
+      });
+      const exam = payload?.data || payload?.exam || payload;
+      return normalizeExamSession(exam);
+    } catch (error) {
+      if (error?.status === 404) return null;
+      throw error;
+    }
+  },
+
+  async fetchAnswerKeys(examId, session) {
+    if (!examId || !isApiConfigured) return [];
+    try {
+      const payload = await apiRequest(`/exams/${examId}/answer-key`, {
+        token: session?.token,
+      });
+      return payload?.data || payload?.answer_key || payload?.answers || [];
+    } catch (error) {
+      if (error?.status === 404) return [];
+      throw error;
+    }
+  },
+
+  async saveAnswerKey(examId, key, session) {
+    if (!examId || !isApiConfigured) return key;
+    try {
+      const payload = await apiRequest(`/exams/${examId}/answer-key`, {
+        method: "PUT",
+        token: session?.token,
+        body: key,
+      });
+      return payload?.data || payload || key;
+    } catch (error) {
+      if (error?.status === 404) return key;
+      throw error;
+    }
+  },
+
+  async scanOMRSheet(input, session) {
+    if (!isApiConfigured)
+      return {
+        ...input,
+        scanned: true,
+        detectedAnswers: input?.detectedAnswers || 0,
+      };
+    try {
+      const payload = await apiRequest("/exams/omr/scan", {
+        method: "POST",
+        token: session?.token,
+        body: input,
+      });
+      return payload?.data || payload || { ...input, scanned: true };
+    } catch (error) {
+      if (error?.status === 404)
+        return {
+          ...input,
+          scanned: true,
+          detectedAnswers: input?.detectedAnswers || 0,
+        };
+      throw error;
+    }
+  },
+
+  async evaluateOMRSheet(input, session) {
+    if (!isApiConfigured) {
+      const attempts = Array.isArray(input?.answers) ? input.answers.length : 0;
+      return {
+        ...input,
+        evaluated: true,
+        score: attempts,
+        percentage: attempts ? 75 : 0,
+      };
+    }
+    try {
+      const payload = await apiRequest("/exams/omr/evaluate", {
+        method: "POST",
+        token: session?.token,
+        body: input,
+      });
+      return payload?.data || payload || { ...input, evaluated: true };
+    } catch (error) {
+      if (error?.status === 404) {
+        const attempts = Array.isArray(input?.answers)
+          ? input.answers.length
+          : 0;
+        return {
+          ...input,
+          evaluated: true,
+          score: attempts,
+          percentage: attempts ? 75 : 0,
+        };
+      }
+      throw error;
+    }
+  },
+
+  async fetchOMRResults(session) {
+    if (!isApiConfigured) return [];
+    try {
+      const payload = await apiRequest("/exams/results", {
+        token: session?.token,
+      });
+      return unwrapRecords(payload, "results");
+    } catch (error) {
+      if (error?.status === 404) return [];
+      throw error;
+    }
+  },
+
+  async publishOMRResults(examId, session) {
+    if (!examId) return { id: examId, status: "Draft" };
+    if (!isApiConfigured) return { id: examId, status: "Draft" };
+    try {
+      const payload = await apiRequest(`/exams/${examId}/publish-results`, {
+        method: "POST",
+        token: session?.token,
+      });
+      return payload?.data || payload || { id: examId, status: "Published" };
+    } catch (error) {
+      if (error?.status === 404) return { id: examId, status: "Draft" };
+      throw error;
+    }
   },
 };

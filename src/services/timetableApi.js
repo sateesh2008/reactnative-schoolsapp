@@ -1,24 +1,23 @@
-import { apiRequest, isApiConfigured } from './api';
-import { parentTimetable } from './timetableMock';
+import { apiRequest, isApiConfigured } from "./api";
 
 const dayKeys = {
-  monday: 'Mon',
-  tuesday: 'Tue',
-  wednesday: 'Wed',
-  thursday: 'Thu',
-  friday: 'Fri',
-  saturday: 'Sat',
-  mon: 'Mon',
-  tue: 'Tue',
-  wed: 'Wed',
-  thu: 'Thu',
-  fri: 'Fri',
-  sat: 'Sat',
+  monday: "Mon",
+  tuesday: "Tue",
+  wednesday: "Wed",
+  thursday: "Thu",
+  friday: "Fri",
+  saturday: "Sat",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
 };
 
 export const timetableApi = {
   async getWeeklySchedule(session, studentId) {
-    if (!isApiConfigured) return parentTimetable;
+    if (!isApiConfigured) return {};
     if (!studentId) return {};
 
     const payload = await apiRequest(`/parents/child/${studentId}/timetable`, {
@@ -28,7 +27,7 @@ export const timetableApi = {
     const schedule = {};
 
     (Array.isArray(records) ? records : []).forEach((record) => {
-      const dayValue = String(record.day_name || record.day || '')
+      const dayValue = String(record.day_name || record.day || "")
         .trim()
         .toLowerCase();
       const day = dayKeys[dayValue] || dayKeys[dayValue.slice(0, 3)];
@@ -36,11 +35,11 @@ export const timetableApi = {
 
       if (!schedule[day]) schedule[day] = [];
       schedule[day].push({
-        startTime: record.start_time || '',
-        endTime: record.end_time || '',
-        room: record.room || record.room_no || 'RM TBD',
-        subject: record.subject || record.subject_name || '',
-        teacher: record.teacher || record.teacher_name || '',
+        startTime: record.start_time || "",
+        endTime: record.end_time || "",
+        room: record.room || record.room_no || "RM TBD",
+        subject: record.subject || record.subject_name || "",
+        teacher: record.teacher || record.teacher_name || "",
       });
     });
 

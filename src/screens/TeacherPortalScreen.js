@@ -15,15 +15,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { teacherApi } from "../services/teacherApi";
-import { teacherDashboardMock } from "../services/teacherMock";
+import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
 import TeacherExamsMarksScreen from "./TeacherExamsMarksScreen";
-import TeacherOMRScreen from "./TeacherOMRScreen";
-import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
 import TeacherLeaveManagementScreen from "./TeacherLeaveManagementScreen";
+import TeacherOMRScreen from "./TeacherOMRScreen";
 import TeacherTimetableScreen from "./TeacherTimetableScreen";
 
 const colors = {
@@ -117,7 +116,31 @@ const operationColors = [
   colors.paleTeal,
   colors.paleBlue,
 ];
-const defaultDashboard = teacherDashboardMock;
+
+const buildFallbackTeacher = (session) => {
+  const rawName =
+    session?.user?.name ||
+    session?.user?.full_name ||
+    session?.name ||
+    session?.user?.username ||
+    "Teacher";
+  const teacherName = typeof rawName === "string" ? rawName : "Teacher";
+  const initials =
+    teacherName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "T";
+
+  return {
+    name: teacherName,
+    initials,
+    role: session?.role || "Teacher",
+    school: session?.schoolName || session?.tenant?.school_name || "",
+  };
+};
 
 function Icon({ name, size = 20, color = colors.ink }) {
   return <Ionicons name={name} size={size} color={color} />;
@@ -237,14 +260,63 @@ function LegacyQuickAction({ label, icon, detail, backgroundColor, onPress }) {
   );
 }
 
-function AttendanceVelocityChart({ data }) {
-  const maxValue = useMemo(
-    () => Math.max(...data.map((item) => item.value), 100),
-    [data],
+function AttendanceVelocityChart({ data = [] }) {
+  const safeData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data
+      .map((item, index) => {
+        const rawValue =
+          item?.value ??
+          item?.percent ??
+          item?.percentage ??
+          item?.attendance ??
+          item?.attendancePercentage ??
+          item?.presentPercent ??
+          item?.present_percentage ??
+          item?.pct ??
+          0;
+        const numericValue = Number(rawValue);
+        if (!Number.isFinite(numericValue)) return null;
+        const cappedValue = Math.min(100, Math.max(0, numericValue));
+        return {
+          key: item?.key || item?.day || item?.label || `day-${index}`,
+          day: item?.day || item?.label || `Day ${index + 1}`,
+          value: cappedValue,
+        };
+      })
+      .filter(Boolean)
+      .filter((item) => item.value > 0 || item.value === 0);
+  }, [data]);
+
+  const maxValue = useMemo(() => {
+    if (!safeData.length) return 100;
+    return Math.max(...safeData.map((item) => item.value), 100);
+  }, [safeData]);
+  const average = safeData.length
+    ? Math.round(
+        safeData.reduce((sum, item) => sum + item.value, 0) / safeData.length,
+      )
+    : 0;
+  const chartLevels = useMemo(
+    () =>
+      Array.from({ length: 5 }, (_, index) =>
+        Math.round(maxValue - (maxValue / 4) * index),
+      ),
+    [maxValue],
   );
-  const average = Math.round(
-    data.reduce((sum, item) => sum + item.value, 0) / data.length,
-  );
+
+  if (!safeData.length) {
+    return (
+      <View style={styles.listCard}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Attendance Velocity Chart</Text>
+        </View>
+        <Text style={styles.emptySubtitle}>
+          No attendance data available yet.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.listCard}>
@@ -255,7 +327,7 @@ function AttendanceVelocityChart({ data }) {
 
       <View style={styles.chartArea}>
         <View style={styles.yAxis}>
-          {[100, 90, 80, 70, 60].map((level) => (
+          {chartLevels.map((level) => (
             <Text key={level} style={styles.axisLabel}>
               {level}
             </Text>
@@ -263,8 +335,8 @@ function AttendanceVelocityChart({ data }) {
         </View>
 
         <View style={styles.chartColumnsWrap}>
-          {data.map((item) => (
-            <View key={item.day} style={styles.chartColumn}>
+          {safeData.map((item) => (
+            <View key={item.key} style={styles.chartColumn}>
               <View style={styles.chartBarWrap}>
                 <View
                   style={[
@@ -339,14 +411,13 @@ function ModulePlaceholder({ title, icon, description }) {
   );
 }
 
-function DashboardScreen({ data, onNavigate, onSearch, query }) {
-  const dashboardData = data?.dashboardData || defaultDashboard.dashboardData;
-  const teacher = data?.teacher || defaultDashboard.teacher;
-  const shortcuts = data?.shortcuts || defaultDashboard.shortcuts;
-  const notices = data?.notices || defaultDashboard.notices;
-  const quickActions = data?.quickActions || defaultDashboard.quickActions;
-  const weeklyAttendance =
-    data?.attendanceWeekly || defaultDashboard.attendanceWeekly;
+function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
+  const dashboardData = data?.dashboardData || {};
+  const teacher = data?.teacher || buildFallbackTeacher(session || {});
+  const shortcuts = data?.shortcuts || [];
+  const notices = data?.notices || [];
+  const quickActions = data?.quickActions || [];
+  const weeklyAttendance = data?.attendanceWeekly || [];
 
   return (
     <ScrollView
@@ -357,9 +428,11 @@ function DashboardScreen({ data, onNavigate, onSearch, query }) {
       <View style={styles.headingRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>
-            {getGreeting()}, {teacher.name.split(" ")[0]}! 👋
+            {getGreeting()}, {(teacher.name || "Teacher").split(" ")[0]}! 👋
           </Text>
-          <Text style={styles.school}>{teacher.school || "Demo School"}</Text>
+          <Text style={styles.school}>
+            {teacher.school || session?.schoolName || ""}
+          </Text>
         </View>
         <View style={styles.accountBadge}>
           <Text style={styles.accountName}>Instructor</Text>
@@ -490,7 +563,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const unreadMessages = 3;
   const unreadNotifications = 5;
   const [activeModule, setActiveModule] = useState("Home");
-  const [dashboardData, setDashboardData] = useState(defaultDashboard);
+  const [dashboardData, setDashboardData] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -498,7 +571,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
   const [examsMenuOpen, setExamsMenuOpen] = useState(false);
   const [timetableMenuOpen, setTimetableMenuOpen] = useState(false);
-  const [timetableSubmodule, setTimetableSubmodule] = useState("Class Timetable");
+  const [timetableSubmodule, setTimetableSubmodule] =
+    useState("Class Timetable");
 
   useEffect(() => {
     let active = true;
@@ -512,8 +586,15 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         if (active) setDashboardData(data);
       } catch {
         if (active) {
-          setError("Unable to load dashboard data. Showing local demo data.");
-          setDashboardData(defaultDashboard);
+          setError("Unable to load dashboard data from the API.");
+          setDashboardData({
+            teacher: buildFallbackTeacher(session || {}),
+            dashboardData: {},
+            shortcuts: [],
+            notices: [],
+            quickActions: [],
+            attendanceWeekly: [],
+          });
         }
       } finally {
         if (active) setLoading(false);
@@ -521,7 +602,9 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     };
 
     void fetchDashboard();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [session]);
 
   const handleNavigate = (module) => {
@@ -563,6 +646,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <DashboardScreen
             data={dashboardData}
+            session={session}
             query={search}
             onSearch={setSearch}
             onNavigate={handleNavigate}
@@ -589,7 +673,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
-      if ([
+    if (
+      [
         "Exams / Marks",
         "Set Exams",
         "View Exams",
@@ -599,8 +684,15 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         "Class Result",
         "Attendance Result",
         "Hall Ticket",
-      ].includes(activeModule)) {
-        return <TeacherExamsMarksScreen session={session} module={activeModule} onSelectModule={setActiveModule} />;
+      ].includes(activeModule)
+    ) {
+      return (
+        <TeacherExamsMarksScreen
+          session={session}
+          module={activeModule}
+          onSelectModule={setActiveModule}
+        />
+      );
     }
 
     if (activeModule === "Timetable") {
@@ -651,18 +743,38 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     }
 
     if (activeModule === "OMR System") {
-      return <OMRSystemScreen onSelectModule={setActiveModule} onBack={() => setActiveModule("Home")} />;
+      return (
+        <OMRSystemScreen
+          onSelectModule={setActiveModule}
+          onBack={() => setActiveModule("Home")}
+        />
+      );
     }
 
-    if (["OMR Dashboard", "Exam Sessions", "Answer Keys", "Hardware & Optical Scanner", "Results & Leaderboards"].includes(activeModule)) {
+    if (
+      [
+        "OMR Dashboard",
+        "Exam Sessions",
+        "Answer Keys",
+        "Hardware & Optical Scanner",
+        "Results & Leaderboards",
+      ].includes(activeModule)
+    ) {
       const omrTabs = {
-        "OMR Dashboard": "My Exam (JEE)",
+        "OMR Dashboard": "Untitled Exam",
         "Exam Sessions": "Sessions (1)",
         "Answer Keys": "Answer Keys",
         "Hardware & Optical Scanner": "Scanner & Reader",
         "Results & Leaderboards": "Results & Ranks",
       };
-      return <TeacherOMRScreen session={session} initialTab={omrTabs[activeModule]} initialMenu={activeModule} onBack={() => setActiveModule("OMR System")} />;
+      return (
+        <TeacherOMRScreen
+          session={session}
+          initialTab={omrTabs[activeModule]}
+          initialMenu={activeModule}
+          onBack={() => setActiveModule("OMR System")}
+        />
+      );
     }
 
     return (
@@ -680,9 +792,10 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.brand}>DEMO SCHOOL</Text>
+          <Text style={styles.brand}>{session?.schoolName || ""}</Text>
           <Text style={styles.portal}>
-            Teacher portal <Text style={styles.year}>2026–27</Text>
+            Teacher portal{" "}
+            <Text style={styles.year}>{session?.academicYear || ""}</Text>
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -795,13 +908,13 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                 <Icon name="close" size={22} color={colors.ink} />
               </Pressable>
             </View>
-            {['Class Timetable', 'Teacher Timetable'].map((item) => (
+            {["Class Timetable", "Teacher Timetable"].map((item) => (
               <Pressable
                 key={item}
                 onPress={() => {
                   setTimetableSubmodule(item);
                   setTimetableMenuOpen(false);
-                  setActiveModule('Timetable');
+                  setActiveModule("Timetable");
                 }}
                 style={({ pressed }) => [
                   styles.moreItem,
@@ -822,9 +935,9 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                     {item}
                   </Text>
                   <Text style={styles.moreItemDescription}>
-                    {item === 'Class Timetable'
-                      ? 'View the class weekly timetable matrix'
-                      : 'View the faculty weekly teaching schedule'}
+                    {item === "Class Timetable"
+                      ? "View the class weekly timetable matrix"
+                      : "View the faculty weekly teaching schedule"}
                   </Text>
                 </View>
               </Pressable>
@@ -917,16 +1030,22 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                 <Icon name="close" size={22} color={colors.ink} />
               </Pressable>
             </View>
-            <Text style={styles.moreMenuIntro}>Examination scheduling, attendance, results and publishing</Text>
+            <Text style={styles.moreMenuIntro}>
+              Examination scheduling, attendance, results and publishing
+            </Text>
             {[
-              ['Set Exam', 'Set Exams', 'calendar-outline'],
-              ['View Exam', 'View Exams', 'documents-outline'],
-              ['Exam Attendance', 'Exam Attendance', 'checkmark-done-outline'],
-              ['Exam Result', 'Exam Result', 'clipboard-outline'],
-              ['Publish Exam', 'Publish Result', 'megaphone-outline'],
-              ['Class Results', 'Class Result', 'bar-chart-outline'],
-              ['Attendance History', 'Attendance Result', 'stats-chart-outline'],
-              ['Hall Tickets', 'Hall Ticket', 'receipt-outline'],
+              ["Set Exam", "Set Exams", "calendar-outline"],
+              ["View Exam", "View Exams", "documents-outline"],
+              ["Exam Attendance", "Exam Attendance", "checkmark-done-outline"],
+              ["Exam Result", "Exam Result", "clipboard-outline"],
+              ["Publish Exam", "Publish Result", "megaphone-outline"],
+              ["Class Results", "Class Result", "bar-chart-outline"],
+              [
+                "Attendance History",
+                "Attendance Result",
+                "stats-chart-outline",
+              ],
+              ["Hall Tickets", "Hall Ticket", "receipt-outline"],
             ].map(([label, module, icon]) => (
               <Pressable
                 key={label}
@@ -934,14 +1053,19 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   setExamsMenuOpen(false);
                   setActiveModule(module);
                 }}
-                style={({ pressed }) => [styles.moreItem, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.moreItem,
+                  pressed && styles.pressed,
+                ]}
               >
                 <View style={styles.moreItemIconWrap}>
                   <Icon name={icon} size={18} color={colors.blue} />
                 </View>
                 <View style={styles.moreItemCopy}>
                   <Text style={styles.moreItemTitle}>{label}</Text>
-                  <Text style={styles.moreItemDescription}>Open {label.toLowerCase()} workflow</Text>
+                  <Text style={styles.moreItemDescription}>
+                    Open {label.toLowerCase()} workflow
+                  </Text>
                 </View>
                 <Icon name="chevron-forward" size={17} color={colors.muted} />
               </Pressable>
@@ -992,13 +1116,13 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   />
                 </View>
                 <View style={styles.moreItemCopy}>
-                    <Text
+                  <Text
                     style={[
                       styles.moreItemTitle,
                       activeModule === item && styles.moreItemTextActive,
                     ]}
                   >
-                      {item === "Exams / Marks" ? "Exams" : item}
+                    {item === "Exams / Marks" ? "Exams" : item}
                   </Text>
                   <Text style={styles.moreItemDescription}>
                     {item === "My Students"
@@ -1382,7 +1506,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "900" },
-  moreMenuIntro: { color: colors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8 },
+  moreMenuIntro: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
   moreItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -1471,4 +1600,3 @@ const styles = StyleSheet.create({
 });
 
 export { moreNavItems, primaryNavItems };
-

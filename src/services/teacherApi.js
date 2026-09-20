@@ -1,17 +1,6 @@
 import { apiRequest, isApiConfigured } from "./api";
-import {
-    teacherAttendanceMock,
-    teacherDashboardData,
-    teacherDashboardMock,
-    teacherHomeworkMock,
-    teacherNotices,
-    teacherProfile,
-    teacherShortcuts,
-} from "./teacherMock";
 
-let localHomework = teacherHomeworkMock.map((assignment) => ({
-  ...assignment,
-}));
+let localHomework = [];
 let localSubmissions = {};
 let localLeaveRequests = [];
 
@@ -110,13 +99,48 @@ const normalizePayrollRecord = (record) => ({
     record.student_name ||
     record.studentName ||
     record.staff_name ||
-    record.staffName,
-  roll: record.roll || record.roll_number || record.rollNumber,
-  admissionNumber: record.admissionNumber || record.admission_number,
-  studentId: record.studentId || record.student_id,
-  status: normalizePayrollStatus(record.status || record.attendance_status),
+    record.staffName ||
+    [record.first_name, record.last_name].filter(Boolean).join(" ") ||
+    [record.firstName, record.lastName].filter(Boolean).join(" ") ||
+    "Unnamed student",
+  roll:
+    record.roll ||
+    record.roll_number ||
+    record.rollNumber ||
+    record.roll_no ||
+    record.rollNo ||
+    "",
+  admissionNumber:
+    record.admissionNumber ||
+    record.admission_number ||
+    record.admissionNo ||
+    record.admission_no ||
+    record.admin_no ||
+    "",
+  studentId:
+    record.studentId ||
+    record.student_id ||
+    record.id ||
+    record.studentId ||
+    "",
+  className:
+    record.className ||
+    record.class_name ||
+    record.class ||
+    record.className ||
+    "",
+  section:
+    record.section ||
+    record.division ||
+    record.division_name ||
+    record.section_name ||
+    "",
+  status: normalizePayrollStatus(
+    record.status || record.attendance_status || record.attendanceStatus,
+  ),
   punchIn: record.punchIn || record.punch_in || record.check_in || "",
   punchOut: record.punchOut || record.punch_out || record.check_out || "",
+  entrySource: record.source || record.entry_source || "Manual",
 });
 
 const normalizePayrollRecords = (payload) => {
@@ -237,9 +261,195 @@ const logApi = (method, path, details) => {
   if (__DEV__) console.debug(`[attendance] ${method} ${path}`, details || "");
 };
 
+const buildFallbackTeacher = (session) => {
+  const rawName =
+    session?.user?.name ||
+    session?.user?.full_name ||
+    session?.name ||
+    session?.user?.username ||
+    "Teacher";
+  const teacherName = typeof rawName === "string" ? rawName : "Teacher";
+  const initials =
+    teacherName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "T";
+
+  return {
+    name: teacherName,
+    initials,
+    role: session?.role || "Teacher",
+    school:
+      session?.schoolName ||
+      session?.user?.tenant?.school_name ||
+      session?.tenant?.school_name ||
+      "",
+    academicYear: "",
+  };
+};
+
+const coerceNumber = (value, fallback = 0) => {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : fallback;
+};
+
+const extractMetric = (source, keys = [], fallback = 0) => {
+  if (!source || typeof source !== "object") return fallback;
+
+  for (const key of keys) {
+    const value = source?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return coerceNumber(value, fallback);
+    }
+
+    const nested = key
+      .split(".")
+      .reduce((result, segment) => result?.[segment], source);
+    if (nested !== undefined && nested !== null && nested !== "") {
+      return coerceNumber(nested, fallback);
+    }
+  }
+
+  return fallback;
+};
+
+const normalizeWeeklyChart = (value) => {
+  if (!value) return [];
+  const arrayValue = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.data)
+      ? value.data
+      : Array.isArray(value?.weekly)
+        ? value.weekly
+        : Array.isArray(value?.attendance)
+          ? value.attendance
+          : [];
+
+  return arrayValue.map((entry, index) => ({
+    key: entry?.key || entry?.day || entry?.label || `day-${index}`,
+    day: entry?.day || entry?.label || entry?.name || `Day ${index + 1}`,
+    value: coerceNumber(
+      entry?.value ??
+        entry?.attendance ??
+        entry?.attendancePercentage ??
+        entry?.percentage ??
+        entry?.percent ??
+        entry?.presentPercent ??
+        0,
+      0,
+    ),
+  }));
+};
+
+const extractDashboardMetrics = (payload) => {
+  const source =
+    payload?.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data)
+      ? payload.data
+      : payload?.dashboard || payload?.stats || payload || {};
+
+  const activeLoad = extractMetric(
+    source,
+    [
+      "activeLoad",
+      "active_load",
+      "assignedClasses",
+      "assigned_classes",
+      "totalClasses",
+      "total_classes",
+      "classCount",
+      "class_count",
+      "classesTotal",
+      "classes_total",
+    ],
+    0,
+  );
+
+  const totalStudents = extractMetric(
+    source,
+    [
+      "totalStudents",
+      "total_students",
+      "students",
+      "studentCount",
+      "student_count",
+      "mentoredStudents",
+      "mentored_students",
+      "studentsCount",
+      "students_count",
+    ],
+    0,
+  );
+
+  const attendancePercentage = extractMetric(
+    source,
+    [
+      "attendancePercentage",
+      "attendance_percentage",
+      "attendancePercent",
+      "attendance_percent",
+      "avgAttendance",
+      "avg_attendance",
+      "attendance",
+    ],
+    0,
+  );
+
+  const pendingMarks = extractMetric(
+    source,
+    [
+      "pendingMarks",
+      "pending_marks",
+      "marksPending",
+      "marks_pending",
+      "pendingMarksCount",
+      "pending_marks_count",
+      "gradeAudit",
+    ],
+    0,
+  );
+
+  return {
+    activeLoad,
+    totalStudents,
+    attendancePercentage,
+    pendingMarks,
+    weeklyAttendance: normalizeWeeklyChart(
+      source?.weeklyAttendance ||
+        source?.attendanceWeekly ||
+        source?.chart ||
+        source?.attendance_chart ||
+        source?.weekly ||
+        source?.attendance,
+    ),
+  };
+};
+
 export const teacherApi = {
   async getDashboard(session) {
-    if (!isApiConfigured) return teacherDashboardMock;
+    const fallbackTeacher = buildFallbackTeacher(session);
+
+    if (!isApiConfigured) {
+      return {
+        teacher: fallbackTeacher,
+        dashboardData: {},
+        dashboardStats: {},
+        attendanceWeekly: [],
+        quickActions: [],
+        shortcuts: [],
+        notices: [],
+        modules: [],
+        assignedClasses: [],
+        attendance: [],
+        homework: [],
+        timetable: [],
+        exams: [],
+      };
+    }
 
     let currentStaff = {};
     try {
@@ -298,13 +508,36 @@ export const teacherApi = {
       session?.user?.name ||
       session?.user?.full_name ||
       session?.name ||
-      teacherProfile.name;
+      fallbackTeacher.name;
     const schoolName =
       currentStaff?.school_name ||
       currentStaff?.school?.name ||
       session?.user?.tenant?.school_name ||
       session?.tenant?.school_name ||
-      teacherProfile.school;
+      fallbackTeacher.school;
+
+    let directDashboard = {};
+    const dashboardCandidates = [
+      "/teacher/dashboard",
+      "/dashboard",
+      "/teacher/portal",
+      "/teacher/home",
+    ];
+
+    const dashboardResults = await Promise.allSettled(
+      dashboardCandidates.map((path) =>
+        apiRequest(path, { token: session?.token }),
+      ),
+    );
+
+    const dashboardMatch = dashboardResults.findLast(
+      (result) => result.status === "fulfilled" && result.value,
+    );
+    if (dashboardMatch?.status === "fulfilled") {
+      directDashboard = dashboardMatch.value;
+    }
+
+    const dashboardMetrics = extractDashboardMetrics(directDashboard);
 
     const [
       assignedResult,
@@ -371,7 +604,40 @@ export const teacherApi = {
       : 0;
     const attendancePercentage = attendanceTotal
       ? Math.round((presentCount / attendanceTotal) * 100)
-      : teacherDashboardData.attendancePercentage;
+      : 0;
+    let normalizedAttendanceSeries = Array.isArray(
+      attendancePayload?.data?.weekly,
+    )
+      ? attendancePayload.data.weekly.map((entry, index) => ({
+          key: entry?.key || entry?.day || `week-${index}`,
+          day: entry?.day || entry?.label || `Day ${index + 1}`,
+          value:
+            Number(
+              entry?.value ??
+                entry?.percent ??
+                entry?.percentage ??
+                entry?.attendance ??
+                entry?.attendancePercentage ??
+                entry?.presentPercent ??
+                0,
+            ) || 0,
+        }))
+      : Array.isArray(attendancePayload?.weekly)
+        ? attendancePayload.weekly.map((entry, index) => ({
+            key: entry?.key || entry?.day || `week-${index}`,
+            day: entry?.day || entry?.label || `Day ${index + 1}`,
+            value:
+              Number(
+                entry?.value ??
+                  entry?.percent ??
+                  entry?.percentage ??
+                  entry?.attendance ??
+                  entry?.attendancePercentage ??
+                  entry?.presentPercent ??
+                  0,
+              ) || 0,
+          }))
+        : [];
 
     const homeworkPayload =
       homeworkResult.status === "fulfilled"
@@ -410,6 +676,87 @@ export const teacherApi = {
       ? examPayload
       : examPayload?.records || [];
 
+    const attendanceHistoryResult = firstClassId
+      ? await apiRequest("/attendance/history", {
+          token: session?.token,
+          query: {
+            classId: firstClassId,
+            divisionId: firstDivisionId,
+            startDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .slice(0, 10),
+            endDate: today,
+            page: 1,
+            limit: 20,
+          },
+        }).catch(() => null)
+      : null;
+    const attendanceHistoryPayload =
+      attendanceHistoryResult?.data ||
+      attendanceHistoryResult?.records ||
+      attendanceHistoryResult ||
+      [];
+    const attendanceHistoryRecords = Array.isArray(attendanceHistoryPayload)
+      ? attendanceHistoryPayload
+      : attendanceHistoryPayload?.data ||
+        attendanceHistoryPayload?.records ||
+        [];
+    const historyByDate = new Map();
+    attendanceHistoryRecords.forEach((record) => {
+      const rawDate =
+        record?.date ||
+        record?.attendance_date ||
+        record?.attendanceDate ||
+        record?.created_at?.slice(0, 10) ||
+        today;
+      const current = historyByDate.get(rawDate) || { total: 0, present: 0 };
+      current.total += 1;
+      const status = String(record?.status || "").toLowerCase();
+      if (
+        ["present", "marked present", "p"].includes(status) ||
+        (status.includes("present") && !status.includes("absent"))
+      ) {
+        current.present += 1;
+      }
+      historyByDate.set(rawDate, current);
+    });
+    const recentDates = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - index));
+      return date.toISOString().slice(0, 10);
+    });
+    const derivedWeeklyAttendance = recentDates.map((date, index) => {
+      const summary = historyByDate.get(date) || { total: 0, present: 0 };
+      const percentage = summary.total
+        ? Math.round((summary.present / summary.total) * 100)
+        : 0;
+      const formattedDay = new Date(`${date}T00:00:00`).toLocaleDateString(
+        "en-US",
+        {
+          weekday: "short",
+        },
+      );
+      return {
+        key: `day-${index}-${date}`,
+        day: formattedDay,
+        value: percentage,
+      };
+    });
+    if (!normalizedAttendanceSeries.length) {
+      normalizedAttendanceSeries =
+        derivedWeeklyAttendance.length > 0
+          ? derivedWeeklyAttendance
+          : attendanceTotal
+            ? [
+                {
+                  key: "today",
+                  day: "Today",
+                  value: attendancePercentage,
+                },
+              ]
+            : [];
+    }
+
     const notices = holidayRecords.length
       ? holidayRecords.map((holiday) => ({
           category: "Holiday",
@@ -417,7 +764,7 @@ export const teacherApi = {
           title: holiday?.holiday_name || holiday?.title || "School holiday",
           description: holiday?.description || "",
         }))
-      : teacherNotices;
+      : [];
 
     const initials =
       (teacherName || "T")
@@ -426,45 +773,47 @@ export const teacherApi = {
         .slice(0, 2)
         .map((part) => part[0])
         .join("")
-        .toUpperCase() || teacherProfile.initials;
+        .toUpperCase() || "T";
+
+    const dashboardData = {
+      activeLoad:
+        dashboardMetrics.activeLoad ||
+        uniqueClasses.size ||
+        assignments.length ||
+        0,
+      totalStudents: dashboardMetrics.totalStudents || attendanceTotal || 0,
+      attendancePercentage:
+        dashboardMetrics.attendancePercentage || attendancePercentage || 0,
+      pendingMarks:
+        dashboardMetrics.pendingMarks ||
+        Math.max(
+          0,
+          Math.min(
+            99,
+            (homeworkRecords.length || 0) + (examRecords.length || 0),
+          ),
+        ),
+      weeklyAttendance:
+        dashboardMetrics.weeklyAttendance.length > 0
+          ? dashboardMetrics.weeklyAttendance
+          : normalizedAttendanceSeries,
+    };
 
     return {
       teacher: {
-        ...teacherProfile,
         name: teacherName,
         school: schoolName,
         initials,
+        role: session?.role || "Teacher",
+        academicYear: session?.academicYear || "",
       },
-      dashboardData: {
-        activeLoad: uniqueClasses.size || assignments.length || 0,
-        totalStudents: attendanceTotal || teacherDashboardData.totalStudents,
-        attendancePercentage,
-        pendingMarks: Math.max(
-          0,
-          Math.min(
-            99,
-            (homeworkRecords.length || 0) + (examRecords.length || 0),
-          ),
-        ),
-        weeklyAttendance: teacherDashboardData.weeklyAttendance,
-      },
-      dashboardStats: {
-        activeLoad: uniqueClasses.size || assignments.length || 0,
-        totalStudents: attendanceTotal || teacherDashboardData.totalStudents,
-        attendancePercentage,
-        pendingMarks: Math.max(
-          0,
-          Math.min(
-            99,
-            (homeworkRecords.length || 0) + (examRecords.length || 0),
-          ),
-        ),
-      },
-      attendanceWeekly: teacherDashboardData.weeklyAttendance,
-      quickActions: teacherDashboardData.quickActions,
-      shortcuts: teacherShortcuts,
+      dashboardData,
+      dashboardStats: dashboardData,
+      attendanceWeekly: dashboardData.weeklyAttendance,
+      quickActions: [],
+      shortcuts: [],
       notices,
-      modules: teacherDashboardMock.modules,
+      modules: [],
       assignedClasses: assignments,
       attendance: attendanceStudents,
       homework: homeworkRecords,
@@ -539,9 +888,9 @@ export const teacherApi = {
   },
 
   async getAttendance(session) {
-    if (!isApiConfigured) return teacherAttendanceMock;
+    if (!isApiConfigured) return [];
     const payload = await apiRequest("/attendance", { token: session?.token });
-    return payload?.data || payload || teacherAttendanceMock;
+    return payload?.data || payload || [];
   },
 
   async getHomework(session) {
@@ -582,7 +931,8 @@ export const teacherApi = {
       classId: selectedClass.id,
       className: selectedClass.className,
       section: selectedClass.section,
-      teacher: input.teacher || teacherProfile.name,
+      teacher:
+        input.teacher || session?.name || session?.user?.name || "Teacher",
     }));
     localHomework = [...assignments, ...localHomework];
     return assignments.length === 1 ? { ...assignments[0] } : { assignments };
@@ -1086,12 +1436,15 @@ export const teacherApi = {
 
   async getTimetable(session, params = {}) {
     if (!isApiConfigured) return [];
+    const query = {
+      ...(params.academic_year_id
+        ? { academic_year_id: params.academic_year_id }
+        : {}),
+      ...(params.staff_id ? { staff_id: params.staff_id } : {}),
+    };
     const payload = await apiRequest("/timetable/teacher", {
       token: session?.token,
-      query: {
-        academic_year_id: params.academic_year_id,
-        staff_id: params.staff_id,
-      },
+      query,
     });
     return (
       payload?.data?.data ||
@@ -1120,9 +1473,9 @@ export const teacherApi = {
   },
 
   async getNotices(session) {
-    if (!isApiConfigured) return teacherNotices;
+    if (!isApiConfigured) return [];
     const payload = await apiRequest("/notices", { token: session?.token });
-    return payload?.data || payload?.notices || teacherNotices;
+    return payload?.data || payload?.notices || [];
   },
 
   async getNotifications(session) {

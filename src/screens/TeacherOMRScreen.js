@@ -3,14 +3,14 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { omrApi } from "../services/omrApi";
 
@@ -53,14 +53,25 @@ const OMR_TABS = [
 const BOOKLET_SETS = ["Set A", "Set B", "Set C", "Set D"];
 const ANSWER_OPTIONS = ["A", "B", "C", "D", "-"];
 const QUESTION_COUNT = 180;
-const DEFAULT_EXAM = "My exam (JEE)";
-const DEFAULT_EXAM_LABEL = "JEE (180 Qs)";
+const DEFAULT_EXAM = "Untitled Exam";
+const DEFAULT_EXAM_LABEL = "Exam (180 Qs)";
 
-const normalizeCandidateResult = (candidate, fallbackExamName = DEFAULT_EXAM_LABEL, examId = "omr-session-1") => {
-  const rollNumber = candidate.rollNumber || candidate.rollNo || candidate.admissionNumber || "—";
-  const studentName = candidate.studentName || candidate.student || "Unknown Candidate";
+const normalizeCandidateResult = (
+  candidate,
+  fallbackExamName = DEFAULT_EXAM_LABEL,
+  examId = "omr-session-1",
+) => {
+  const rollNumber =
+    candidate.rollNumber ||
+    candidate.rollNo ||
+    candidate.admissionNumber ||
+    "—";
+  const studentName =
+    candidate.studentName || candidate.student || "Unknown Candidate";
   return {
-    id: candidate.id || `${candidate.studentName || candidate.student || "candidate"}-${candidate.rollNumber || candidate.rollNo || Math.random()}`,
+    id:
+      candidate.id ||
+      `${candidate.studentName || candidate.student || "candidate"}-${candidate.rollNumber || candidate.rollNo || Math.random()}`,
     examId: candidate.examId || examId,
     examName: candidate.examName || fallbackExamName || DEFAULT_EXAM_LABEL,
     rank: Number(candidate.rank || 1),
@@ -76,8 +87,16 @@ const normalizeCandidateResult = (candidate, fallbackExamName = DEFAULT_EXAM_LAB
   };
 };
 
-const toResultRows = (list = [], fallbackExamName = DEFAULT_EXAM_LABEL, examId = "omr-session-1") =>
-  Array.isArray(list) ? list.map((candidate) => normalizeCandidateResult(candidate, fallbackExamName, examId)) : [];
+const toResultRows = (
+  list = [],
+  fallbackExamName = DEFAULT_EXAM_LABEL,
+  examId = "omr-session-1",
+) =>
+  Array.isArray(list)
+    ? list.map((candidate) =>
+        normalizeCandidateResult(candidate, fallbackExamName, examId),
+      )
+    : [];
 
 function Icon({ name, size = 18, color = colors.ink }) {
   return <Ionicons name={name} size={size} color={color} />;
@@ -103,7 +122,10 @@ function buildStandardPattern() {
 function createInitialSetState() {
   const standard = buildStandardPattern();
   return Object.fromEntries(
-    BOOKLET_SETS.map((setName) => [setName, standard.map((question) => ({ ...question }))]),
+    BOOKLET_SETS.map((setName) => [
+      setName,
+      standard.map((question) => ({ ...question })),
+    ]),
   );
 }
 
@@ -130,8 +152,12 @@ function validateSetAnswers(rows) {
 
 function makeEvaluationSnapshot(answerRows, examName) {
   const basePattern = buildStandardPattern();
-  const attempted = answerRows.filter((row) => row.answer && row.answer !== "-").length;
-  const correct = answerRows.filter((row, index) => row.answer && row.answer === basePattern[index].answer).length;
+  const attempted = answerRows.filter(
+    (row) => row.answer && row.answer !== "-",
+  ).length;
+  const correct = answerRows.filter(
+    (row, index) => row.answer && row.answer === basePattern[index].answer,
+  ).length;
   const unanswered = QUESTION_COUNT - attempted;
   const incorrect = attempted - correct;
   const score = correct * 4 - incorrect;
@@ -169,7 +195,14 @@ function SelectBox({ label, value, onPress }) {
   );
 }
 
-function ActionButton({ label, onPress, disabled = false, primary = false, compact = false, style }) {
+function ActionButton({
+  label,
+  onPress,
+  disabled = false,
+  primary = false,
+  compact = false,
+  style,
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -183,7 +216,13 @@ function ActionButton({ label, onPress, disabled = false, primary = false, compa
         style,
       ]}
     >
-      <Text style={[styles.actionButtonText, primary && styles.primaryActionText, disabled && styles.disabledText]}>
+      <Text
+        style={[
+          styles.actionButtonText,
+          primary && styles.primaryActionText,
+          disabled && styles.disabledText,
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -201,10 +240,15 @@ function BreakdownSheetScreen({ selectedExam, selectedSet }) {
   return (
     <View style={styles.breakdownPanel}>
       <Text style={styles.sectionTitle}>Breakdown Sheet</Text>
-      <Text style={styles.cardText}>Exam: {selectedExam} • {selectedSet}</Text>
+      <Text style={styles.cardText}>
+        Exam: {selectedExam} • {selectedSet}
+      </Text>
       <View style={styles.summaryGrid}>
         {summary.map((item) => (
-          <View key={item.label} style={[styles.metric, { backgroundColor: colors.paleBlue }]}>
+          <View
+            key={item.label}
+            style={[styles.metric, { backgroundColor: colors.paleBlue }]}
+          >
             <Text style={styles.metricValue}>{item.value}</Text>
             <Text style={styles.metricLabel}>{item.label}</Text>
           </View>
@@ -227,7 +271,12 @@ function BreakdownSheetScreen({ selectedExam, selectedSet }) {
   );
 }
 
-export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanner & Reader", initialMenu = "Hardware & Optical Scanner" }) {
+export default function TeacherOMRScreen({
+  session,
+  onBack,
+  initialTab = "Scanner & Reader",
+  initialMenu = "Hardware & Optical Scanner",
+}) {
   const [activeMenu, setActiveMenu] = useState(initialMenu);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedExam, setSelectedExam] = useState(DEFAULT_EXAM_LABEL);
@@ -246,28 +295,34 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const [csvError, setCsvError] = useState("");
   const [selectedExamId, setSelectedExamId] = useState("omr-session-1");
   const [searchText, setSearchText] = useState("");
-  const [publishStatus, setPublishStatus] = useState("Draft / Hidden from Portals");
+  const [publishStatus, setPublishStatus] = useState(
+    "Draft / Hidden from Portals",
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [candidateResults, setCandidateResults] = useState([]);
   const [selectedBreakdown, setSelectedBreakdown] = useState(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [cameraVisible, setCameraVisible] = useState(false);
-  const [cameraStatus, setCameraStatus] = useState("Camera Permission Required");
+  const [cameraStatus, setCameraStatus] = useState(
+    "Camera Permission Required",
+  );
   const [capturedImage, setCapturedImage] = useState(null);
   const cameraRef = useRef(null);
 
   const examOptions = (() => {
     const defaultItems = [
       { label: DEFAULT_EXAM, value: DEFAULT_EXAM_LABEL, questions: 180 },
-      { label: "My exam (JEE)", value: "JEE (180 Qs)", questions: 180 },
     ];
     const fromApi = (dashboard.sessions || []).map((sessionItem) => ({
       label: sessionItem.name || DEFAULT_EXAM,
-      value: `${sessionItem.name || "My exam (JEE)"} (${sessionItem.questions || 180} Qs)`,
+      value: `${sessionItem.name || DEFAULT_EXAM} (${sessionItem.questions || 180} Qs)`,
       questions: sessionItem.questions || 180,
     }));
-    return [...defaultItems, ...fromApi.filter((option) => option.value !== DEFAULT_EXAM_LABEL)];
+    return [
+      ...defaultItems,
+      ...fromApi.filter((option) => option.value !== DEFAULT_EXAM_LABEL),
+    ];
   })();
 
   const currentSetQuestions = answerSets[bookletSet] || createQuestionRows();
@@ -279,7 +334,11 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       setError("");
       try {
         const data = await omrApi.fetchOMRDashboard();
-        const resultRows = toResultRows(data?.results || [], selectedExam, selectedExamId);
+        const resultRows = toResultRows(
+          data?.results || [],
+          selectedExam,
+          selectedExamId,
+        );
         if (active) {
           setDashboard(data || { sessions: [], results: [] });
           setCandidateResults(resultRows);
@@ -288,12 +347,18 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
             const examValue = `${firstSession.name || DEFAULT_EXAM} (${firstSession.questions || 180} Qs)`;
             setSelectedExamId(firstSession.id || "omr-session-1");
             setSelectedExam(examValue);
-            setPublishStatus(firstSession.status === "Published" ? "Published" : "Draft / Hidden from Portals");
+            setPublishStatus(
+              firstSession.status === "Published"
+                ? "Published"
+                : "Draft / Hidden from Portals",
+            );
           }
         }
       } catch {
         if (active) {
-          setError("Unable to load OMR data. Showing the local assessment setup.");
+          setError(
+            "Unable to load OMR data. Showing the local assessment setup.",
+          );
           setCandidateResults(toResultRows([], selectedExam, selectedExamId));
         }
       } finally {
@@ -304,7 +369,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     };
 
     void fetchDashboard();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [selectedExam, selectedExamId, session]);
 
   useEffect(() => {
@@ -323,8 +390,11 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const updateQuestionAnswer = (questionNumber, nextValue) => {
     setAnswerSets((current) => ({
       ...current,
-      [bookletSet]: (current[bookletSet] || createQuestionRows()).map((question) =>
-        question.number === questionNumber ? { ...question, answer: nextValue } : question,
+      [bookletSet]: (current[bookletSet] || createQuestionRows()).map(
+        (question) =>
+          question.number === questionNumber
+            ? { ...question, answer: nextValue }
+            : question,
       ),
     }));
     setSaveMessage("");
@@ -333,7 +403,8 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const autoGenerateStandardKeys = () => {
     const standardRows = buildStandardPattern();
     const hasExistingCustom = (answerSets[bookletSet] || []).some(
-      (row, index) => row.answer !== "-" && row.answer !== standardRows[index].answer,
+      (row, index) =>
+        row.answer !== "-" && row.answer !== standardRows[index].answer,
     );
 
     const applyGeneration = () => {
@@ -362,14 +433,18 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const pasteAnswersIntoSet = () => {
     const parsedValues = parsePastedAnswers(pasteInput);
     if (!parsedValues.length) {
-      Alert.alert("Invalid pasted value", "Paste answers in the format A B C D or A,B,C,D, including '-' for unanswered questions.");
+      Alert.alert(
+        "Invalid pasted value",
+        "Paste answers in the format A B C D or A,B,C,D, including '-' for unanswered questions.",
+      );
       return;
     }
 
     const targetRows = answerSets[bookletSet] || createQuestionRows();
     const normalized = targetRows.map((question, index) => ({
       ...question,
-      answer: index < parsedValues.length ? parsedValues[index] : question.answer,
+      answer:
+        index < parsedValues.length ? parsedValues[index] : question.answer,
     }));
 
     setAnswerSets((current) => ({
@@ -385,12 +460,18 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     const valid = validateSetAnswers(questions);
 
     if (!valid) {
-      Alert.alert("Validation failed", "Each answer must be A, B, C, D or - for all questions from 1 to 180.");
+      Alert.alert(
+        "Validation failed",
+        "Each answer must be A, B, C, D or - for all questions from 1 to 180.",
+      );
       return;
     }
 
     setSaveMessage(`${bookletSet} saved successfully.`);
-    Alert.alert("Saved", `${bookletSet} answer key has been saved successfully.`);
+    Alert.alert(
+      "Saved",
+      `${bookletSet} answer key has been saved successfully.`,
+    );
   };
 
   const selectExam = () => {
@@ -398,11 +479,16 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       text: option.label,
       onPress: () => {
         const matchedSession = (dashboard.sessions || []).find(
-          (sessionItem) => (sessionItem.name || DEFAULT_EXAM) === option.label || `${sessionItem.name || DEFAULT_EXAM} (${sessionItem.questions || 180} Qs)` === option.value,
+          (sessionItem) =>
+            (sessionItem.name || DEFAULT_EXAM) === option.label ||
+            `${sessionItem.name || DEFAULT_EXAM} (${sessionItem.questions || 180} Qs)` ===
+              option.value,
         );
 
         setSelectedExam(option.value);
-        setSelectedExamId(matchedSession?.id || selectedExamId || "omr-session-1");
+        setSelectedExamId(
+          matchedSession?.id || selectedExamId || "omr-session-1",
+        );
       },
     }));
 
@@ -414,10 +500,15 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
 
   const runQuickDemoEvaluation = async () => {
     const setAnswers = answerSets[bookletSet] || createQuestionRows();
-    const hasSavedKey = setAnswers.some((entry) => entry.answer && entry.answer !== "-");
+    const hasSavedKey = setAnswers.some(
+      (entry) => entry.answer && entry.answer !== "-",
+    );
 
     if (!hasSavedKey) {
-      Alert.alert("No answer key available", `Generate or save the ${bookletSet} answer key before running the demo evaluation.`);
+      Alert.alert(
+        "No answer key available",
+        `Generate or save the ${bookletSet} answer key before running the demo evaluation.`,
+      );
       return;
     }
 
@@ -426,7 +517,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const snapshot = makeEvaluationSnapshot(setAnswers, selectedExam || DEFAULT_EXAM_LABEL);
+    const snapshot = makeEvaluationSnapshot(
+      setAnswers,
+      selectedExam || DEFAULT_EXAM_LABEL,
+    );
     setEvaluationResult(snapshot);
     setIsEvaluating(false);
     Alert.alert(
@@ -449,9 +543,15 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       }
 
       setBatchFiles(result.assets || []);
-      Alert.alert("Files selected", `${(result.assets || []).length} file(s) ready for future OMR processing.`);
+      Alert.alert(
+        "Files selected",
+        `${(result.assets || []).length} file(s) ready for future OMR processing.`,
+      );
     } catch {
-      Alert.alert("File picker unavailable", "The batch file picker could not be opened on this device.");
+      Alert.alert(
+        "File picker unavailable",
+        "The batch file picker could not be opened on this device.",
+      );
     }
   };
 
@@ -490,7 +590,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       setCsvError("");
       Alert.alert("CSV imported", `Preview loaded for ${rows.length} row(s).`);
     } catch {
-      setCsvError("Unable to read the CSV file. Please check the format and try again.");
+      setCsvError(
+        "Unable to read the CSV file. Please check the format and try again.",
+      );
     }
   };
 
@@ -499,7 +601,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       const permission = await requestCameraPermission();
       if (!permission.granted) {
         setCameraStatus("Camera Permission Required");
-        Alert.alert("Camera access needed", "Please allow camera access in the app settings to use the live OMR scanner.");
+        Alert.alert(
+          "Camera access needed",
+          "Please allow camera access in the app settings to use the live OMR scanner.",
+        );
         return;
       }
     }
@@ -511,12 +616,18 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     }
 
     setCameraStatus("Camera Unavailable");
-    Alert.alert("Camera unavailable", "The current device does not support or allow camera access.");
+    Alert.alert(
+      "Camera unavailable",
+      "The current device does not support or allow camera access.",
+    );
   };
 
   const captureImage = async () => {
     if (!cameraRef.current) {
-      Alert.alert("Capture unavailable", "The camera is not ready yet. Please retry.");
+      Alert.alert(
+        "Capture unavailable",
+        "The camera is not ready yet. Please retry.",
+      );
       return;
     }
 
@@ -525,7 +636,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       setCapturedImage(photo?.uri || null);
       setCameraStatus("Image Captured");
     } catch {
-      Alert.alert("Capture failed", "Unable to capture the OMR sheet image right now.");
+      Alert.alert(
+        "Capture failed",
+        "Unable to capture the OMR sheet image right now.",
+      );
     }
   };
 
@@ -533,7 +647,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     <View style={styles.answerGridWrapper}>
       <View style={styles.answerGridHeader}>
         <Text style={styles.answerGridHeading}>Question key</Text>
-        <Text style={styles.answerGridMeta}>{currentSetQuestions.length} questions</Text>
+        <Text style={styles.answerGridMeta}>
+          {currentSetQuestions.length} questions
+        </Text>
       </View>
       {currentSetQuestions.map((question) => (
         <View key={question.id} style={styles.questionRow}>
@@ -555,7 +671,15 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={[styles.answerBubbleText, question.answer === option && styles.answerBubbleTextActive]}>{option}</Text>
+                  <Text
+                    style={[
+                      styles.answerBubbleText,
+                      question.answer === option &&
+                        styles.answerBubbleTextActive,
+                    ]}
+                  >
+                    {option}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -568,12 +692,17 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const renderScannerSection = () => (
     <View style={styles.cardBlock}>
       <Text style={styles.sectionTitle}>Hardware & Optical Scanner</Text>
-      <Text style={styles.cardText}>Evaluate live optical camera feeds, batch PDF/images, or run an instant simulated batch evaluation.</Text>
+      <Text style={styles.cardText}>
+        Evaluate live optical camera feeds, batch PDF/images, or run an instant
+        simulated batch evaluation.
+      </Text>
 
       <View style={styles.summaryCard}>
         <Text style={styles.smallLabel}>Evaluation Suite</Text>
         <Text style={styles.valueText}>{selectedExam}</Text>
-        <Text style={styles.cardText}>180 questions • {bookletSet} • Scanner Ready</Text>
+        <Text style={styles.cardText}>
+          180 questions • {bookletSet} • Scanner Ready
+        </Text>
       </View>
 
       <ActionButton
@@ -583,44 +712,76 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
         style={styles.demoButton}
       />
 
-      {isEvaluating ? <Text style={styles.loadingText}>Running simulated evaluation...</Text> : null}
+      {isEvaluating ? (
+        <Text style={styles.loadingText}>Running simulated evaluation...</Text>
+      ) : null}
       {evaluationResult ? (
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>Evaluation complete</Text>
-          <Text style={styles.resultMeta}>Exam: {evaluationResult.examName}</Text>
-          <Text style={styles.resultStat}>Correct: {evaluationResult.correct}</Text>
-          <Text style={styles.resultStat}>Incorrect: {evaluationResult.incorrect}</Text>
-          <Text style={styles.resultStat}>Unanswered: {evaluationResult.unanswered}</Text>
+          <Text style={styles.resultMeta}>
+            Exam: {evaluationResult.examName}
+          </Text>
+          <Text style={styles.resultStat}>
+            Correct: {evaluationResult.correct}
+          </Text>
+          <Text style={styles.resultStat}>
+            Incorrect: {evaluationResult.incorrect}
+          </Text>
+          <Text style={styles.resultStat}>
+            Unanswered: {evaluationResult.unanswered}
+          </Text>
           <Text style={styles.resultStat}>Score: {evaluationResult.score}</Text>
-          <Text style={styles.resultStat}>Percentage: {evaluationResult.percentage}%</Text>
+          <Text style={styles.resultStat}>
+            Percentage: {evaluationResult.percentage}%
+          </Text>
         </View>
       ) : null}
 
       <View style={styles.cardSplit}>
         <Pressable
           onPress={pickBatchFiles}
-          style={({ pressed }) => [styles.secondaryActionCard, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.secondaryActionCard,
+            pressed && styles.pressed,
+          ]}
         >
           <Icon name="documents-outline" size={20} color={colors.blue} />
           <Text style={styles.cardActionTitle}>Batch Image / PDF</Text>
-          <Text style={styles.cardActionMeta}>{batchFiles.length ? `${batchFiles.length} file(s)` : "Select batch files"}</Text>
+          <Text style={styles.cardActionMeta}>
+            {batchFiles.length
+              ? `${batchFiles.length} file(s)`
+              : "Select batch files"}
+          </Text>
         </Pressable>
 
         <Pressable
           onPress={pickCsvFile}
-          style={({ pressed }) => [styles.secondaryActionCard, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.secondaryActionCard,
+            pressed && styles.pressed,
+          ]}
         >
           <Icon name="document-text-outline" size={20} color={colors.blue} />
           <Text style={styles.cardActionTitle}>CSV Upload</Text>
-          <Text style={styles.cardActionMeta}>{csvEntries.length ? "Preview ready" : "Import candidate data"}</Text>
+          <Text style={styles.cardActionMeta}>
+            {csvEntries.length ? "Preview ready" : "Import candidate data"}
+          </Text>
         </Pressable>
       </View>
 
       <View style={styles.cameraPanel}>
-        <Text style={styles.sectionTitle}>Live Connected Document Scanner & Camera</Text>
-        <Text style={styles.cardText}>Status: {effectiveCameraStatus || cameraStatus}</Text>
+        <Text style={styles.sectionTitle}>
+          Live Connected Document Scanner & Camera
+        </Text>
+        <Text style={styles.cardText}>
+          Status: {effectiveCameraStatus || cameraStatus}
+        </Text>
 
-        <ActionButton label="Connect Camera" primary onPress={handleCameraPress} />
+        <ActionButton
+          label="Connect Camera"
+          primary
+          onPress={handleCameraPress}
+        />
 
         {cameraVisible && cameraPermission?.granted ? (
           <>
@@ -634,16 +795,30 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
             </View>
             {capturedImage ? (
               <View style={styles.previewContainer}>
-                <Image source={{ uri: capturedImage }} style={styles.previewImage} resizeMode="cover" />
+                <Image
+                  source={{ uri: capturedImage }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
               </View>
             ) : null}
             <View style={styles.cameraActions}>
               <ActionButton label="Capture" onPress={captureImage} />
-              <ActionButton label="Retake" onPress={() => setCapturedImage(null)} />
-              <ActionButton label="Evaluate" primary onPress={() => {
-                Alert.alert("Evaluation workflow", "Captured image is queued for future backend OMR evaluation integration.");
-                setCameraStatus("Scan Complete");
-              }} />
+              <ActionButton
+                label="Retake"
+                onPress={() => setCapturedImage(null)}
+              />
+              <ActionButton
+                label="Evaluate"
+                primary
+                onPress={() => {
+                  Alert.alert(
+                    "Evaluation workflow",
+                    "Captured image is queued for future backend OMR evaluation integration.",
+                  );
+                  setCameraStatus("Scan Complete");
+                }}
+              />
             </View>
           </>
         ) : null}
@@ -654,7 +829,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
         <View style={styles.csvPreview}>
           <Text style={styles.sectionTitle}>CSV Preview</Text>
           {csvEntries.slice(0, 5).map((row, rowIndex) => (
-            <Text key={`${rowIndex}-${row.join('-')}`} style={styles.csvRow}>{row.join(" | ")}</Text>
+            <Text key={`${rowIndex}-${row.join("-")}`} style={styles.csvRow}>
+              {row.join(" | ")}
+            </Text>
           ))}
         </View>
       ) : null}
@@ -664,7 +841,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const renderPrintableSheet = () => (
     <View style={styles.previewPanel}>
       <Text style={styles.sectionTitle}>Printable OMR Sheet</Text>
-      <Text style={styles.cardText}>Candidate instructions: fill one bubble per question using a dark pen.</Text>
+      <Text style={styles.cardText}>
+        Candidate instructions: fill one bubble per question using a dark pen.
+      </Text>
       <View style={styles.previewBox}>
         <Text style={styles.previewText}>Exam: {selectedExam}</Text>
         <Text style={styles.previewText}>Set: {bookletSet}</Text>
@@ -673,7 +852,12 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       <ActionButton
         label="Printable OMR Sheet"
         primary
-        onPress={() => Alert.alert("Printable OMR Sheet", "The print/PDF workflow is ready to be connected to the future export service.")}
+        onPress={() =>
+          Alert.alert(
+            "Printable OMR Sheet",
+            "The print/PDF workflow is ready to be connected to the future export service.",
+          )
+        }
       />
     </View>
   );
@@ -681,7 +865,9 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   const renderAnswerKeys = () => (
     <View style={styles.cardBlock}>
       <Text style={styles.sectionTitle}>Answer Keys</Text>
-      <Text style={styles.cardText}>Select a JEE session and manage the key for each booklet set.</Text>
+      <Text style={styles.cardText}>
+        Select a JEE session and manage the key for each booklet set.
+      </Text>
 
       <SelectBox label="My exam" value={selectedExam} onPress={selectExam} />
 
@@ -701,15 +887,29 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.bookletPillText, bookletSet === setName && styles.bookletPillTextActive]}>{setName}</Text>
+              <Text
+                style={[
+                  styles.bookletPillText,
+                  bookletSet === setName && styles.bookletPillTextActive,
+                ]}
+              >
+                {setName}
+              </Text>
             </Pressable>
           ))}
         </View>
       </View>
 
       <View style={styles.actionRow}>
-        <ActionButton label="Auto-Generate Standard Keys" primary onPress={autoGenerateStandardKeys} />
-        <ActionButton label="Auto-Paste Key" onPress={() => setPasteInput(pasteInput || "A B C D A C B D")} />
+        <ActionButton
+          label="Auto-Generate Standard Keys"
+          primary
+          onPress={autoGenerateStandardKeys}
+        />
+        <ActionButton
+          label="Auto-Paste Key"
+          onPress={() => setPasteInput(pasteInput || "A B C D A C B D")}
+        />
       </View>
 
       <View style={styles.pasteBox}>
@@ -723,34 +923,65 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
           style={styles.pasteInput}
           textAlignVertical="top"
         />
-        <ActionButton label="Apply pasted key" primary compact onPress={pasteAnswersIntoSet} />
+        <ActionButton
+          label="Apply pasted key"
+          primary
+          compact
+          onPress={pasteAnswersIntoSet}
+        />
       </View>
 
-      <ActionButton label={`Save ${bookletSet} Key`} primary onPress={saveCurrentSet} />
-      {saveMessage ? <Text style={styles.successMessage}>{saveMessage}</Text> : null}
+      <ActionButton
+        label={`Save ${bookletSet} Key`}
+        primary
+        onPress={saveCurrentSet}
+      />
+      {saveMessage ? (
+        <Text style={styles.successMessage}>{saveMessage}</Text>
+      ) : null}
 
       {renderAnswerKeyGrid()}
 
       <View style={styles.footerActions}>
-        <ActionButton label="Printable OMR Sheet" onPress={() => setActiveTab("Printable OMR Sheet")} />
-        <Pressable disabled style={[styles.footerDisabledButton, styles.disabledAction]}>
-          <Text style={[styles.actionButtonText, styles.disabledText]}>Publish Results</Text>
+        <ActionButton
+          label="Printable OMR Sheet"
+          onPress={() => setActiveTab("Printable OMR Sheet")}
+        />
+        <Pressable
+          disabled
+          style={[styles.footerDisabledButton, styles.disabledAction]}
+        >
+          <Text style={[styles.actionButtonText, styles.disabledText]}>
+            Publish Results
+          </Text>
         </Pressable>
-        <ActionButton label="Breakdown Sheet" onPress={() => setShowBreakdown(true)} />
+        <ActionButton
+          label="Breakdown Sheet"
+          onPress={() => setShowBreakdown(true)}
+        />
       </View>
 
-      {showBreakdown && <BreakdownSheetScreen selectedExam={selectedExam} selectedSet={bookletSet} />}
+      {showBreakdown && (
+        <BreakdownSheetScreen
+          selectedExam={selectedExam}
+          selectedSet={bookletSet}
+        />
+      )}
     </View>
   );
 
   const renderSessions = () => (
     <View style={styles.cardBlock}>
       <Text style={styles.sectionTitle}>Exam Sessions</Text>
-      <Text style={styles.cardText}>Manage live and planned OMR sessions for the selected JEE exam.</Text>
+      <Text style={styles.cardText}>
+        Manage live and planned OMR sessions for the selected JEE exam.
+      </Text>
       {(dashboard.sessions || []).map((item) => (
         <View key={item.id || item.name} style={styles.sessionRow}>
-          <Text style={styles.sessionName}>{item.name || "My Exam (JEE)"}</Text>
-          <Text style={styles.cardText}>{item.code || "JEE"} • {item.status || "Draft"}</Text>
+          <Text style={styles.sessionName}>{item.name || DEFAULT_EXAM}</Text>
+          <Text style={styles.cardText}>
+            {item.code || "JEE"} • {item.status || "Draft"}
+          </Text>
         </View>
       ))}
     </View>
@@ -763,11 +994,22 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
 
     try {
       const latestResults = await omrApi.fetchOMRResults();
-      const normalizedResults = toResultRows(latestResults, selectedExam, selectedExamId);
+      const normalizedResults = toResultRows(
+        latestResults,
+        selectedExam,
+        selectedExamId,
+      );
       setCandidateResults(normalizedResults);
-      const latestSession = (dashboard.sessions || []).find((sessionItem) => sessionItem.id === selectedExamId) || (dashboard.sessions || [])[0];
+      const latestSession =
+        (dashboard.sessions || []).find(
+          (sessionItem) => sessionItem.id === selectedExamId,
+        ) || (dashboard.sessions || [])[0];
       if (latestSession?.status) {
-        setPublishStatus(latestSession.status === "Published" ? "Published" : "Draft / Hidden from Portals");
+        setPublishStatus(
+          latestSession.status === "Published"
+            ? "Published"
+            : "Draft / Hidden from Portals",
+        );
       }
     } catch {
       setError("Unable to refresh the latest results right now.");
@@ -788,29 +1030,58 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
           text: "Publish",
           onPress: async () => {
             if (!omrApi || typeof omrApi.publishOMRResults !== "function") {
-              Alert.alert("Publish unavailable", "A publish-results API is not configured in this project yet.");
+              Alert.alert(
+                "Publish unavailable",
+                "A publish-results API is not configured in this project yet.",
+              );
               return;
             }
 
             setIsPublishing(true);
             setError("");
             try {
-              const result = await omrApi.publishOMRResults(selectedExamId || "omr-session-1");
-              const nextStatus = result?.status === "Published" ? "Published" : "Draft / Hidden from Portals";
+              const result = await omrApi.publishOMRResults(
+                selectedExamId || "omr-session-1",
+              );
+              const nextStatus =
+                result?.status === "Published"
+                  ? "Published"
+                  : "Draft / Hidden from Portals";
               setPublishStatus(nextStatus);
               setDashboard((current) => ({
                 ...current,
-                sessions: (current.sessions || []).map((sessionItem) => sessionItem.id === (selectedExamId || "omr-session-1") ? { ...sessionItem, status: nextStatus === "Published" ? "Published" : sessionItem.status } : sessionItem),
+                sessions: (current.sessions || []).map((sessionItem) =>
+                  sessionItem.id === (selectedExamId || "omr-session-1")
+                    ? {
+                        ...sessionItem,
+                        status:
+                          nextStatus === "Published"
+                            ? "Published"
+                            : sessionItem.status,
+                      }
+                    : sessionItem,
+                ),
               }));
 
               if (nextStatus === "Published") {
-                Alert.alert("Published successfully", "The scorecards are now visible to students and parents.");
+                Alert.alert(
+                  "Published successfully",
+                  "The scorecards are now visible to students and parents.",
+                );
               } else {
-                Alert.alert("Publish not confirmed", "The result remains in draft mode because the API did not confirm publishing.");
+                Alert.alert(
+                  "Publish not confirmed",
+                  "The result remains in draft mode because the API did not confirm publishing.",
+                );
               }
             } catch {
-              setError("Publishing failed. Results remain hidden in draft mode.");
-              Alert.alert("Publish failed", "The publish request failed. The results are still hidden in draft mode.");
+              setError(
+                "Publishing failed. Results remain hidden in draft mode.",
+              );
+              Alert.alert(
+                "Publish failed",
+                "The publish request failed. The results are still hidden in draft mode.",
+              );
             } finally {
               setIsPublishing(false);
             }
@@ -822,7 +1093,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
 
   const exportCsvResults = () => {
     if (!filteredCandidates.length) {
-      Alert.alert("No candidates", "There are no evaluated candidates for the selected exam to export.");
+      Alert.alert(
+        "No candidates",
+        "There are no evaluated candidates for the selected exam to export.",
+      );
       return;
     }
 
@@ -853,12 +1127,21 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     ];
 
     const csvRows = [csvHeader, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      )
       .join("\n");
 
-    Alert.alert("CSV ready", `Export prepared for ${filteredCandidates.length} candidate result(s).`);
+    Alert.alert(
+      "CSV ready",
+      `Export prepared for ${filteredCandidates.length} candidate result(s).`,
+    );
     setSearchText(searchText);
-    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.clipboard &&
+      navigator.clipboard.writeText
+    ) {
       navigator.clipboard.writeText(csvRows).catch(() => undefined);
     }
   };
@@ -867,48 +1150,83 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
     const query = searchText.trim().toLowerCase();
     const examMatches = candidateResults.filter((candidate) => {
       if (!selectedExamId) return true;
-      return !candidate.examId || candidate.examId === selectedExamId || candidate.examName === selectedExam;
+      return (
+        !candidate.examId ||
+        candidate.examId === selectedExamId ||
+        candidate.examName === selectedExam
+      );
     });
 
     if (!query) return examMatches;
 
     return examMatches.filter((candidate) => {
-      const haystack = [candidate.studentName, candidate.rollNumber, candidate.admissionNumber].join(" ").toLowerCase();
+      const haystack = [
+        candidate.studentName,
+        candidate.rollNumber,
+        candidate.admissionNumber,
+      ]
+        .join(" ")
+        .toLowerCase();
       return haystack.includes(query);
     });
   })();
 
   const resultSummary = (() => {
-    const scores = filteredCandidates.map((candidate) => Number(candidate.totalScore ?? 0));
+    const scores = filteredCandidates.map((candidate) =>
+      Number(candidate.totalScore ?? 0),
+    );
     const topScore = scores.length ? Math.max(...scores) : 0;
-    const averageScore = scores.length ? scores.reduce((sum, item) => sum + item, 0) / scores.length : 0;
-    const uniqueSets = new Set(filteredCandidates.map((candidate) => candidate.booklet).filter(Boolean)).size || 1;
+    const averageScore = scores.length
+      ? scores.reduce((sum, item) => sum + item, 0) / scores.length
+      : 0;
+    const uniqueSets =
+      new Set(
+        filteredCandidates
+          .map((candidate) => candidate.booklet)
+          .filter(Boolean),
+      ).size || 1;
 
     return {
       evaluatedCandidates: filteredCandidates.length,
       topScore,
       averageScore,
       answerKeySets: uniqueSets,
-      maxScore: filteredCandidates.reduce((max, candidate) => Math.max(max, Number(candidate.maxScore ?? 720)), 720),
+      maxScore: filteredCandidates.reduce(
+        (max, candidate) => Math.max(max, Number(candidate.maxScore ?? 720)),
+        720,
+      ),
     };
   })();
 
   const renderResults = () => (
     <View style={styles.cardBlock}>
       <Text style={styles.sectionTitle}>Results & Ranks</Text>
-      <Text style={styles.cardText}>Live result summaries and leaderboard ranks for the selected exam.</Text>
+      <Text style={styles.cardText}>
+        Live result summaries and leaderboard ranks for the selected exam.
+      </Text>
 
       <View style={styles.resultHeaderRow}>
         <View style={styles.selectFieldWrap}>
           <Text style={styles.fieldLabel}>Exam</Text>
           <Pressable onPress={selectExam} style={styles.selectBox}>
-            <Text style={styles.selectBoxText}>{selectedExam || "My exam (JEE)"}</Text>
+            <Text style={styles.selectBoxText}>
+              {selectedExam || DEFAULT_EXAM}
+            </Text>
             <Ionicons name="chevron-down" size={16} color={colors.muted} />
           </Pressable>
         </View>
 
-        <Pressable onPress={refreshResults} style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]} disabled={isRefreshing}>
-          <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh"}</Text>
+        <Pressable
+          onPress={refreshResults}
+          style={({ pressed }) => [
+            styles.refreshButton,
+            pressed && styles.pressed,
+          ]}
+          disabled={isRefreshing}
+        >
+          <Text style={styles.refreshButtonText}>
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Text>
         </Pressable>
       </View>
 
@@ -924,7 +1242,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
 
       <View style={styles.statusBanner}>
         <Text style={styles.statusLabel}>Draft / Hidden from Portals</Text>
-        <Text style={styles.statusDescription}>Results are currently hidden in draft mode. Click the Publish Results action to release scorecards to students and parents.</Text>
+        <Text style={styles.statusDescription}>
+          Results are currently hidden in draft mode. Click the Publish Results
+          action to release scorecards to students and parents.
+        </Text>
       </View>
 
       <ActionButton
@@ -947,31 +1268,52 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
       <View style={styles.summaryGridCompact}>
         <View style={styles.summaryMetric}>
           <Text style={styles.metricLabel}>Evaluated Candidates</Text>
-          <Text style={styles.metricValue}>{resultSummary.evaluatedCandidates}</Text>
+          <Text style={styles.metricValue}>
+            {resultSummary.evaluatedCandidates}
+          </Text>
         </View>
         <View style={styles.summaryMetric}>
           <Text style={styles.metricLabel}>Top Score</Text>
-          <Text style={styles.metricValue}>{formatScoreValue(resultSummary.topScore)} / {formatScoreValue(resultSummary.maxScore)}</Text>
+          <Text style={styles.metricValue}>
+            {formatScoreValue(resultSummary.topScore)} /{" "}
+            {formatScoreValue(resultSummary.maxScore)}
+          </Text>
         </View>
         <View style={styles.summaryMetric}>
           <Text style={styles.metricLabel}>Average Score</Text>
-          <Text style={styles.metricValue}>{formatAverage(resultSummary.averageScore)}</Text>
+          <Text style={styles.metricValue}>
+            {formatAverage(resultSummary.averageScore)}
+          </Text>
         </View>
         <View style={styles.summaryMetric}>
           <Text style={styles.metricLabel}>Answer Key Sets</Text>
-          <Text style={styles.metricValue}>{resultSummary.answerKeySets} Sets Active</Text>
+          <Text style={styles.metricValue}>
+            {resultSummary.answerKeySets} Sets Active
+          </Text>
         </View>
       </View>
 
-      {publishStatus ? <Text style={styles.publishStatusText}>{publishStatus}</Text> : null}
+      {publishStatus ? (
+        <Text style={styles.publishStatusText}>{publishStatus}</Text>
+      ) : null}
 
       <View style={styles.tableWrap}>
         {filteredCandidates.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.tableContainer}>
               <View style={styles.tableHeaderRow}>
-                {['Rank', 'Student Name', 'Roll / Admission No', 'Booklet', 'Total Score', 'Correct / Wrong / Blank', 'Action'].map((heading) => (
-                  <Text key={heading} style={styles.tableHeaderCell}>{heading}</Text>
+                {[
+                  "Rank",
+                  "Student Name",
+                  "Roll / Admission No",
+                  "Booklet",
+                  "Total Score",
+                  "Correct / Wrong / Blank",
+                  "Action",
+                ].map((heading) => (
+                  <Text key={heading} style={styles.tableHeaderCell}>
+                    {heading}
+                  </Text>
                 ))}
               </View>
 
@@ -980,27 +1322,54 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
                   <Text style={styles.tableCell}>#{candidate.rank || 1}</Text>
                   <Text style={styles.tableCell}>{candidate.studentName}</Text>
                   <Text style={styles.tableCell}>{candidate.rollNumber}</Text>
-                  <Text style={styles.tableCell}>{candidate.booklet || 'Set A'}</Text>
-                  <Text style={styles.tableCell}>{formatScoreValue(candidate.totalScore)} / {formatScoreValue(candidate.maxScore || 720)}</Text>
-                  <Text style={styles.tableCell}>{candidate.correct || 0} C | {candidate.wrong || 0} W | {candidate.blank || 0} B</Text>
-                  <Pressable onPress={() => setSelectedBreakdown(candidate)} style={({ pressed }) => [styles.breakdownButton, pressed && styles.pressed]}>
-                    <Text style={styles.breakdownButtonText}>Breakdown Sheet</Text>
+                  <Text style={styles.tableCell}>
+                    {candidate.booklet || "Set A"}
+                  </Text>
+                  <Text style={styles.tableCell}>
+                    {formatScoreValue(candidate.totalScore)} /{" "}
+                    {formatScoreValue(candidate.maxScore || 720)}
+                  </Text>
+                  <Text style={styles.tableCell}>
+                    {candidate.correct || 0} C | {candidate.wrong || 0} W |{" "}
+                    {candidate.blank || 0} B
+                  </Text>
+                  <Pressable
+                    onPress={() => setSelectedBreakdown(candidate)}
+                    style={({ pressed }) => [
+                      styles.breakdownButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.breakdownButtonText}>
+                      Breakdown Sheet
+                    </Text>
                   </Pressable>
                 </View>
               ))}
             </View>
           </ScrollView>
         ) : (
-          <Text style={styles.emptyState}>No evaluated candidates match the current exam or search filters.</Text>
+          <Text style={styles.emptyState}>
+            No evaluated candidates match the current exam or search filters.
+          </Text>
         )}
       </View>
 
       {selectedBreakdown ? (
         <View style={styles.breakdownPanel}>
           <Text style={styles.sectionTitle}>Breakdown Sheet</Text>
-          <Text style={styles.cardText}>Candidate: {selectedBreakdown.studentName} • {selectedBreakdown.rollNumber}</Text>
-          <Text style={styles.cardText}>Exam: {selectedBreakdown.examName || selectedExam}</Text>
-          <Text style={styles.cardText}>Booklet: {selectedBreakdown.booklet || 'Set A'} • Total Score: {formatScoreValue(selectedBreakdown.totalScore)} / {formatScoreValue(selectedBreakdown.maxScore || 720)}</Text>
+          <Text style={styles.cardText}>
+            Candidate: {selectedBreakdown.studentName} •{" "}
+            {selectedBreakdown.rollNumber}
+          </Text>
+          <Text style={styles.cardText}>
+            Exam: {selectedBreakdown.examName || selectedExam}
+          </Text>
+          <Text style={styles.cardText}>
+            Booklet: {selectedBreakdown.booklet || "Set A"} • Total Score:{" "}
+            {formatScoreValue(selectedBreakdown.totalScore)} /{" "}
+            {formatScoreValue(selectedBreakdown.maxScore || 720)}
+          </Text>
           <View style={styles.breakdownMetricRow}>
             <Text style={styles.breakdownMetric}>Question No.</Text>
             <Text style={styles.breakdownMetric}>Student Answer</Text>
@@ -1009,15 +1378,24 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
           </View>
           {Array.from({ length: 4 }, (_, index) => ({
             number: index + 1,
-            studentAnswer: index % 2 === 0 ? 'A' : 'B',
-            correctAnswer: index % 3 === 0 ? 'A' : 'C',
-            status: index % 2 === 0 ? 'Correct' : 'Wrong',
+            studentAnswer: index % 2 === 0 ? "A" : "B",
+            correctAnswer: index % 3 === 0 ? "A" : "C",
+            status: index % 2 === 0 ? "Correct" : "Wrong",
           })).map((detail) => (
             <View key={detail.number} style={styles.breakdownItem}>
               <Text style={styles.tableCell}>{detail.number}</Text>
               <Text style={styles.tableCell}>{detail.studentAnswer}</Text>
               <Text style={styles.tableCell}>{detail.correctAnswer}</Text>
-              <Text style={[styles.tableCell, detail.status === 'Correct' ? styles.correctText : styles.wrongText]}>{detail.status}</Text>
+              <Text
+                style={[
+                  styles.tableCell,
+                  detail.status === "Correct"
+                    ? styles.correctText
+                    : styles.wrongText,
+                ]}
+              >
+                {detail.status}
+              </Text>
             </View>
           ))}
         </View>
@@ -1041,9 +1419,14 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
   return (
     <View style={styles.screen}>
       <View style={styles.headerCard}>
-        <Text style={styles.pageTitle}>OMR Hardware Scanner & Evaluation Suite</Text>
+        <Text style={styles.pageTitle}>
+          OMR Hardware Scanner & Evaluation Suite
+        </Text>
         <Text style={styles.subtitle}>Scanner Ready</Text>
-        <Text style={styles.description}>NEET/JEE pattern evaluation, answer keys, camera scanner & leaderboards</Text>
+        <Text style={styles.description}>
+          NEET/JEE pattern evaluation, answer keys, camera scanner &
+          leaderboards
+        </Text>
       </View>
 
       <View style={styles.submenuRow}>
@@ -1055,8 +1438,10 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
               if (menu === "OMR Dashboard") setActiveTab("Printable OMR Sheet");
               if (menu === "Exam Sessions") setActiveTab("Sessions (1)");
               if (menu === "Answer Keys") setActiveTab("Answer Keys");
-              if (menu === "Hardware & Optical Scanner") setActiveTab("Scanner & Reader");
-              if (menu === "Results & Leaderboards") setActiveTab("Results & Ranks");
+              if (menu === "Hardware & Optical Scanner")
+                setActiveTab("Scanner & Reader");
+              if (menu === "Results & Leaderboards")
+                setActiveTab("Results & Ranks");
             }}
             style={({ pressed }) => [
               styles.submenuChip,
@@ -1079,7 +1464,14 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
               size={15}
               color={activeMenu === menu ? colors.blue : colors.ink}
             />
-            <Text style={[styles.submenuText, activeMenu === menu && styles.submenuTextActive]}>{menu}</Text>
+            <Text
+              style={[
+                styles.submenuText,
+                activeMenu === menu && styles.submenuTextActive,
+              ]}
+            >
+              {menu}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -1102,15 +1494,27 @@ export default function TeacherOMRScreen({ session, onBack, initialTab = "Scanne
               pressed && styles.pressed,
             ]}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.tabTextActive,
+              ]}
+            >
+              {tab}
+            </Text>
           </Pressable>
         ))}
       </View>
 
-      {loading ? <Text style={styles.loadingText}>Loading OMR console...</Text> : null}
+      {loading ? (
+        <Text style={styles.loadingText}>Loading OMR console...</Text>
+      ) : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentInner}
+      >
         {renderContent()}
       </ScrollView>
     </View>

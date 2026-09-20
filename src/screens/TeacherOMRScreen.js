@@ -53,8 +53,8 @@ const OMR_TABS = [
 const BOOKLET_SETS = ["Set A", "Set B", "Set C", "Set D"];
 const ANSWER_OPTIONS = ["A", "B", "C", "D", "-"];
 const QUESTION_COUNT = 180;
-const DEFAULT_EXAM = "Untitled Exam";
-const DEFAULT_EXAM_LABEL = "Exam (180 Qs)";
+const DEFAULT_EXAM = "";
+const DEFAULT_EXAM_LABEL = "";
 
 const normalizeCandidateResult = (
   candidate,
@@ -120,13 +120,7 @@ function buildStandardPattern() {
 }
 
 function createInitialSetState() {
-  const standard = buildStandardPattern();
-  return Object.fromEntries(
-    BOOKLET_SETS.map((setName) => [
-      setName,
-      standard.map((question) => ({ ...question })),
-    ]),
-  );
+  return Object.fromEntries(BOOKLET_SETS.map((setName) => [setName, []]));
 }
 
 function parsePastedAnswers(rawText) {
@@ -279,7 +273,7 @@ export default function TeacherOMRScreen({
 }) {
   const [activeMenu, setActiveMenu] = useState(initialMenu);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [selectedExam, setSelectedExam] = useState(DEFAULT_EXAM_LABEL);
+  const [selectedExam, setSelectedExam] = useState("");
   const [bookletSet, setBookletSet] = useState("Set A");
   const [answerSets, setAnswerSets] = useState(createInitialSetState);
   const [dashboard, setDashboard] = useState({ sessions: [], results: [] });
@@ -293,7 +287,7 @@ export default function TeacherOMRScreen({
   const [batchFiles, setBatchFiles] = useState([]);
   const [csvEntries, setCsvEntries] = useState([]);
   const [csvError, setCsvError] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState("omr-session-1");
+  const [selectedExamId, setSelectedExamId] = useState("");
   const [searchText, setSearchText] = useState("");
   const [publishStatus, setPublishStatus] = useState(
     "Draft / Hidden from Portals",
@@ -311,18 +305,12 @@ export default function TeacherOMRScreen({
   const cameraRef = useRef(null);
 
   const examOptions = (() => {
-    const defaultItems = [
-      { label: DEFAULT_EXAM, value: DEFAULT_EXAM_LABEL, questions: 180 },
-    ];
     const fromApi = (dashboard.sessions || []).map((sessionItem) => ({
-      label: sessionItem.name || DEFAULT_EXAM,
-      value: `${sessionItem.name || DEFAULT_EXAM} (${sessionItem.questions || 180} Qs)`,
+      label: sessionItem.name || "Session",
+      value: `${sessionItem.name || "Session"} (${sessionItem.questions || 180} Qs)`,
       questions: sessionItem.questions || 180,
     }));
-    return [
-      ...defaultItems,
-      ...fromApi.filter((option) => option.value !== DEFAULT_EXAM_LABEL),
-    ];
+    return fromApi;
   })();
 
   const currentSetQuestions = answerSets[bookletSet] || createQuestionRows();
@@ -333,7 +321,7 @@ export default function TeacherOMRScreen({
       setLoading(true);
       setError("");
       try {
-        const data = await omrApi.fetchOMRDashboard();
+        const data = await omrApi.fetchOMRDashboard(session);
         const resultRows = toResultRows(
           data?.results || [],
           selectedExam,
@@ -344,20 +332,25 @@ export default function TeacherOMRScreen({
           setCandidateResults(resultRows);
           if (data?.sessions?.length) {
             const firstSession = data.sessions[0];
-            const examValue = `${firstSession.name || DEFAULT_EXAM} (${firstSession.questions || 180} Qs)`;
-            setSelectedExamId(firstSession.id || "omr-session-1");
+            const examValue = `${firstSession.name || "Session"} (${firstSession.questions || 180} Qs)`;
+            setSelectedExamId(firstSession.id || "");
             setSelectedExam(examValue);
             setPublishStatus(
               firstSession.status === "Published"
                 ? "Published"
                 : "Draft / Hidden from Portals",
             );
+          } else {
+            setSelectedExamId("");
+            setSelectedExam("");
+            setPublishStatus("Draft / Hidden from Portals");
           }
         }
-      } catch {
+      } catch (error) {
         if (active) {
           setError(
-            "Unable to load OMR data. Showing the local assessment setup.",
+            error?.message ||
+              "Unable to load OMR data from the API. Check the endpoint and backend connection.",
           );
           setCandidateResults(toResultRows([], selectedExam, selectedExamId));
         }
@@ -480,15 +473,13 @@ export default function TeacherOMRScreen({
       onPress: () => {
         const matchedSession = (dashboard.sessions || []).find(
           (sessionItem) =>
-            (sessionItem.name || DEFAULT_EXAM) === option.label ||
-            `${sessionItem.name || DEFAULT_EXAM} (${sessionItem.questions || 180} Qs)` ===
+            (sessionItem.name || "Session") === option.label ||
+            `${sessionItem.name || "Session"} (${sessionItem.questions || 180} Qs)` ===
               option.value,
         );
 
         setSelectedExam(option.value);
-        setSelectedExamId(
-          matchedSession?.id || selectedExamId || "omr-session-1",
-        );
+        setSelectedExamId(matchedSession?.id || selectedExamId || "");
       },
     }));
 
@@ -976,14 +967,18 @@ export default function TeacherOMRScreen({
       <Text style={styles.cardText}>
         Manage live and planned OMR sessions for the selected JEE exam.
       </Text>
-      {(dashboard.sessions || []).map((item) => (
-        <View key={item.id || item.name} style={styles.sessionRow}>
-          <Text style={styles.sessionName}>{item.name || DEFAULT_EXAM}</Text>
-          <Text style={styles.cardText}>
-            {item.code || "JEE"} • {item.status || "Draft"}
-          </Text>
-        </View>
-      ))}
+      {(dashboard.sessions || []).length ? (
+        (dashboard.sessions || []).map((item) => (
+          <View key={item.id || item.name} style={styles.sessionRow}>
+            <Text style={styles.sessionName}>{item.name || "Session"}</Text>
+            <Text style={styles.cardText}>
+              {item.code || "JEE"} • {item.status || "Draft"}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.cardText}>No OMR sessions available.</Text>
+      )}
     </View>
   );
 
@@ -993,7 +988,7 @@ export default function TeacherOMRScreen({
     setError("");
 
     try {
-      const latestResults = await omrApi.fetchOMRResults();
+      const latestResults = await omrApi.fetchOMRResults(session);
       const normalizedResults = toResultRows(
         latestResults,
         selectedExam,
@@ -1210,7 +1205,7 @@ export default function TeacherOMRScreen({
           <Text style={styles.fieldLabel}>Exam</Text>
           <Pressable onPress={selectExam} style={styles.selectBox}>
             <Text style={styles.selectBoxText}>
-              {selectedExam || DEFAULT_EXAM}
+              {selectedExam || "Select exam"}
             </Text>
             <Ionicons name="chevron-down" size={16} color={colors.muted} />
           </Pressable>

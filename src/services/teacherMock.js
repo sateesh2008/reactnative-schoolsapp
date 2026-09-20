@@ -1,63 +1,20 @@
 export const teacherProfile = {
-  name: 'sudarsan kumar',
-  initials: 'SK',
-  role: 'Teacher',
-  school: 'Demo School',
-  academicYear: '2026-2027',
+  name: "Teacher",
+  initials: "T",
+  role: "Teacher",
+  school: "",
+  academicYear: "",
 };
 
 export const teacherDashboardData = {
-  activeLoad: 8,
-  totalStudents: 45,
-  attendancePercentage: 94,
-  pendingMarks: 8,
-  weeklyAttendance: [
-    { day: 'Mon', value: 88 },
-    { day: 'Tue', value: 92 },
-    { day: 'Wed', value: 90 },
-    { day: 'Thu', value: 94 },
-    { day: 'Fri', value: 91 },
-    { day: 'Sat', value: 91 },
-  ],
-  notices: [
-    { category: 'General', date: '17/07/2026', title: 'Sankranthi', description: 'Holiday' },
-    { category: 'General', date: '19/05/2026', title: 'UGADI', description: 'Holiday' },
-    { category: 'General', date: '07/05/2026', title: 'SANKRANTHI HOILDAYS', description: '' },
-  ],
-  quickActions: [
-    {
-      title: 'Post New Homework',
-      description: 'Assign daily coursework to students',
-      icon: 'book-outline',
-      target: 'Homework',
-    },
-    {
-      title: 'Exam Grading & Evaluation',
-      description: 'Review & grade student submissions',
-      icon: 'ribbon-outline',
-      target: 'Exams / Marks',
-    },
-    {
-      title: 'Student Daily Attendance',
-      description: 'Record daily presence & absences',
-      icon: 'calendar-outline',
-      target: 'Attendance',
-    },
-    {
-      title: 'Faculty Class Timetable',
-      description: 'View personalized weekly schedule',
-      icon: 'time-outline',
-      target: 'Timetable',
-    },
-  ],
-  shortcuts: [
-    { title: 'Attendance', description: 'Today’s class reports', icon: 'calendar-outline', target: 'Attendance' },
-    { title: 'Post Homework', description: 'Assigned coursework', icon: 'book-outline', target: 'Homework' },
-    { title: 'Grade Exams', description: 'Evaluate marks', icon: 'create-outline', target: 'Exams / Marks' },
-    { title: 'My Schedule', description: 'Faculty timetable', icon: 'time-outline', target: 'Timetable' },
-    { title: 'My Classes', description: 'Class groups', icon: 'people-outline', target: 'My Students' },
-    { title: 'Faculty Notices', description: 'Live updates', icon: 'megaphone-outline', target: 'Notifications' },
-  ],
+  activeLoad: 0,
+  totalStudents: 0,
+  attendancePercentage: 0,
+  pendingMarks: 0,
+  weeklyAttendance: [],
+  notices: [],
+  quickActions: [],
+  shortcuts: [],
 };
 
 export const teacherDashboardStats = {
@@ -73,18 +30,17 @@ export const teacherShortcuts = teacherDashboardData.shortcuts;
 export const teacherNotices = teacherDashboardData.notices;
 
 export const teacherNavigationModules = [
-  'Home',
-  'My Students',
-  'Attendance',
-  'Homework',
-  'Exams / Marks',
-  'Timetable',
-  'Leave',
-  'Messaging',
-  'Notifications',
-  'Reports',
-  'Gate Pass',
-  'OMR System',
+  "Home",
+  "My Students",
+  "Attendance",
+  "Homework",
+  "Exams / Marks",
+  "Timetable",
+  "Leave",
+  "Announcements",
+  "Reports",
+  "Gate Pass",
+  "OMR System",
 ];
 
 export const teacherDashboardMock = {
@@ -99,21 +55,17 @@ export const teacherDashboardMock = {
 };
 
 export const teacherAttendanceMock = {
-  summary: { totalEnrolled: 0, markedEntries: 0, presentToday: 0, absentCount: 0, lateArrivals: 0 },
+  summary: {
+    totalEnrolled: 0,
+    markedEntries: 0,
+    presentToday: 0,
+    absentCount: 0,
+    lateArrivals: 0,
+  },
   records: [],
-  classes: ['Class 1', 'Class 2'],
-  sections: ['A', 'B'],
-  subjects: ['Mathematics', 'English', 'Science'],
+  classes: [],
+  sections: [],
+  subjects: [],
 };
 
-export const teacherHomeworkMock = [
-  { id: 'hw-1', className: 'Class_1', section: 'B', subject: 'English', title: 'test 1', teacher: 'sudarsan kumar', assignedDate: '2026-09-01', dueDate: '2026-09-06', academicYear: '2026-2027' },
-  { id: 'hw-2', className: 'Class_1', section: 'B', subject: 'Telugu', title: 'Reading Lesss1', teacher: 'sudarsan kumar', assignedDate: '2026-08-15', dueDate: '2026-08-20', academicYear: '2026-2027' },
-  { id: 'hw-3', className: 'Class_1', section: 'A', subject: 'Telugu', title: 'Reading Lesss1', teacher: 'sudarsan kumar', assignedDate: '2026-08-15', dueDate: '2026-08-20', academicYear: '2026-2027' },
-  { id: 'hw-4', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-07', academicYear: '2026-2027' },
-  { id: 'hw-5', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-08', academicYear: '2026-2027' },
-  { id: 'hw-6', className: 'Class_1', section: 'A', subject: 'English', title: 'Grammer', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-06', academicYear: '2026-2027' },
-  { id: 'hw-7', className: 'Class_1', section: 'A', subject: 'Math', title: 'Addition', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-09', academicYear: '2026-2027' },
-  { id: 'hw-8', className: 'Class_1', section: 'A', subject: 'English', title: 'Ready', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-06', academicYear: '2026-2027' },
-  { id: 'hw-9', className: 'Class_1', section: 'A', subject: 'Hindi', title: 'eucliridan therore', teacher: 'sudarsan kumar', assignedDate: '2026-07-01', dueDate: '2026-07-03', academicYear: '2026-2027' },
-];
+export const teacherHomeworkMock = [];

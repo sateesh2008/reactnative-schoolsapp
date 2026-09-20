@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -28,13 +28,7 @@ const colors = {
   orange: "#D9822B",
   red: "#C65353",
 };
-const academicYears = [
-  "All Academic Years",
-  "2028-2029",
-  "2026-2027",
-  "2025-2026",
-  "2024-2025",
-];
+const academicYears = ["All Academic Years"];
 const pad = (value) => String(value).padStart(2, "0");
 const dateKey = (date) =>
   `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -137,7 +131,7 @@ function Summary({ label, value, icon, tint, accent }) {
     </View>
   );
 }
-function AssignmentCard({ item, index, onPreview }) {
+function AssignmentCard({ item, index, onPreview, session }) {
   const status = statusOf(item);
   return (
     <View style={styles.card}>
@@ -155,10 +149,12 @@ function AssignmentCard({ item, index, onPreview }) {
           <Text style={styles.badge}>{statusText(status)}</Text>
         </View>
         <Text style={styles.meta}>
-          Teacher: {item.teacher || "sudarsan kumar"}
+          Teacher:{" "}
+          {item.teacher || session?.name || session?.user?.name || "Teacher"}
         </Text>
         <Text style={styles.meta}>
-          Due: {formatDate(item.dueDate)} | {item.academicYear || "2026-2027"}
+          Due: {formatDate(item.dueDate)} |{" "}
+          {item.academicYear || session?.academicYear || ""}
         </Text>
         <Pressable style={styles.preview} onPress={() => onPreview(item)}>
           <Text style={styles.previewText}>Preview</Text>
@@ -167,7 +163,7 @@ function AssignmentCard({ item, index, onPreview }) {
     </View>
   );
 }
-function Preview({ item, onClose }) {
+function Preview({ item, onClose, session }) {
   if (!item) return null;
   const fields = [
     ["Subject", item.subject],
@@ -176,11 +172,14 @@ function Preview({ item, onClose }) {
       "Class",
       `${item.className || item.class || "N/A"}${item.section ? `-${item.section}` : ""}`,
     ],
-    ["Teacher", item.teacher || "sudarsan kumar"],
+    [
+      "Teacher",
+      item.teacher || session?.name || session?.user?.name || "Teacher",
+    ],
     ["Description", item.description || "No description provided."],
     ["Assigned Date", formatDate(item.assignedDate)],
     ["Due Date", formatDate(item.dueDate)],
-    ["Academic Year", item.academicYear || "2026-2027"],
+    ["Academic Year", item.academicYear || session?.academicYear || ""],
     ["Submission Status", statusText(statusOf(item))],
   ];
   return (
@@ -214,7 +213,7 @@ function LegacyAddAssignment({ visible, classes, session, onClose, onSaved }) {
     description: "",
     assignedDate: new Date(),
     dueDate: new Date(),
-    academicYear: "2026-2027",
+    academicYear: session?.academicYear || "",
   });
   const [dateField, setDateField] = useState("");
   const [saving, setSaving] = useState(false);
@@ -342,7 +341,7 @@ function LegacyAddAssignment({ visible, classes, session, onClose, onSaved }) {
           options={academicYears.slice(1)}
           onChange={(value) => set("academicYear", value)}
         />
-        <View style={styles.actions}>
+        <View style={styles.modalActions}>
           <Button title="Cancel" secondary onPress={onClose} />
           <Button
             title={saving ? "Saving..." : "Create Assignment"}
@@ -357,7 +356,7 @@ function LegacyAddAssignment({ visible, classes, session, onClose, onSaved }) {
 
 export default function TeacherHomeworkScreen({ session }) {
   const [items, setItems] = useState([]);
-  const [year, setYear] = useState("2026-2027");
+  const [year, setYear] = useState(session?.academicYear || "");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState("10");
@@ -366,29 +365,38 @@ export default function TeacherHomeworkScreen({ session }) {
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
-  const load = async (refresh = false) => {
-    refresh ? setRefreshing(true) : setLoading(true);
-    try {
-      setItems(await teacherApi.getHomework(session));
-      setError("");
-    } catch {
-      setError("Unable to load homework assignments. Please try again.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const load = useCallback(
+    async (refresh = false) => {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        setItems(await teacherApi.getHomework(session));
+        setError("");
+      } catch {
+        setError("Unable to load homework assignments. Please try again.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [session],
+  );
   useEffect(() => {
-    const timer = setTimeout(load, 0);
+    const timer = setTimeout(() => {
+      load();
+    }, 0);
     return () => clearTimeout(timer);
-  }, [session]);
+  }, [load]);
   const visible = useMemo(
     () =>
       items.filter((item) => {
         const text = query.toLowerCase().trim();
         return (
           (year === academicYears[0] ||
-            (item.academicYear || "2026-2027") === year) &&
+            (item.academicYear || session?.academicYear || "") === year) &&
           (!text ||
             [
               item.title,
@@ -405,7 +413,7 @@ export default function TeacherHomeworkScreen({ session }) {
             ))
         );
       }),
-    [items, year, query],
+    [items, year, query, session?.academicYear],
   );
   const counts = {
     active: visible.filter((item) => statusOf(item) === "ACTIVE").length,
@@ -454,11 +462,11 @@ export default function TeacherHomeworkScreen({ session }) {
         item.gradeLevel || "Grade Level",
         item.subject,
         item.title || item.topic,
-        item.teacher || "sudarsan kumar",
+        item.teacher || session?.name || session?.user?.name || "Teacher",
         item.assignedDate,
         item.dueDate,
         statusText(statusOf(item)),
-        item.academicYear || "2026-2027",
+        item.academicYear || session?.academicYear || "",
       ]),
     ];
     try {
@@ -558,6 +566,7 @@ export default function TeacherHomeworkScreen({ session }) {
               item={item}
               index={(currentPage - 1) * pageSize + index}
               onPreview={setPreview}
+              session={session}
             />
           ))
         ) : (
@@ -598,7 +607,11 @@ export default function TeacherHomeworkScreen({ session }) {
           </Pressable>
         </View>
       </ScrollView>
-      <Preview item={preview} onClose={() => setPreview(null)} />
+      <Preview
+        item={preview}
+        onClose={() => setPreview(null)}
+        session={session}
+      />
       <LegacyAddAssignment
         visible={formOpen}
         classes={classes.length ? classes : ["Class_1"]}
@@ -811,5 +824,5 @@ const styles = StyleSheet.create({
   },
   detailLabel: { color: colors.muted, fontSize: 10, fontWeight: "900" },
   detailValue: { color: colors.ink, marginTop: 5 },
-  actions: { flexDirection: "row", gap: 8 },
+  modalActions: { flexDirection: "row", gap: 8 },
 });

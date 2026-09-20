@@ -8,6 +8,7 @@ export default function Index() {
     role: string;
     email?: string;
     token?: string;
+    id?: string | number;
     name?: string;
     schoolName?: string;
   } | null>(null);
@@ -15,10 +16,17 @@ export default function Index() {
   if (!session) {
     return <LoginScreen onLogin={setSession} />;
   }
-''
-  if (session.role === 'Teacher') {
-    return <TeacherPortalScreen session={session} onLogout={() => setSession(null)} />;
+
+  if (session.role === "Teacher") {
+    return (
+      <TeacherPortalScreen
+        session={session}
+        onLogout={() => setSession(null)}
+      />
+    );
   }
 
-  return <ParentPortalScreen session={session} onLogout={() => setSession(null)} />;
+  return (
+    <ParentPortalScreen session={session} onLogout={() => setSession(null)} />
+  );
 }

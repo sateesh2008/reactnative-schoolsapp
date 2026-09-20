@@ -1,87 +1,101 @@
-import React, { useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Image,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { isApiConfigured } from '../services/api';
-import { login } from '../services/authApi';
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { isApiConfigured } from "../services/api";
+import { login } from "../services/authApi";
 
 const colors = {
-  navy: '#123B43',
-  blue: '#0D8B82',
-  ink: '#17343B',
-  muted: '#6A7F83',
-  line: '#D9E7E4',
-  canvas: '#F4F8F6',
-  white: '#FFFFFF',
-  paleBlue: '#E5F4F0',
-  red: '#C65353',
+  navy: "#123B43",
+  blue: "#0D8B82",
+  ink: "#17343B",
+  muted: "#6A7F83",
+  line: "#D9E7E4",
+  canvas: "#F4F8F6",
+  white: "#FFFFFF",
+  paleBlue: "#E5F4F0",
+  red: "#C65353",
 };
 
-export default function LoginScreen({ onLogin }) 
-{
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
-      setMessage('Enter your email address and password.');
+      setMessage("Enter your email address and password.");
       return;
     }
 
     if (!isApiConfigured) {
-      setMessage('The login service is not configured.');
+      setMessage("The login service is not configured.");
       return;
     }
 
     setLoading(true);
-    setMessage('');
+    setMessage("");
     try {
       const payload = await login(trimmedEmail, password);
       const result = payload?.data || payload;
       const user = result?.user || result?.profile || {};
-      const token = result?.token
-        || result?.access_token
-        || result?.accessToken
-        || payload?.token
-        || payload?.access_token
-        || payload?.accessToken;
-      const roleValue = result?.role || user.role || user.user_type || user.userType;
-      const role = String(roleValue || '').toLowerCase();
-      const normalizedRole = role.includes('teacher')
-        ? 'Teacher'
-        : role.includes('parent')
-          ? 'Parent'
-          : role.includes('admin')
-            ? 'School Admin'
-            : '';
+      const token =
+        result?.token ||
+        result?.access_token ||
+        result?.accessToken ||
+        payload?.token ||
+        payload?.access_token ||
+        payload?.accessToken;
+      const teacherId =
+        user?.id ||
+        user?.teacher_id ||
+        user?.teacherId ||
+        user?.staff_id ||
+        user?.staffId ||
+        user?.employee_id ||
+        user?.employeeId ||
+        result?.id ||
+        result?.teacher_id ||
+        result?.staff_id;
+      const roleValue =
+        result?.role || user.role || user.user_type || user.userType;
+      const role = String(roleValue || "").toLowerCase();
+      const normalizedRole = role.includes("teacher")
+        ? "Teacher"
+        : role.includes("parent")
+          ? "Parent"
+          : role.includes("admin")
+            ? "School Admin"
+            : "";
 
       if (!normalizedRole) {
-        setMessage('The login response did not include a valid user role.');
+        setMessage("The login response did not include a valid user role.");
         return;
       }
 
-      if (normalizedRole === 'School Admin') {
-        setMessage('Admin portal is not included in this demo.');
+      if (normalizedRole === "School Admin") {
+        setMessage("Admin portal is not included in this demo.");
         return;
       }
 
       if (!token) {
-        setMessage('Login succeeded, but the server did not return an access token.');
+        setMessage(
+          "Login succeeded, but the server did not return an access token.",
+        );
         return;
       }
 
@@ -89,11 +103,12 @@ export default function LoginScreen({ onLogin })
         role: normalizedRole,
         email: result?.email || user.email || trimmedEmail,
         token,
+        id: teacherId,
         name: user.name || user.full_name || user.fullName,
         schoolName: user.tenant?.name || user.school?.name || user.school_name,
       });
     } catch (error) {
-      setMessage(error?.message || 'Unable to sign in. Please try again.');
+      setMessage(error?.message || "Unable to sign in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -104,7 +119,7 @@ export default function LoginScreen({ onLogin })
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.content}
@@ -112,7 +127,7 @@ export default function LoginScreen({ onLogin })
         >
           <View style={styles.brandMark}>
             <Image
-              source={require('../../assets/logo.png')}
+              source={require("../../assets/logo.png")}
               resizeMode="contain"
               style={styles.logo}
             />
@@ -141,7 +156,11 @@ export default function LoginScreen({ onLogin })
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="lock-closed-outline" size={19} color={colors.muted} />
+              <Ionicons
+                name="lock-closed-outline"
+                size={19}
+                color={colors.muted}
+              />
               <TextInput
                 value={password}
                 onChangeText={setPassword}
@@ -152,7 +171,7 @@ export default function LoginScreen({ onLogin })
               />
               <Pressable onPress={() => setShowPassword((value) => !value)}>
                 <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
                   size={20}
                   color={colors.muted}
                 />
@@ -160,19 +179,30 @@ export default function LoginScreen({ onLogin })
             </View>
 
             {message ? <Text style={styles.error}>{message}</Text> : null}
-            <Pressable style={styles.forgotButton} onPress={() => setMessage('Password recovery is not included in this demo.')}>
+            <Pressable
+              style={styles.forgotButton}
+              onPress={() =>
+                setMessage("Password recovery is not included in this demo.")
+              }
+            >
               <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
             </Pressable>
             <Pressable
               onPress={handleLogin}
               disabled={loading}
-              style={({ pressed }) => [styles.button, (pressed || loading) && styles.pressed]}
+              style={({ pressed }) => [
+                styles.button,
+                (pressed || loading) && styles.pressed,
+              ]}
             >
-              <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign in to Account'}</Text>
-              {!loading ? <Ionicons name="arrow-forward" size={19} color={colors.white} /> : null}
+              <Text style={styles.buttonText}>
+                {loading ? "Signing in..." : "Sign in to Account"}
+              </Text>
+              {!loading ? (
+                <Ionicons name="arrow-forward" size={19} color={colors.white} />
+              ) : null}
             </Pressable>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -182,20 +212,78 @@ export default function LoginScreen({ onLogin })
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
-  content: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  brandMark: { width: 72, height: 72, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 18 },
+  content: { flexGrow: 1, padding: 24, justifyContent: "center" },
+  brandMark: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginBottom: 18,
+  },
   logo: { width: 72, height: 72 },
-  title: { color: colors.ink, fontSize: 31, fontWeight: '900', marginTop: 7 },
-  appName: { color: colors.blue, fontSize: 25, fontWeight: '900', marginTop: 4 },
-  subtitle: { color: colors.muted, fontSize: 14, marginTop: 7, marginBottom: 28 },
-  form: { backgroundColor: colors.white, borderRadius: 14, borderWidth: 1, borderColor: colors.line, padding: 18 },
-  label: { color: colors.ink, fontSize: 12, fontWeight: '800', marginBottom: 7, marginTop: 3 },
-  inputWrap: { minHeight: 50, borderWidth: 1, borderColor: colors.line, borderRadius: 9, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 17 },
+  title: { color: colors.ink, fontSize: 31, fontWeight: "900", marginTop: 7 },
+  appName: {
+    color: colors.blue,
+    fontSize: 25,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 14,
+    marginTop: 7,
+    marginBottom: 28,
+  },
+  form: {
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+  },
+  label: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 7,
+    marginTop: 3,
+  },
+  inputWrap: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 9,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginBottom: 17,
+  },
   input: { flex: 1, color: colors.ink, fontSize: 14 },
-  button: { backgroundColor: colors.blue, minHeight: 50, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9, marginTop: 4 },
-  buttonText: { color: colors.white, fontSize: 15, fontWeight: '800' },
-  forgotButton: { alignSelf: 'flex-end', marginBottom: 14 },
-  forgotText: { color: colors.blue, fontSize: 11, fontWeight: '900' },
+  button: {
+    backgroundColor: colors.blue,
+    minHeight: 50,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 9,
+    marginTop: 4,
+  },
+  buttonText: { color: colors.white, fontSize: 15, fontWeight: "800" },
+  forgotButton: { alignSelf: "flex-end", marginBottom: 14 },
+  forgotText: { color: colors.blue, fontSize: 11, fontWeight: "900" },
   pressed: { opacity: 0.75 },
-  error: { color: colors.red, fontSize: 12, fontWeight: '700', marginTop: -5, marginBottom: 12 },
+  error: {
+    color: colors.red,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: -5,
+    marginBottom: 12,
+  },
 });

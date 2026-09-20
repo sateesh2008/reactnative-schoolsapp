@@ -1578,22 +1578,28 @@ function HallTicketScreen({ onBack, onSelectModule, session }) {
 
 function FilterBadge({ label, value, options, onSelect }) {
   const [open, setOpen] = useState(false);
+  const safeOptions = Array.isArray(options) ? options : [];
 
   return (
     <View style={styles.filterField}>
       <Text style={styles.filterLabel}>{label}</Text>
       <Pressable style={styles.filterBox} onPress={() => setOpen((current) => !current)}>
-        <Text style={styles.filterText}>{value}</Text>
+        <Text style={[styles.filterText, value === 'Select Subject Paper...' || value === 'Select Exam...' || value === 'Select Class...' || value === 'All Divisions' ? styles.filterTextMuted : null]}>{value}</Text>
         <Icon name="chevron-down" size={15} color={colors.muted} />
       </Pressable>
       {open ? (
         <View style={styles.optionBox}>
-          {options.map((option) => {
+          {safeOptions.map((option) => {
             const optionLabel = option?.label || option;
+            const isSelected = option?.id === value?.id || optionLabel === value;
             return (
-            <Pressable key={option?.id || optionLabel} style={styles.optionRow} onPress={() => { onSelect(option); setOpen(false); }}>
-              <Text style={styles.optionText}>{optionLabel}</Text>
-            </Pressable>
+              <Pressable
+                key={option?.id || optionLabel}
+                style={[styles.optionRow, isSelected && styles.optionRowActive]}
+                onPress={() => { onSelect(option); setOpen(false); }}
+              >
+                <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{optionLabel}</Text>
+              </Pressable>
             );
           })}
         </View>
@@ -1606,35 +1612,35 @@ export default function TeacherExamsMarksScreen({ session, module = 'Exams / Mar
   const activeModule = module || 'Exams / Marks';
 
   if (activeModule === 'Set Exams') {
-    return <TeacherSetExamsScreen session={session} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><TeacherSetExamsScreen session={session} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'View Exams') {
-    return <ViewExamsScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><ViewExamsScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Teachers Timetable') {
-    return <TeacherTimetableScreen session={session} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><TeacherTimetableScreen session={session} /></ScrollView>;
   }
 
   if (activeModule === 'Exam Attendance') {
-    return <ExamAttendanceScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><ExamAttendanceScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Exam Result') {
-    return <ExamResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><ExamResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Publish Result') {
-    return <PublishResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><PublishResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Class Result') {
-    return <ClassResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><ClassResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Attendance Result') {
-    return <AttendanceResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} />;
+    return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}><AttendanceResultScreen session={session} onBack={() => onSelectModule && onSelectModule('Exams / Marks')} onSelectModule={onSelectModule} /></ScrollView>;
   }
 
   if (activeModule === 'Hall Ticket') {
@@ -1726,13 +1732,20 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.muted, fontSize: 9, marginTop: 4 },
   filterPanel: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 10, marginTop: 14 },
   filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  filterField: { width: '48%' },
+  filterField: { width: '48%', position: 'relative', zIndex: 1 },
   filterLabel: { color: colors.muted, fontSize: 10, fontWeight: '800', marginBottom: 4 },
+  filterBox: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.line, borderRadius: 8, minHeight: 40, paddingHorizontal: 10, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  filterText: { color: colors.ink, fontSize: 12, fontWeight: '700', flex: 1, marginRight: 8 },
+  filterTextMuted: { color: colors.muted },
+  filterTextSelected: { color: colors.blue },
   selectWrap: { backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.line, borderRadius: 8, overflow: 'hidden' },
   filterOption: { paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line },
   filterOptionSelected: { backgroundColor: colors.paleBlue },
-  filterText: { color: colors.ink, fontSize: 12, fontWeight: '700' },
-  filterTextSelected: { color: colors.blue },
+  optionBox: { position: 'absolute', left: 0, right: 0, top: 58, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 10, overflow: 'hidden', zIndex: 20, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10 },
+  optionRow: { paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line, minHeight: 40, justifyContent: 'center' },
+  optionRowActive: { backgroundColor: colors.paleBlue },
+  optionText: { color: colors.ink, fontSize: 12, fontWeight: '700' },
+  optionTextSelected: { color: colors.blue },
   errorPanel: { backgroundColor: '#FDECEC', borderWidth: 1, borderColor: colors.red, borderRadius: 10, padding: 10, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   errorText: { color: colors.red, flex: 1, fontSize: 11, lineHeight: 16 },
   retryButton: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.red, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },

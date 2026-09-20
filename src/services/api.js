@@ -58,9 +58,14 @@ export async function apiRequest(
       url.searchParams.set(key, String(value));
   });
 
+  const requestUrl = url.toString();
+  if (__DEV__) {
+    console.info(`[API] ${method} ${requestUrl}`);
+  }
+
   let response;
   try {
-    response = await fetch(url.toString(), {
+    response = await fetch(requestUrl, {
       method,
       signal,
       headers: {
@@ -72,6 +77,9 @@ export async function apiRequest(
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch (error) {
+    if (__DEV__) {
+      console.warn(`[API] ${method} ${requestUrl} failed to connect`, error);
+    }
     throw new ApiError(
       "Unable to connect to the server. Please check your internet connection and try again.",
       0,
@@ -82,6 +90,13 @@ export async function apiRequest(
   const payload = await parseResponseBody(response);
 
   if (!response.ok) {
+    if (__DEV__) {
+      console.warn(
+        `[API] ${method} ${requestUrl} returned status ${response.status}`,
+        payload,
+      );
+    }
+
     const payloadMessage =
       payload && typeof payload === "object" && "message" in payload
         ? payload.message
@@ -95,9 +110,11 @@ export async function apiRequest(
     );
   }
 
-  console.info(
-    `API ${method} ${path} succeeded with status ${response.status}`,
-    payload,
-  );
+  if (__DEV__) {
+    console.info(
+      `[API] ${method} ${requestUrl} succeeded with status ${response.status}`,
+      payload,
+    );
+  }
   return payload;
 }

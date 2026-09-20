@@ -2,6 +2,9 @@ import { apiRequest } from "./api";
 
 const DEFAULT_LOGIN_PATH = "/auth/login";
 const FALLBACK_LOGIN_PATH = "/login";
+const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_URL || "https://educampus360.com/api"
+).replace(/\/+$/, "");
 
 const sanitizeLoginPath = (path) => {
   const normalizedPath = String(path ?? "")
@@ -13,6 +16,15 @@ const sanitizeLoginPath = (path) => {
   }
 
   return normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
+};
+
+const buildFullLoginUrl = (path) => {
+  const sanitizedPath = sanitizeLoginPath(path || DEFAULT_LOGIN_PATH);
+  if (!sanitizedPath) {
+    return "";
+  }
+
+  return new URL(`${API_BASE_URL}${sanitizedPath}`).toString();
 };
 
 export async function login(email, password) {
@@ -46,7 +58,7 @@ export async function login(email, password) {
   }
 
   if (lastError?.status === 404) {
-    lastError.message = `Login endpoint was not found: ${loginPaths[loginPaths.length - 1]}`;
+    lastError.message = `Login endpoint was not found at ${buildFullLoginUrl(DEFAULT_LOGIN_PATH)}. Please confirm the backend route is available.`;
   }
 
   throw lastError;

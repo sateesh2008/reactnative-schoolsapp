@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const originalFetch = global.fetch;
+
+test("Expo environment is configured for the production API origin", () => {
+  const envContents = readFileSync(new URL("../.env", import.meta.url), "utf8");
+
+  assert.match(
+    envContents,
+    /EXPO_PUBLIC_API_URL=https:\/\/educampus360\.com\/api/,
+  );
+  assert.match(envContents, /EXPO_PUBLIC_LOGIN_PATH=\/auth\/login/);
+});
 
 test("login retries the backend fallback route when /auth/login returns 404", async () => {
   const calls = [];

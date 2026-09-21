@@ -3992,16 +3992,16 @@ const hallTicketDefaults = {
 };
 
 function HallTicketScreen({ session, onBack, onSelectModule }) {
-  const [exams, setExams] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  const [, setExams] = useState([]);
+  const [, setClasses] = useState([]);
+  const [, setDivisions] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedDivision, setSelectedDivision] = useState(null);
   const [candidates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [, setLoading] = useState(true);
+  const [, setError] = useState("");
   const [search, setSearch] = useState("");
   const [previewCandidate, setPreviewCandidate] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -4028,7 +4028,10 @@ function HallTicketScreen({ session, onBack, onSelectModule }) {
         setSelectedClass(nextClasses[0] || null);
       } catch (requestError) {
         if (active) {
-          setError(requestError?.message || "Unable to load hall-ticket configuration.");
+          setError(
+            requestError?.message ||
+              "Unable to load hall-ticket configuration.",
+          );
           setExams([]);
           setClasses([]);
         }
@@ -4044,16 +4047,22 @@ function HallTicketScreen({ session, onBack, onSelectModule }) {
 
   useEffect(() => {
     if (!selectedExam) {
-      setSubjects([]);
-      return undefined;
+      const timer = setTimeout(() => setSubjects([]), 0);
+      return () => clearTimeout(timer);
     }
     let active = true;
     const loadSubjects = async () => {
       try {
-        const result = await teacherApi.getExamSubjects(selectedExam.id, session);
+        const result = await teacherApi.getExamSubjects(
+          selectedExam.id,
+          session,
+        );
         if (active) setSubjects(Array.isArray(result) ? result : []);
       } catch (requestError) {
-        if (active) setError(requestError?.message || "Unable to load examination subjects.");
+        if (active)
+          setError(
+            requestError?.message || "Unable to load examination subjects.",
+          );
       }
     };
     void loadSubjects();
@@ -4064,9 +4073,11 @@ function HallTicketScreen({ session, onBack, onSelectModule }) {
 
   useEffect(() => {
     if (!selectedClass) {
-      setDivisions([]);
-      setSelectedDivision(null);
-      return undefined;
+      const timer = setTimeout(() => {
+        setDivisions([]);
+        setSelectedDivision(null);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     let active = true;
     const loadDivisions = async () => {
@@ -4081,7 +4092,8 @@ function HallTicketScreen({ session, onBack, onSelectModule }) {
           setSelectedDivision(null);
         }
       } catch (requestError) {
-        if (active) setError(requestError?.message || "Unable to load divisions.");
+        if (active)
+          setError(requestError?.message || "Unable to load divisions.");
       }
     };
     void loadDivisions();
@@ -4161,10 +4173,6 @@ function HallTicketScreen({ session, onBack, onSelectModule }) {
     }),
     [selectedExam, selectedClass, selectedDivision, subjects],
   );
-
-  const activeExamination = selectedExam;
-  const activeTargetClass = selectedClass;
-  const activeDivision = selectedDivision;
 
   return (
     <View style={styles.screenWrap}>

@@ -26,6 +26,7 @@ import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
 import TeacherLeaveManagementScreen from "./TeacherLeaveManagementScreen";
+import TeacherMessagesScreen from "./TeacherMessagesScreen";
 import TeacherOMRScreen from "./TeacherOMRScreen";
 import TeacherTimetableScreen from "./TeacherTimetableScreen";
 
@@ -57,10 +58,11 @@ const primaryNavItems = [
   { label: "More", icon: "menu-outline" },
 ];
 
-const moreNavItems = ["Exams / Marks", "OMR System"];
+const moreNavItems = ["Exams / Marks", "Messages", "OMR System"];
 
 const moreModuleIcons = {
   "Exams / Marks": "ribbon-outline",
+  "Messages": "mail-outline",
   "OMR System": "scan-outline",
 };
 
@@ -573,6 +575,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [timetableMenuOpen, setTimetableMenuOpen] = useState(false);
   const [timetableSubmodule, setTimetableSubmodule] =
     useState("Class Timetable");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const loadDashboard = useCallback(
     async (isRefresh = false) => {
@@ -583,6 +586,24 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       try {
         const data = await teacherApi.getDashboard(session);
         setDashboardData(data);
+
+        try {
+          const notifications = await teacherApi.getNotifications(session);
+          const nextNotifications = Array.isArray(notifications)
+            ? notifications
+            : [];
+          const unreadCount = nextNotifications.filter((item) => {
+            const readStatus =
+              item?.read === true ||
+              item?.isRead === true ||
+              item?.read_status === true ||
+              item?.status === "read";
+            return !readStatus;
+          }).length;
+          setUnreadNotifications(unreadCount);
+        } catch {
+          setUnreadNotifications(0);
+        }
       } catch {
         setError("Unable to load dashboard data from the API.");
         setDashboardData({
@@ -593,6 +614,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           quickActions: [],
           attendanceWeekly: [],
         });
+        setUnreadNotifications(0);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -657,6 +679,15 @@ export default function TeacherPortalScreen({ session, onLogout }) {
             onRefresh={refreshDashboard}
           />
         </>
+      );
+    }
+
+    if (activeModule === "Messages") {
+      return (
+        <TeacherMessagesScreen
+          session={session}
+          onBack={() => setActiveModule("Home")}
+        />
       );
     }
 
@@ -785,6 +816,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="Open teacher notifications"
+            onPress={() => setActiveModule("Messages")}
+            style={styles.headerIconButton}
+          >
+            <Icon name="notifications-outline" size={19} color="#C8DBF2" />
+            {unreadNotifications > 0 ? (
+              <Text style={styles.unreadBadge}>
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </Text>
+            ) : null}
+          </Pressable>
           <Pressable onPress={signOut} style={styles.logout}>
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
             <Text style={styles.logoutText}>Logout</Text>
@@ -1074,6 +1117,11 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                   if (item === "Exams / Marks") {
                     setMoreOpen(false);
                     setExamsMenuOpen(true);
+                    return;
+                  }
+                  if (item === "Messages") {
+                    setMoreOpen(false);
+                    setActiveModule("Messages");
                     return;
                   }
                   handleNavigate(item);

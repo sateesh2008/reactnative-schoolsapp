@@ -195,7 +195,6 @@ function LeaveCard({ item, onView }) {
           </Text>
         ) : null}
       </View>
-
     </View>
   );
 }
@@ -367,8 +366,7 @@ export default function TeacherLeaveManagementScreen({ session }) {
           created?.from ||
           created?.start_date ||
           formatRequestDate(request.from),
-        to:
-          created?.to || created?.end_date || formatRequestDate(request.to),
+        to: created?.to || created?.end_date || formatRequestDate(request.to),
         reason: created?.reason || request.reason.trim(),
         status: normalizeLeaveStatus(created?.status),
         appliedDate:
@@ -586,11 +584,7 @@ export default function TeacherLeaveManagementScreen({ session }) {
             <Text style={styles.loadingText}>Loading leave requests...</Text>
           ) : visible.length ? (
             visible.map((item) => (
-              <LeaveCard
-                key={item.id}
-                item={item}
-                onView={openLeaveDetails}
-              />
+              <LeaveCard key={item.id} item={item} onView={openLeaveDetails} />
             ))
           ) : (
             <Text style={styles.emptyText}>

@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Modal,
     Platform,
     Pressable,
+    RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -397,7 +398,15 @@ function ModulePlaceholder({ title, icon, description }) {
   );
 }
 
-function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
+function DashboardScreen({
+  data,
+  session,
+  onNavigate,
+  onSearch,
+  query,
+  refreshing,
+  onRefresh,
+}) {
   const dashboardData = data?.dashboardData || {};
   const teacher = data?.teacher || buildFallbackTeacher(session || {});
   const shortcuts = data?.shortcuts || [];
@@ -410,6 +419,13 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
       style={styles.screenScroll}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.blue}
+        />
+      }
     >
       <View style={styles.headingRow}>
         <View style={{ flex: 1 }}>
@@ -549,6 +565,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [dashboardData, setDashboardData] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
@@ -557,38 +574,41 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [timetableSubmodule, setTimetableSubmodule] =
     useState("Class Timetable");
 
-  useEffect(() => {
-    let active = true;
-
-    const fetchDashboard = async () => {
-      setLoading(true);
+  const loadDashboard = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setError("");
 
       try {
         const data = await teacherApi.getDashboard(session);
-        if (active) setDashboardData(data);
+        setDashboardData(data);
       } catch {
-        if (active) {
-          setError("Unable to load dashboard data from the API.");
-          setDashboardData({
-            teacher: buildFallbackTeacher(session || {}),
-            dashboardData: {},
-            shortcuts: [],
-            notices: [],
-            quickActions: [],
-            attendanceWeekly: [],
-          });
-        }
+        setError("Unable to load dashboard data from the API.");
+        setDashboardData({
+          teacher: buildFallbackTeacher(session || {}),
+          dashboardData: {},
+          shortcuts: [],
+          notices: [],
+          quickActions: [],
+          attendanceWeekly: [],
+        });
       } finally {
-        if (active) setLoading(false);
+        setLoading(false);
+        setRefreshing(false);
       }
-    };
+    },
+    [session],
+  );
 
-    void fetchDashboard();
-    return () => {
-      active = false;
-    };
-  }, [session]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadDashboard]);
+
+  const refreshDashboard = () => loadDashboard(true);
 
   const handleNavigate = (module) => {
     if (!module) return;
@@ -633,6 +653,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
             query={search}
             onSearch={setSearch}
             onNavigate={handleNavigate}
+            refreshing={refreshing}
+            onRefresh={refreshDashboard}
           />
         </>
       );
@@ -1516,3 +1538,4 @@ const styles = StyleSheet.create({
 });
 
 export { moreNavItems, primaryNavItems };
+

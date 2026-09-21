@@ -551,6 +551,7 @@ export const teacherApi = {
 
     const [
       assignedResult,
+      announcementsResult,
       holidayResult,
       timetableResult,
       homeworkResult,
@@ -559,6 +560,7 @@ export const teacherApi = {
       apiRequest("/attendance/assigned-classes-divisions", {
         token: session?.token,
       }),
+      apiRequest("/announcements", { token: session?.token }),
       apiRequest("/holidays", { token: session?.token }),
       apiRequest("/timetable/teacher", { token: session?.token }),
       apiRequest("/homework", { token: session?.token }),
@@ -673,6 +675,36 @@ export const teacherApi = {
       ? holidayPayload
       : holidayPayload?.holidays || [];
 
+    const announcementPayload =
+      announcementsResult.status === "fulfilled"
+        ? announcementsResult.value
+        : null;
+    const announcementRecords =
+      announcementPayload?.announcements ||
+      announcementPayload?.data?.announcements ||
+      announcementPayload?.data?.data ||
+      announcementPayload?.data ||
+      announcementPayload ||
+      [];
+    const facultyAnnouncements = (
+      Array.isArray(announcementRecords) ? announcementRecords : []
+    ).map((announcement) => ({
+      id: announcement?.id || announcement?.announcement_id,
+      category: announcement?.type || announcement?.category || "Announcement",
+      date:
+        announcement?.created_at ||
+        announcement?.date ||
+        announcement?.createdAt ||
+        "",
+      title: announcement?.title || announcement?.subject || "Announcement",
+      description:
+        announcement?.message ||
+        announcement?.content ||
+        announcement?.description ||
+        "",
+      priority: announcement?.priority || "Normal",
+    }));
+
     const examPayload =
       examResult.status === "fulfilled"
         ? examResult.value?.data?.data ||
@@ -767,14 +799,14 @@ export const teacherApi = {
             : [];
     }
 
-    const notices = holidayRecords.length
-      ? holidayRecords.map((holiday) => ({
+    const notices = facultyAnnouncements.length
+      ? facultyAnnouncements
+      : holidayRecords.map((holiday) => ({
           category: "Holiday",
           date: holiday?.start_date || holiday?.date || "",
           title: holiday?.holiday_name || holiday?.title || "School holiday",
           description: holiday?.description || "",
-        }))
-      : [];
+        }));
 
     const initials =
       (teacherName || "T")
@@ -794,15 +826,7 @@ export const teacherApi = {
       totalStudents: dashboardMetrics.totalStudents || attendanceTotal || 0,
       attendancePercentage:
         dashboardMetrics.attendancePercentage || attendancePercentage || 0,
-      pendingMarks:
-        dashboardMetrics.pendingMarks ||
-        Math.max(
-          0,
-          Math.min(
-            99,
-            (homeworkRecords.length || 0) + (examRecords.length || 0),
-          ),
-        ),
+      pendingMarks: dashboardMetrics.pendingMarks,
       weeklyAttendance:
         dashboardMetrics.weeklyAttendance.length > 0
           ? dashboardMetrics.weeklyAttendance
@@ -837,7 +861,6 @@ export const teacherApi = {
   async getStaff(session) {
     if (!isApiConfigured) return [];
     const payload = await apiRequest("/staff", { token: session?.token });
-    console.log("getStaff payload:", payload);
     return payload?.data || payload?.staff || payload?.results || [];
   },
 

@@ -1351,12 +1351,13 @@ function ExamAttendanceScreen({ session, onBack, onSelectModule }) {
       "Schedule Exam": "Set Exams",
       "Exam Schedules": "View Exams",
       Attendance: "Exam Attendance",
+      "Attendance History": "Attendance Result",
       "Marks Entry": "Exam Result",
       "Publish Results": "Publish Result",
       "Class Reports": "Class Result",
       "Hall Tickets": "Hall Ticket",
     };
-    if (moduleMap[tab] && tab !== "Attendance") onSelectModule(moduleMap[tab]);
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -3647,13 +3648,13 @@ function AttendanceResultScreen({ session, onBack, onSelectModule }) {
       "Schedule Exam": "Set Exams",
       "Exam Schedules": "View Exams",
       Attendance: "Exam Attendance",
+      "Attendance History": "Attendance Result",
       "Marks Entry": "Exam Result",
       "Publish Results": "Publish Result",
       "Class Reports": "Class Result",
       "Hall Tickets": "Hall Ticket",
     };
-    if (moduleMap[tab] && tab !== "Attendance History")
-      onSelectModule(moduleMap[tab]);
+    if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
   return (
@@ -3984,70 +3985,110 @@ function AttendanceResultScreen({ session, onBack, onSelectModule }) {
   );
 }
 
-const hallTicketExam = {
-  examination: "Periodic Text (Class_4)",
-  targetClass: "All Classes",
-  division: "All Divisions",
-  venue: "Main School Campus",
-  reportingTime: "08:30 AM",
-  subjects: [
-    {
-      name: "Teluguu",
-      date: "07/09/2026",
-      time: "12:00 - 13:00",
-      marks: "100.00 M",
-    },
-    {
-      name: "Englishh",
-      date: "08/09/2026",
-      time: "12:00 - 13:00",
-      marks: "100.00 M",
-    },
-    {
-      name: "Math",
-      date: "09/09/2026",
-      time: "12:00 - 13:00",
-      marks: "100.00 M",
-    },
-  ],
-  guidelines: [
-    "Bring this Hall Ticket and School ID Card.",
-    "Arrive 15 minutes before exam start.",
-    "Electronic devices and study materials are strictly prohibited.",
-  ],
-  candidates: [
-    {
-      id: "candidate-1",
-      rollNo: "-",
-      name: "KUNCHAM sivaramj",
-      admissionNo: "ADM0012",
-      classSection: "Class_4 - A",
-    },
-    {
-      id: "candidate-2",
-      rollNo: "-",
-      name: "Siva Karthik",
-      admissionNo: "1111",
-      classSection: "Class_4 - A",
-    },
-  ],
+const hallTicketDefaults = {
+  venue: "",
+  reportingTime: "",
+  guidelines: "",
 };
 
-function HallTicketScreen({ onBack, onSelectModule }) {
-  const [candidates, setCandidates] = useState(() =>
-    hallTicketExam.candidates.map((candidate) => ({
-      ...candidate,
-      selected: true,
-    })),
-  );
+function HallTicketScreen({ session, onBack, onSelectModule }) {
+  const [exams, setExams] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [selectedExam, setSelectedExam] = useState(null);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedDivision, setSelectedDivision] = useState(null);
+  const [candidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [previewCandidate, setPreviewCandidate] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState({
-    venue: hallTicketExam.venue,
-    reportingTime: hallTicketExam.reportingTime,
-    guidelines: hallTicketExam.guidelines.join("\n"),
+    ...hallTicketDefaults,
   });
+
+  useEffect(() => {
+    let active = true;
+    const loadOptions = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [examResult, classResult] = await Promise.all([
+          teacherApi.fetchExams(session),
+          teacherAttendanceApi.getAcademicClasses(session),
+        ]);
+        if (!active) return;
+        const nextExams = Array.isArray(examResult) ? examResult : [];
+        const nextClasses = Array.isArray(classResult) ? classResult : [];
+        setExams(nextExams);
+        setClasses(nextClasses);
+        setSelectedExam(nextExams[0] || null);
+        setSelectedClass(nextClasses[0] || null);
+      } catch (requestError) {
+        if (active) {
+          setError(requestError?.message || "Unable to load hall-ticket configuration.");
+          setExams([]);
+          setClasses([]);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadOptions();
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedExam) {
+      setSubjects([]);
+      return undefined;
+    }
+    let active = true;
+    const loadSubjects = async () => {
+      try {
+        const result = await teacherApi.getExamSubjects(selectedExam.id, session);
+        if (active) setSubjects(Array.isArray(result) ? result : []);
+      } catch (requestError) {
+        if (active) setError(requestError?.message || "Unable to load examination subjects.");
+      }
+    };
+    void loadSubjects();
+    return () => {
+      active = false;
+    };
+  }, [selectedExam, session]);
+
+  useEffect(() => {
+    if (!selectedClass) {
+      setDivisions([]);
+      setSelectedDivision(null);
+      return undefined;
+    }
+    let active = true;
+    const loadDivisions = async () => {
+      try {
+        const result = await teacherAttendanceApi.getAcademicDivisions(
+          session,
+          selectedClass.id,
+        );
+        if (active) {
+          const nextDivisions = Array.isArray(result) ? result : [];
+          setDivisions(nextDivisions);
+          setSelectedDivision(null);
+        }
+      } catch (requestError) {
+        if (active) setError(requestError?.message || "Unable to load divisions.");
+      }
+    };
+    void loadDivisions();
+    return () => {
+      active = false;
+    };
+  }, [selectedClass, session]);
 
   const selectedCandidates = candidates.filter(
     (candidate) => candidate.selected,
@@ -4072,14 +4113,7 @@ function HallTicketScreen({ onBack, onSelectModule }) {
     if (moduleMap[tab]) onSelectModule(moduleMap[tab]);
   };
 
-  const toggleCandidate = (id) =>
-    setCandidates((current) =>
-      current.map((candidate) =>
-        candidate.id === id
-          ? { ...candidate, selected: !candidate.selected }
-          : candidate,
-      ),
-    );
+  const toggleCandidate = () => {};
   const showPdfNotice = () =>
     Alert.alert(
       "PDF generation",
@@ -4098,12 +4132,39 @@ function HallTicketScreen({ onBack, onSelectModule }) {
     );
   };
 
-  const activeExamination = selectedExamination || defaultExamination;
-  const activeTargetClass = selectedTargetClass || defaultTargetClass;
-  const activeDivision = selectedDivision || defaultDivision;
-  const activeDivisionOptions = activeTargetClass === defaultTargetClass
-    ? [{ id: 'all-divisions', label: defaultDivision }]
-    : divisionOptions;
+  const hallTicketExam = useMemo(
+    () => ({
+      examination:
+        selectedExam?.name ||
+        selectedExam?.title ||
+        selectedExam?.examName ||
+        "Select Examination",
+      targetClass:
+        selectedClass?.name ||
+        selectedClass?.className ||
+        selectedClass?.label ||
+        "Select Class",
+      division:
+        selectedDivision?.name ||
+        selectedDivision?.label ||
+        selectedDivision?.divisionName ||
+        "All Divisions",
+      subjects: Array.isArray(subjects)
+        ? subjects.map((subject) => ({
+            id: subject?.id || subject?.subjectId || subject?.name,
+            name: subject?.name || subject?.subjectName || "Untitled Subject",
+            date: subject?.date || subject?.examDate || "—",
+            time: subject?.time || subject?.examTime || "—",
+            marks: subject?.marks || subject?.maxMarks || "—",
+          }))
+        : [],
+    }),
+    [selectedExam, selectedClass, selectedDivision, subjects],
+  );
+
+  const activeExamination = selectedExam;
+  const activeTargetClass = selectedClass;
+  const activeDivision = selectedDivision;
 
   return (
     <View style={styles.screenWrap}>
@@ -4484,8 +4545,22 @@ export default function TeacherExamsMarksScreen({
   onBack,
 }) {
   const activeModule = module || "Exams / Marks";
+  const normalizedActiveModule =
+    activeModule === "Set Exam"
+      ? "Set Exams"
+      : activeModule === "View Exam"
+        ? "View Exams"
+        : activeModule === "Publish Exam"
+          ? "Publish Result"
+          : activeModule === "Class Results"
+            ? "Class Result"
+            : activeModule === "Attendance History"
+              ? "Attendance Result"
+              : activeModule === "Hall Tickets"
+                ? "Hall Ticket"
+                : activeModule;
 
-  if (activeModule === "Set Exams") {
+  if (normalizedActiveModule === "Set Exams") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4499,7 +4574,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "View Exams") {
+  if (normalizedActiveModule === "View Exams") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4525,7 +4600,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Exam Attendance") {
+  if (normalizedActiveModule === "Exam Attendance") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4540,7 +4615,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Exam Result") {
+  if (normalizedActiveModule === "Exam Result") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4555,7 +4630,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Publish Result") {
+  if (normalizedActiveModule === "Publish Result") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4570,7 +4645,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Class Result") {
+  if (normalizedActiveModule === "Class Result") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4585,7 +4660,7 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Attendance Result") {
+  if (normalizedActiveModule === "Attendance Result") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -4600,14 +4675,16 @@ export default function TeacherExamsMarksScreen({
     );
   }
 
-  if (activeModule === "Hall Ticket") {
+  if (normalizedActiveModule === "Hall Ticket") {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         <HallTicketScreen
+          session={session}
           onBack={() => onSelectModule && onSelectModule("Exams / Marks")}
+          onSelectModule={onSelectModule}
         />
       </ScrollView>
     );

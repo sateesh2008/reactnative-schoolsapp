@@ -668,6 +668,21 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
+    const normalizedExamModule =
+      activeModule === "Set Exam"
+        ? "Set Exams"
+        : activeModule === "View Exam"
+          ? "View Exams"
+          : activeModule === "Publish Exam"
+            ? "Publish Result"
+            : activeModule === "Class Results"
+              ? "Class Result"
+              : activeModule === "Attendance History"
+                ? "Attendance Result"
+                : activeModule === "Hall Tickets"
+                  ? "Hall Ticket"
+                  : activeModule;
+
     if (
       [
         "Exams / Marks",
@@ -679,12 +694,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         "Class Result",
         "Attendance Result",
         "Hall Ticket",
-      ].includes(activeModule)
+        "Set Exam",
+        "View Exam",
+        "Publish Exam",
+        "Class Results",
+        "Attendance History",
+        "Hall Tickets",
+      ].includes(normalizedExamModule || activeModule)
     ) {
       return (
         <TeacherExamsMarksScreen
           session={session}
-          module={activeModule}
+          module={normalizedExamModule || activeModule}
           onSelectModule={setActiveModule}
         />
       );

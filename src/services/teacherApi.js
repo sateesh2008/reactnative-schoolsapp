@@ -573,7 +573,40 @@ export const teacherApi = {
         : [];
     const assignments = Array.isArray(assignedPayload)
       ? assignedPayload
-      : assignedPayload?.assignments || [];
+      : Array.isArray(assignedPayload?.assignments)
+        ? assignedPayload.assignments
+        : Array.isArray(assignedPayload?.records)
+          ? assignedPayload.records
+          : [];
+
+    const uniqueClassAssignments = new Map();
+    assignments.forEach((item) => {
+      const classId = item?.class_id ?? item?.classId ?? item?.class ?? "all";
+      const className =
+        item?.class_name || item?.className || item?.className || "All Classes";
+      const divisionId =
+        item?.division_id ?? item?.divisionId ?? item?.section_id ?? "all";
+      const divisionName =
+        item?.division_name ||
+        item?.divisionName ||
+        item?.section_name ||
+        item?.section ||
+        "All Divisions";
+      const subjectId = item?.subject_id ?? item?.subjectId ?? "";
+      const subjectName =
+        item?.subject_name || item?.subjectName || item?.subject || "";
+      const key = `${String(classId)}|${String(divisionId)}|${String(subjectId)}|${String(subjectName)}`;
+      if (!uniqueClassAssignments.has(key)) {
+        uniqueClassAssignments.set(key, {
+          classId,
+          className,
+          divisionId,
+          divisionName,
+          subjectId,
+          subjectName,
+        });
+      }
+    });
 
     const uniqueClasses = new Set(
       assignments.map((item) =>
@@ -820,13 +853,18 @@ export const teacherApi = {
     const dashboardData = {
       activeLoad:
         dashboardMetrics.activeLoad ||
+        uniqueClassAssignments.size ||
         uniqueClasses.size ||
         assignments.length ||
         0,
-      totalStudents: dashboardMetrics.totalStudents || attendanceTotal || 0,
+      totalStudents:
+        dashboardMetrics.totalStudents ||
+        assignments.length ||
+        attendanceTotal ||
+        0,
       attendancePercentage:
         dashboardMetrics.attendancePercentage || attendancePercentage || 0,
-      pendingMarks: dashboardMetrics.pendingMarks,
+      pendingMarks: dashboardMetrics.pendingMarks || 0,
       weeklyAttendance:
         dashboardMetrics.weeklyAttendance.length > 0
           ? dashboardMetrics.weeklyAttendance

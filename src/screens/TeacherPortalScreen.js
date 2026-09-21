@@ -13,7 +13,10 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { teacherApi } from "../services/teacherApi";
 import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
@@ -53,27 +56,10 @@ const primaryNavItems = [
   { label: "More", icon: "menu-outline" },
 ];
 
-const moreNavItems = [
-  "My Students",
-  "Exams / Marks",
-  "Timetable",
-  "Leave",
-  "Messaging",
-  "Notifications",
-  "Reports",
-  "Gate Pass",
-  "OMR System",
-];
+const moreNavItems = ["Exams / Marks", "OMR System"];
 
 const moreModuleIcons = {
-  "My Students": "people-outline",
   "Exams / Marks": "ribbon-outline",
-  Timetable: "time-outline",
-  Leave: "document-text-outline",
-  Messaging: "chatbubble-ellipses-outline",
-  Notifications: "notifications-outline",
-  Reports: "bar-chart-outline",
-  "Gate Pass": "log-out-outline",
   "OMR System": "scan-outline",
 };
 
@@ -470,7 +456,6 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
           detail="Active Load"
           tint={colors.paleBlue}
           iconColor={colors.blue}
-          onPress={() => onNavigate("My Students")}
         />
         <TeacherStatCard
           icon="people-outline"
@@ -479,7 +464,6 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
           detail="Mentored"
           tint={colors.paleTeal}
           iconColor={colors.teal}
-          onPress={() => onNavigate("My Students")}
         />
         <TeacherStatCard
           icon="pie-chart-outline"
@@ -560,8 +544,7 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
 }
 
 export default function TeacherPortalScreen({ session, onLogout }) {
-  const unreadMessages = 3;
-  const unreadNotifications = 5;
+  const insets = useSafeAreaInsets();
   const [activeModule, setActiveModule] = useState("Home");
   const [dashboardData, setDashboardData] = useState({});
   const [search, setSearch] = useState("");
@@ -655,16 +638,6 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       );
     }
 
-    if (activeModule === "My Students") {
-      return (
-        <ModulePlaceholder
-          title="My Students"
-          icon="people-outline"
-          description="Student groups, mentor list, and class allocation are ready for future API integration."
-        />
-      );
-    }
-
     if (activeModule === "Homework") {
       return <TeacherHomeworkScreen session={session} />;
     }
@@ -706,36 +679,6 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
     if (activeModule === "Leave") {
       return <TeacherLeaveManagementScreen session={session} />;
-    }
-
-    if (activeModule === "Messaging") {
-      return (
-        <ModulePlaceholder
-          title="Messaging"
-          icon="chatbubble-ellipses-outline"
-          description="Parent and staff communication channels can be connected to this screen."
-        />
-      );
-    }
-
-    if (activeModule === "Notifications") {
-      return (
-        <ModulePlaceholder
-          title="Notifications"
-          icon="notifications-outline"
-          description="Live updates, alerts, and announcements for the teaching staff."
-        />
-      );
-    }
-
-    if (activeModule === "Reports") {
-      return (
-        <ModulePlaceholder
-          title="Reports"
-          icon="bar-chart-outline"
-          description="Attendance, academic performance, and operational insights will be displayed here."
-        />
-      );
     }
 
     if (activeModule === "Gate Pass") {
@@ -787,7 +730,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
 
       <View style={styles.header}>
@@ -799,26 +742,6 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <Pressable
-            accessibilityLabel={`${unreadMessages} unread messages`}
-            onPress={() => setActiveModule("Messaging")}
-            style={styles.headerIconButton}
-          >
-            <Icon
-              name="chatbubble-ellipses-outline"
-              size={19}
-              color="#C8DBF2"
-            />
-            <Text style={styles.unreadBadge}>{unreadMessages}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityLabel={`${unreadNotifications} unread notifications`}
-            onPress={() => setActiveModule("Notifications")}
-            style={styles.headerIconButton}
-          >
-            <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            <Text style={styles.unreadBadge}>{unreadNotifications}</Text>
-          </Pressable>
           <Pressable onPress={signOut} style={styles.logout}>
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
             <Text style={styles.logoutText}>Logout</Text>
@@ -839,7 +762,15 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       {renderModuleView()}
 
-      <View style={styles.bottomNav}>
+      <View
+        style={[
+          styles.bottomNav,
+          {
+            paddingBottom: Math.max(insets.bottom, 10),
+            minHeight: 74 + insets.bottom,
+          },
+        ]}
+      >
         {primaryNavItems.map((item) => {
           const module = item.module || item.label;
           const isActive =
@@ -883,6 +814,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
               />
               <Text
                 style={[styles.navLabel, isActive && styles.navLabelActive]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
                 {item.label}
               </Text>
@@ -1125,23 +1058,9 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                     {item === "Exams / Marks" ? "Exams" : item}
                   </Text>
                   <Text style={styles.moreItemDescription}>
-                    {item === "My Students"
-                      ? "View assigned students"
-                      : item === "Exams / Marks"
-                        ? "Review examination marks"
-                        : item === "Timetable"
-                          ? "View teaching schedule"
-                          : item === "Leave"
-                            ? "Apply and manage leave"
-                            : item === "Messaging"
-                              ? "Communicate with students and parents"
-                              : item === "Notifications"
-                                ? "View notifications"
-                                : item === "Reports"
-                                  ? "View teaching reports"
-                                  : item === "Gate Pass"
-                                    ? "Manage gate pass requests"
-                                    : "Manage OMR examinations"}
+                    {item === "Exams / Marks"
+                      ? "Review examination marks"
+                      : "Manage OMR examinations"}
                   </Text>
                 </View>
               </Pressable>
@@ -1456,15 +1375,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.line,
     flexDirection: "row",
-    justifyContent: "space-around",
     paddingTop: 9,
     paddingBottom: 10,
     minHeight: 74,
@@ -1473,14 +1387,16 @@ const styles = StyleSheet.create({
   },
   navItem: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 7,
+    paddingVertical: 5,
   },
   navItemActive: { backgroundColor: colors.paleBlue },
   navLabel: {
     color: colors.muted,
     fontSize: 10,
+    lineHeight: 12,
     fontWeight: "700",
     marginTop: 4,
     textAlign: "center",

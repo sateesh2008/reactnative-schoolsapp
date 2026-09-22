@@ -98,12 +98,17 @@ export async function apiRequest(
     }
 
     const payloadMessage =
-      payload && typeof payload === "object" && "message" in payload
-        ? payload.message
+      payload && typeof payload === "object"
+        ? payload.message || payload.error || payload.errors
         : undefined;
+    const message = Array.isArray(payloadMessage)
+      ? payloadMessage.filter(Boolean).join(" ")
+      : typeof payloadMessage === "object"
+        ? Object.values(payloadMessage).flat().filter(Boolean).join(" ")
+        : payloadMessage;
 
     throw new ApiError(
-      payloadMessage ||
+      message ||
         `${errorMessageForStatus(response.status)} (${method} ${path})`,
       response.status,
       payload,

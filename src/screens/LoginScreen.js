@@ -106,6 +106,12 @@ export default function LoginScreen({ onLogin }) {
         id: teacherId,
         name: user.name || user.full_name || user.fullName,
         schoolName: user.tenant?.name || user.school?.name || user.school_name,
+        academicYearId:
+          result?.academic_year_id ||
+          result?.academicYearId ||
+          user?.academic_year_id ||
+          user?.academicYearId ||
+          user?.tenant?.current_academic_year_id,
       });
     } catch (error) {
       setMessage(error?.message || "Unable to sign in. Please try again.");

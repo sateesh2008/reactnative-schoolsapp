@@ -1,4 +1,4 @@
-import { apiRequest, isApiConfigured } from "./api";
+import { apiRequest, isApiConfigured } from "./api.js";
 
 let localHomework = [];
 let localSubmissions = {};
@@ -1707,19 +1707,23 @@ export const teacherAttendanceApi = {
   async submitAttendance(data, session) {
     const attendanceData = (data?.attendanceData || data?.records || []).map(
       (record) => ({
-        student_id: record.student_id || record.studentId,
+        student_id: String(record.student_id || record.studentId),
         status: record.status,
       }),
     );
     const academicYearId =
+      data?.academic_year_id ||
+      session?.academicYearId ||
+      session?.academic_year_id ||
       session?.user?.tenant?.current_academic_year_id ||
       session?.tenant?.current_academic_year_id;
     const body = {
-      ...data,
-      ...(academicYearId ? { academic_year_id: academicYearId } : {}),
+      academic_year_id: academicYearId,
+      class_id: data?.class_id,
+      division_id: data?.division_id,
+      date: formatDateForPayrollApi(data?.date),
       attendanceData,
     };
-    delete body.records;
     logApi("POST", "/attendance", {
       ...body,
       attendanceData: `${attendanceData.length} record(s)`,
@@ -1727,7 +1731,7 @@ export const teacherAttendanceApi = {
     return apiRequest("/attendance", {
       method: "POST",
       token: session?.token,
-      body: { ...body, date: formatDateForPayrollApi(data?.date) },
+      body,
     });
   },
 

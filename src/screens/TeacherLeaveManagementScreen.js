@@ -33,7 +33,7 @@ const types = [
   "Sick Leave",
   "Casual Leave",
 ];
-const statuses = ["All", "Approved", "Pending", "Rejected"];
+const statuses = ["All", "Approved", "Pending", "Rejected", "Cancelled"];
 
 function Icon({ name, size = 18, color = colors.ink }) {
   return <Ionicons name={name} size={size} color={color} />;
@@ -99,7 +99,22 @@ function Summary({ title, value, label, icon, tint, accent }) {
   );
 }
 
-function LeaveCard({ item, onApprove, onReject, onView }) {
+function normalizeLeaveStatus(value) {
+  const normalized = String(value || "Pending")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function calculateLeaveDays(from, to) {
+  const start = new Date(from);
+  const end = new Date(to);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+  return Math.max(1, Math.ceil((end - start) / 86400000) + 1);
+}
+
+function LeaveCard({ item, onView }) {
   return (
     <View
       style={[
@@ -167,21 +182,19 @@ function LeaveCard({ item, onApprove, onReject, onView }) {
           {item.from} <Text style={styles.key}>To: </Text>
           {item.to}
         </Text>
+        {item.numberOfDays ? (
+          <Text style={styles.detail}>
+            <Text style={styles.key}>Number of days: </Text>
+            {item.numberOfDays}
+          </Text>
+        ) : null}
+        {item.appliedDate ? (
+          <Text style={styles.detail}>
+            <Text style={styles.key}>Applied date: </Text>
+            {item.appliedDate}
+          </Text>
+        ) : null}
       </View>
-
-      {item.status === "Pending" ? (
-        <View style={styles.actions}>
-          <Pressable
-            style={styles.approveButton}
-            onPress={() => onApprove(item)}
-          >
-            <Text style={styles.actionText}>Approve</Text>
-          </Pressable>
-          <Pressable style={styles.rejectButton} onPress={() => onReject(item)}>
-            <Text style={styles.actionText}>Reject</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -266,7 +279,21 @@ export default function TeacherLeaveManagementScreen({ session }) {
           item.leaveType || item.leave_type || item.category || "Medical Leave",
         from: item.from || item.start_date || item.startDate || "",
         to: item.to || item.end_date || item.endDate || "",
-        status: item.status || "Pending",
+        numberOfDays:
+          item.numberOfDays ||
+          item.number_of_days ||
+          item.days ||
+          calculateLeaveDays(
+            item.from || item.start_date || item.startDate,
+            item.to || item.end_date || item.endDate,
+          ),
+        appliedDate:
+          item.appliedDate ||
+          item.applied_date ||
+          item.created_at ||
+          item.createdAt ||
+          "",
+        status: normalizeLeaveStatus(item.status),
       })),
     [records],
   );
@@ -302,25 +329,6 @@ export default function TeacherLeaveManagementScreen({ session }) {
   const currentPage = Math.min(page, totalPages);
   const visible = filtered.slice((currentPage - 1) * size, currentPage * size);
 
-  const updateStatus = async (item, nextStatus) => {
-    try {
-      await teacherApi.updateLeaveStatus(item.id, nextStatus, session);
-      setRecords((current) =>
-        current.map((record) =>
-          String(record.id || record.leave_id || record.leaveId) ===
-          String(item.id)
-            ? { ...record, status: nextStatus }
-            : record,
-        ),
-      );
-    } catch (requestError) {
-      Alert.alert(
-        "Unable to update leave status",
-        requestError?.message || "Please try again.",
-      );
-    }
-  };
-
   const submitRequest = async () => {
     if (!request.reason.trim()) {
       Alert.alert("Reason required", "Please enter a reason for the absence.");
@@ -348,19 +356,33 @@ export default function TeacherLeaveManagementScreen({ session }) {
         session,
       );
 
+      const createdRecord = {
+        ...(created && typeof created === "object" ? created : {}),
+        parentName: created?.parentName || "You",
+        role: created?.role || "Teacher",
+        studentName: created?.studentName || "Faculty",
+        leaveType: created?.leaveType || created?.category || request.category,
+        from:
+          created?.from ||
+          created?.start_date ||
+          formatRequestDate(request.from),
+        to: created?.to || created?.end_date || formatRequestDate(request.to),
+        reason: created?.reason || request.reason.trim(),
+        status: normalizeLeaveStatus(created?.status),
+        appliedDate:
+          created?.appliedDate ||
+          created?.applied_date ||
+          created?.created_at ||
+          new Date().toISOString(),
+      };
       setRecords((current) => [
         {
-          ...created,
+          ...createdRecord,
           id:
-            created.id ||
-            created.leave_id ||
-            created.leaveId ||
+            createdRecord.id ||
+            createdRecord.leave_id ||
+            createdRecord.leaveId ||
             `leave-${current.length + 1}`,
-          parentName: created.parentName || "You",
-          role: created.role || "Teacher",
-          studentName: created.studentName || "Faculty",
-          leaveType: created.leaveType || created.category || request.category,
-          status: created.status || "Pending",
         },
         ...current,
       ]);
@@ -372,6 +394,9 @@ export default function TeacherLeaveManagementScreen({ session }) {
         reason: "",
         notes: "",
       });
+      setStatus("All");
+      setPage(1);
+      setSection("Pending Queue");
       Alert.alert("Request submitted", "Your absence request is now pending.");
     } catch {
       Alert.alert("Unable to submit request", "Please try again.");
@@ -559,13 +584,7 @@ export default function TeacherLeaveManagementScreen({ session }) {
             <Text style={styles.loadingText}>Loading leave requests...</Text>
           ) : visible.length ? (
             visible.map((item) => (
-              <LeaveCard
-                key={item.id}
-                item={item}
-                onApprove={(leaveItem) => updateStatus(leaveItem, "Approved")}
-                onReject={(leaveItem) => updateStatus(leaveItem, "Rejected")}
-                onView={openLeaveDetails}
-              />
+              <LeaveCard key={item.id} item={item} onView={openLeaveDetails} />
             ))
           ) : (
             <Text style={styles.emptyText}>
@@ -801,22 +820,6 @@ const styles = StyleSheet.create({
   details: { marginTop: 10, gap: 4 },
   detail: { color: colors.ink, fontSize: 12 },
   key: { color: colors.muted, fontWeight: "700" },
-  actions: { flexDirection: "row", gap: 8, marginTop: 12 },
-  approveButton: {
-    flex: 1,
-    backgroundColor: colors.green,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  rejectButton: {
-    flex: 1,
-    backgroundColor: colors.red,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  actionText: { color: colors.white, fontWeight: "800" },
   pagination: {
     flexDirection: "row",
     alignItems: "center",

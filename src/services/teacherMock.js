@@ -31,14 +31,11 @@ export const teacherNotices = teacherDashboardData.notices;
 
 export const teacherNavigationModules = [
   "Home",
-  "My Students",
   "Attendance",
   "Homework",
   "Exams / Marks",
   "Timetable",
   "Leave",
-  "Announcements",
-  "Reports",
   "Gate Pass",
   "OMR System",
 ];

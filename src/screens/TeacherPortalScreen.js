@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Modal,
     Platform,
     Pressable,
+    RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -13,7 +14,10 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { teacherApi } from "../services/teacherApi";
 import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
@@ -22,6 +26,7 @@ import TeacherGatePassScreen from "./TeacherGatePassScreen";
 import TeacherHomeworkEvaluationScreen from "./TeacherHomeworkEvaluationScreen";
 import TeacherHomeworkScreen from "./TeacherHomeworkScreen";
 import TeacherLeaveManagementScreen from "./TeacherLeaveManagementScreen";
+import TeacherMessagesScreen from "./TeacherMessagesScreen";
 import TeacherOMRScreen from "./TeacherOMRScreen";
 import TeacherTimetableScreen from "./TeacherTimetableScreen";
 
@@ -53,27 +58,11 @@ const primaryNavItems = [
   { label: "More", icon: "menu-outline" },
 ];
 
-const moreNavItems = [
-  "My Students",
-  "Exams / Marks",
-  "Timetable",
-  "Leave",
-  "Messaging",
-  "Notifications",
-  "Reports",
-  "Gate Pass",
-  "OMR System",
-];
+const moreNavItems = ["Exams / Marks", "Messages", "OMR System"];
 
 const moreModuleIcons = {
-  "My Students": "people-outline",
   "Exams / Marks": "ribbon-outline",
-  Timetable: "time-outline",
-  Leave: "document-text-outline",
-  Messaging: "chatbubble-ellipses-outline",
-  Notifications: "notifications-outline",
-  Reports: "bar-chart-outline",
-  "Gate Pass": "log-out-outline",
+  "Messages": "mail-outline",
   "OMR System": "scan-outline",
 };
 
@@ -411,7 +400,15 @@ function ModulePlaceholder({ title, icon, description }) {
   );
 }
 
-function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
+function DashboardScreen({
+  data,
+  session,
+  onNavigate,
+  onSearch,
+  query,
+  refreshing,
+  onRefresh,
+}) {
   const dashboardData = data?.dashboardData || {};
   const teacher = data?.teacher || buildFallbackTeacher(session || {});
   const shortcuts = data?.shortcuts || [];
@@ -424,6 +421,13 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
       style={styles.screenScroll}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.blue}
+        />
+      }
     >
       <View style={styles.headingRow}>
         <View style={{ flex: 1 }}>
@@ -470,7 +474,6 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
           detail="Active Load"
           tint={colors.paleBlue}
           iconColor={colors.blue}
-          onPress={() => onNavigate("My Students")}
         />
         <TeacherStatCard
           icon="people-outline"
@@ -479,7 +482,6 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
           detail="Mentored"
           tint={colors.paleTeal}
           iconColor={colors.teal}
-          onPress={() => onNavigate("My Students")}
         />
         <TeacherStatCard
           icon="pie-chart-outline"
@@ -560,12 +562,12 @@ function DashboardScreen({ data, session, onNavigate, onSearch, query }) {
 }
 
 export default function TeacherPortalScreen({ session, onLogout }) {
-  const unreadMessages = 3;
-  const unreadNotifications = 5;
+  const insets = useSafeAreaInsets();
   const [activeModule, setActiveModule] = useState("Home");
   const [dashboardData, setDashboardData] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [homeworkMenuOpen, setHomeworkMenuOpen] = useState(false);
@@ -573,39 +575,62 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [timetableMenuOpen, setTimetableMenuOpen] = useState(false);
   const [timetableSubmodule, setTimetableSubmodule] =
     useState("Class Timetable");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-
-    const fetchDashboard = async () => {
-      setLoading(true);
+  const loadDashboard = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setError("");
 
       try {
         const data = await teacherApi.getDashboard(session);
-        if (active) setDashboardData(data);
-      } catch {
-        if (active) {
-          setError("Unable to load dashboard data from the API.");
-          setDashboardData({
-            teacher: buildFallbackTeacher(session || {}),
-            dashboardData: {},
-            shortcuts: [],
-            notices: [],
-            quickActions: [],
-            attendanceWeekly: [],
-          });
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
+        setDashboardData(data);
 
-    void fetchDashboard();
-    return () => {
-      active = false;
-    };
-  }, [session]);
+        try {
+          const notifications = await teacherApi.getNotifications(session);
+          const nextNotifications = Array.isArray(notifications)
+            ? notifications
+            : [];
+          const unreadCount = nextNotifications.filter((item) => {
+            const readStatus =
+              item?.read === true ||
+              item?.isRead === true ||
+              item?.read_status === true ||
+              item?.status === "read";
+            return !readStatus;
+          }).length;
+          setUnreadNotifications(unreadCount);
+        } catch {
+          setUnreadNotifications(0);
+        }
+      } catch {
+        setError("Unable to load dashboard data from the API.");
+        setDashboardData({
+          teacher: buildFallbackTeacher(session || {}),
+          dashboardData: {},
+          shortcuts: [],
+          notices: [],
+          quickActions: [],
+          attendanceWeekly: [],
+        });
+        setUnreadNotifications(0);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [session],
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadDashboard]);
+
+  const refreshDashboard = () => loadDashboard(true);
 
   const handleNavigate = (module) => {
     if (!module) return;
@@ -650,17 +675,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
             query={search}
             onSearch={setSearch}
             onNavigate={handleNavigate}
+            refreshing={refreshing}
+            onRefresh={refreshDashboard}
           />
         </>
       );
     }
 
-    if (activeModule === "My Students") {
+    if (activeModule === "Messages") {
       return (
-        <ModulePlaceholder
-          title="My Students"
-          icon="people-outline"
-          description="Student groups, mentor list, and class allocation are ready for future API integration."
+        <TeacherMessagesScreen
+          session={session}
+          onBack={() => setActiveModule("Home")}
         />
       );
     }
@@ -673,6 +699,21 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       return <TeacherHomeworkEvaluationScreen session={session} />;
     }
 
+    const normalizedExamModule =
+      activeModule === "Set Exam"
+        ? "Set Exams"
+        : activeModule === "View Exam"
+          ? "View Exams"
+          : activeModule === "Publish Exam"
+            ? "Publish Result"
+            : activeModule === "Class Results"
+              ? "Class Result"
+              : activeModule === "Attendance History"
+                ? "Attendance Result"
+                : activeModule === "Hall Tickets"
+                  ? "Hall Ticket"
+                  : activeModule;
+
     if (
       [
         "Exams / Marks",
@@ -684,12 +725,18 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         "Class Result",
         "Attendance Result",
         "Hall Ticket",
-      ].includes(activeModule)
+        "Set Exam",
+        "View Exam",
+        "Publish Exam",
+        "Class Results",
+        "Attendance History",
+        "Hall Tickets",
+      ].includes(normalizedExamModule || activeModule)
     ) {
       return (
         <TeacherExamsMarksScreen
           session={session}
-          module={activeModule}
+          module={normalizedExamModule || activeModule}
           onSelectModule={setActiveModule}
         />
       );
@@ -706,36 +753,6 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
     if (activeModule === "Leave") {
       return <TeacherLeaveManagementScreen session={session} />;
-    }
-
-    if (activeModule === "Messaging") {
-      return (
-        <ModulePlaceholder
-          title="Messaging"
-          icon="chatbubble-ellipses-outline"
-          description="Parent and staff communication channels can be connected to this screen."
-        />
-      );
-    }
-
-    if (activeModule === "Notifications") {
-      return (
-        <ModulePlaceholder
-          title="Notifications"
-          icon="notifications-outline"
-          description="Live updates, alerts, and announcements for the teaching staff."
-        />
-      );
-    }
-
-    if (activeModule === "Reports") {
-      return (
-        <ModulePlaceholder
-          title="Reports"
-          icon="bar-chart-outline"
-          description="Attendance, academic performance, and operational insights will be displayed here."
-        />
-      );
     }
 
     if (activeModule === "Gate Pass") {
@@ -787,7 +804,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
 
       <View style={styles.header}>
@@ -800,24 +817,16 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         </View>
         <View style={styles.headerActions}>
           <Pressable
-            accessibilityLabel={`${unreadMessages} unread messages`}
-            onPress={() => setActiveModule("Messaging")}
-            style={styles.headerIconButton}
-          >
-            <Icon
-              name="chatbubble-ellipses-outline"
-              size={19}
-              color="#C8DBF2"
-            />
-            <Text style={styles.unreadBadge}>{unreadMessages}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityLabel={`${unreadNotifications} unread notifications`}
-            onPress={() => setActiveModule("Notifications")}
+            accessibilityLabel="Open teacher notifications"
+            onPress={() => setActiveModule("Messages")}
             style={styles.headerIconButton}
           >
             <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            <Text style={styles.unreadBadge}>{unreadNotifications}</Text>
+            {unreadNotifications > 0 ? (
+              <Text style={styles.unreadBadge}>
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </Text>
+            ) : null}
           </Pressable>
           <Pressable onPress={signOut} style={styles.logout}>
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
@@ -839,7 +848,15 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       {renderModuleView()}
 
-      <View style={styles.bottomNav}>
+      <View
+        style={[
+          styles.bottomNav,
+          {
+            paddingBottom: Math.max(insets.bottom, 10),
+            minHeight: 74 + insets.bottom,
+          },
+        ]}
+      >
         {primaryNavItems.map((item) => {
           const module = item.module || item.label;
           const isActive =
@@ -883,6 +900,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
               />
               <Text
                 style={[styles.navLabel, isActive && styles.navLabelActive]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
                 {item.label}
               </Text>
@@ -1100,6 +1119,11 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                     setExamsMenuOpen(true);
                     return;
                   }
+                  if (item === "Messages") {
+                    setMoreOpen(false);
+                    setActiveModule("Messages");
+                    return;
+                  }
                   handleNavigate(item);
                 }}
                 style={({ pressed }) => [
@@ -1125,23 +1149,9 @@ export default function TeacherPortalScreen({ session, onLogout }) {
                     {item === "Exams / Marks" ? "Exams" : item}
                   </Text>
                   <Text style={styles.moreItemDescription}>
-                    {item === "My Students"
-                      ? "View assigned students"
-                      : item === "Exams / Marks"
-                        ? "Review examination marks"
-                        : item === "Timetable"
-                          ? "View teaching schedule"
-                          : item === "Leave"
-                            ? "Apply and manage leave"
-                            : item === "Messaging"
-                              ? "Communicate with students and parents"
-                              : item === "Notifications"
-                                ? "View notifications"
-                                : item === "Reports"
-                                  ? "View teaching reports"
-                                  : item === "Gate Pass"
-                                    ? "Manage gate pass requests"
-                                    : "Manage OMR examinations"}
+                    {item === "Exams / Marks"
+                      ? "Review examination marks"
+                      : "Manage OMR examinations"}
                   </Text>
                 </View>
               </Pressable>
@@ -1456,15 +1466,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.line,
     flexDirection: "row",
-    justifyContent: "space-around",
     paddingTop: 9,
     paddingBottom: 10,
     minHeight: 74,
@@ -1473,14 +1478,16 @@ const styles = StyleSheet.create({
   },
   navItem: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 7,
+    paddingVertical: 5,
   },
   navItemActive: { backgroundColor: colors.paleBlue },
   navLabel: {
     color: colors.muted,
     fontSize: 10,
+    lineHeight: 12,
     fontWeight: "700",
     marginTop: 4,
     textAlign: "center",
@@ -1600,3 +1607,4 @@ const styles = StyleSheet.create({
 });
 
 export { moreNavItems, primaryNavItems };
+

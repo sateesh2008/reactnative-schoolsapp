@@ -311,6 +311,7 @@ export default function TeacherSetExamsScreen({ session, onSelectModule }) {
             key={tab}
             onPress={() => onSelectModule && onSelectModule(
               tab === 'Attendance' ? 'Exam Attendance'
+                : tab === 'Attendance History' ? 'Attendance Result'
                 : tab === 'Marks Entry' ? 'Exam Result'
                   : tab === 'Publish Results' ? 'Publish Result'
                     : tab === 'Class Reports' ? 'Class Result'

@@ -1544,6 +1544,34 @@ export const teacherApi = {
     );
   },
 
+  async getClassTimetable(session, params = {}) {
+    if (!isApiConfigured) return [];
+    if (
+      !params.academic_year_id ||
+      !params.class_id ||
+      !params.division_id
+    ) {
+      return [];
+    }
+    const query = {
+      academic_year_id: params.academic_year_id,
+      class_id: params.class_id,
+      division_id: params.division_id,
+    };
+    const payload = await apiRequest("/timetable/class", {
+      token: session?.token,
+      query,
+    });
+    const records =
+      payload?.data?.data ||
+      payload?.data?.timetable ||
+      payload?.data ||
+      payload?.timetable ||
+      payload?.records ||
+      payload;
+    return Array.isArray(records) ? records : [];
+  },
+
   async getTimetableSessions(session, academicYearId) {
     if (!isApiConfigured) return [];
     const payload = await apiRequest("/timetable/sessions", {

@@ -4,6 +4,7 @@ import {
     ActivityIndicator,
     Modal,
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -29,41 +30,6 @@ const colors = {
   softLilac: "#F5F1FF",
 };
 
-const sampleAnnouncements = [
-  {
-    id: "sample-sankranthi",
-    title: "Sankranthi",
-    date: "17 Jul",
-    message: "iuh",
-    type: "Announcement",
-    creator: "School Administration",
-  },
-  {
-    id: "sample-ugadi",
-    title: "UGADI",
-    date: "19 May",
-    message: "...",
-    type: "Announcement",
-    creator: "School Administration",
-  },
-  {
-    id: "sample-sankranthi-holidays-1",
-    title: "SANKRANTHI HOILDAYS",
-    date: "07 May",
-    message: "",
-    type: "Announcement",
-    creator: "School Administration",
-  },
-  {
-    id: "sample-sankranthi-holidays-2",
-    title: "SANKRANTHI HOILDAYS",
-    date: "",
-    message: "",
-    type: "Announcement",
-    creator: "School Administration",
-  },
-];
-
 function Icon({ name, size = 18, color = colors.ink }) {
   return <Ionicons name={name} size={size} color={color} />;
 }
@@ -79,29 +45,35 @@ function formatAnnouncementDate(value) {
   });
 }
 
-export default function TeacherMessagesScreen({ session, onBack }) {
+export default function TeacherMessagesScreen({
+  session,
+  onBack,
+  onAnnouncementsChanged,
+  onViewAllAnnouncements,
+}) {
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadMessages = useCallback(async () => {
-    setLoading(true);
+  const loadMessages = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError("");
     try {
       const result = await announcementsApi.getAnnouncements(session);
-      const nextMessages =
-        Array.isArray(result) && result.length ? result : sampleAnnouncements;
-      setMessages(nextMessages);
+      setMessages(Array.isArray(result) ? result : []);
+      await onAnnouncementsChanged?.();
     } catch (requestError) {
       setError(
         requestError?.message || "Unable to load messages. Please try again.",
       );
-      setMessages(sampleAnnouncements);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [session]);
+  }, [onAnnouncementsChanged, session]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -149,7 +121,17 @@ export default function TeacherMessagesScreen({ session, onBack }) {
         </View>
       </View>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => void loadMessages()}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.loaderWrap}>
@@ -169,7 +151,16 @@ export default function TeacherMessagesScreen({ session, onBack }) {
       ) : null}
 
       {!loading && messages.length ? (
-        <ScrollView contentContainerStyle={styles.listWrap}>
+        <ScrollView
+          contentContainerStyle={styles.listWrap}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void loadMessages(true)}
+              tintColor={colors.blue}
+            />
+          }
+        >
           {messages.map((message, index) => {
             const isUnread =
               message?.read !== true &&
@@ -193,10 +184,20 @@ export default function TeacherMessagesScreen({ session, onBack }) {
                   isUnread && styles.messageCardUnread,
                   pressed && styles.pressed,
                 ]}
-                onPress={() => {
+                onPress={async () => {
                   openMessage(message);
-                  if (!String(message?.id || "").startsWith("sample-")) {
-                    void announcementsApi.markAsRead(session, message.id);
+                  if (message?.id) {
+                    try {
+                      await announcementsApi.markAsRead(session, message.id);
+                      await onAnnouncementsChanged?.();
+                    } catch (requestError) {
+                      if (__DEV__) {
+                        console.warn(
+                          "[API] Unable to mark announcement as read",
+                          requestError,
+                        );
+                      }
+                    }
                   }
                 }}
               >
@@ -230,7 +231,13 @@ export default function TeacherMessagesScreen({ session, onBack }) {
               styles.viewAllButton,
               pressed && styles.pressed,
             ]}
-            onPress={() => void loadMessages()}
+            onPress={() => {
+              if (onViewAllAnnouncements) {
+                onViewAllAnnouncements();
+                return;
+              }
+              void loadMessages();
+            }}
           >
             <Icon name="megaphone-outline" size={17} color={colors.blue} />
             <Text style={styles.viewAllText}>View All Announcements</Text>
@@ -339,13 +346,26 @@ const styles = StyleSheet.create({
   loadingText: { color: colors.muted, fontSize: 13 },
   errorText: {
     color: colors.red,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  errorBox: {
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: "#F5D0D0",
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
     marginBottom: 12,
+    alignItems: "center",
   },
+  retryButton: {
+    backgroundColor: colors.blue,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  retryButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
   emptyState: {
     backgroundColor: colors.white,
     borderWidth: 1,

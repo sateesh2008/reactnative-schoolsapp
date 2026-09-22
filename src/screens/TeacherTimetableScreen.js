@@ -107,7 +107,7 @@ function FilterSelect({
                       : null,
                   ]}
                   onPress={() => {
-                    onChange(typeof option === "string" ? option : optionText);
+                    onChange(typeof option === "string" ? option : option);
                     setOpen(false);
                   }}
                 >
@@ -254,15 +254,17 @@ export default function TeacherTimetableScreen({
   const [periodSlots, setPeriodSlots] = useState([]);
   const [tab, setTab] = useState(() => initialTab || "Class Timetable");
   const [academicSession, setAcademicSession] = useState(
-    session?.academicYear ||
-      session?.academic_year ||
+    session?.academicYearId ||
       session?.academic_year_id ||
+      session?.academic_year ||
       "",
   );
   const [className, setClassName] = useState("Class_1");
+  const [classId, setClassId] = useState("");
   const [sectionFilter, setSectionFilter] = useState(
     "All Divisions / Sections (Full Class)",
   );
+  const [sectionId, setSectionId] = useState("");
   const [showAllPeriods, setShowAllPeriods] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -296,15 +298,25 @@ export default function TeacherTimetableScreen({
       if (active) {
         setLoading(true);
         setRefreshError("");
+        if (tab === "Class Timetable") {
+          setRecords([]);
+          setPeriodSlots([]);
+        }
       }
 
       try {
         const [defaultClasses, liveTimetable, liveSessions] = await Promise.all(
           [
             teacherAttendanceApi.getAcademicClasses(session),
-            teacherApi.getTimetable(session, {
-              academic_year_id: academicSession,
-            }),
+            tab === "Class Timetable" && classId && sectionId && academicSession
+              ? teacherApi.getClassTimetable(session, {
+                  academic_year_id: academicSession,
+                  class_id: classId,
+                  division_id: sectionId,
+                })
+              : teacherApi.getTimetable(session, {
+                  academic_year_id: academicSession,
+                }),
             teacherApi.getTimetableSessions(session, academicSession),
           ],
         );
@@ -330,40 +342,44 @@ export default function TeacherTimetableScreen({
           classList.find(
             (option) => option.label === className || option.id === className,
           ) || classList[0];
+        let availableDivisions = [];
         if (selectedClass && session) {
           try {
             const divisions = await teacherAttendanceApi.getAcademicDivisions(
               session,
               selectedClass.id,
             );
-            const names = divisions.length
-              ? divisions.map(
-                  (item) => item.label || item.name || item.id || "Section",
-                )
+            availableDivisions = divisions.length
+              ? divisions.map((division) => ({
+                  id: String(division.id),
+                  label: String(
+                    division.label || division.name || division.id,
+                  ),
+                }))
               : Array.from(
                   new Set(
                     nextRecords
                       .filter((item) => item.className === selectedClass.label)
                       .map((item) => item.section),
                   ),
-                );
+                ).map((label) => ({ id: String(label), label: String(label) }));
             if (active)
               setSectionOptions([
                 "All Divisions / Sections (Full Class)",
-                ...names,
+                ...availableDivisions,
               ]);
           } catch (requestError) {
-            const fallback = Array.from(
+            availableDivisions = Array.from(
               new Set(
                 nextRecords
                   .filter((item) => item.className === selectedClass.label)
                   .map((item) => item.section),
               ),
-            );
+            ).map((label) => ({ id: String(label), label: String(label) }));
             if (active)
               setSectionOptions([
                 "All Divisions / Sections (Full Class)",
-                ...fallback,
+                ...availableDivisions,
               ]);
             if (
               requestError instanceof ApiError &&
@@ -386,17 +402,28 @@ export default function TeacherTimetableScreen({
             ),
           );
 
-          setRecords(nextRecords);
+          const displayRecords =
+            tab === "Class Timetable" && (!classId || !sectionId || !academicSession)
+              ? []
+              : nextRecords;
+          setRecords(displayRecords);
           setTeacherRecords(normalizeTimetableRecords(liveTimetable));
           setPeriodSlots(
-            (liveSessions || [])
+            (liveSessions || []).length
+              ? (liveSessions || [])
               .map((item, index) => ({
                 id: item.id || item.session_name || `session-${index}`,
                 name: item.session_name || item.name || `Period ${index + 1}`,
                 startTime: item.start_time || item.startTime || "",
                 endTime: item.end_time || item.endTime || "",
               }))
-              .filter((item) => item.startTime && item.endTime),
+              .filter((item) => item.startTime && item.endTime)
+              : nextRecords.map((item, index) => ({
+                  id: item.periodKey || `period-${index}`,
+                  name: item.period,
+                  startTime: item.startTime,
+                  endTime: item.endTime,
+                })),
           );
           setClassOptions(nextClassOptions);
           if (!academicSession && nextAcademicOptions.length) {
@@ -405,8 +432,26 @@ export default function TeacherTimetableScreen({
           const currentClassMatches = classList.find(
             (option) => option.label === className || option.id === className,
           );
-          if (!currentClassMatches && nextClassOptions.length) {
+          if (currentClassMatches) {
+            setClassName(currentClassMatches.label);
+            setClassId(currentClassMatches.id);
+          } else if (nextClassOptions.length) {
             setClassName(nextClassOptions[0].label);
+            setClassId(nextClassOptions[0].id);
+          }
+          const selectedDivision = availableDivisions.find(
+            (division) =>
+              String(division?.id) === String(sectionId) ||
+              division?.label === sectionFilter ||
+              division?.name === sectionFilter,
+          );
+          if (selectedDivision) {
+            setSectionId(String(selectedDivision.id));
+            setSectionFilter(
+              selectedDivision.label || selectedDivision.name || String(selectedDivision.id),
+            );
+          } else if (availableDivisions.length) {
+            setSectionId(String(availableDivisions[0].id));
           }
         }
       } catch (requestError) {
@@ -432,7 +477,7 @@ export default function TeacherTimetableScreen({
     return () => {
       active = false;
     };
-  }, [academicSession, className, session]);
+  }, [academicSession, classId, sectionId, className, sectionFilter, session, tab]);
 
   const availableAcademicSessions = useMemo(
     () =>
@@ -916,7 +961,16 @@ export default function TeacherTimetableScreen({
               label="Class / Grade"
               value={className}
               options={classOptions}
-              onChange={setClassName}
+              onChange={(option) => {
+                const nextClass =
+                  typeof option === "string"
+                    ? { id: option, label: option }
+                    : option;
+                setClassName(nextClass.label || nextClass.id);
+                setClassId(String(nextClass.id || ""));
+                setSectionFilter("All Divisions / Sections (Full Class)");
+                setSectionId("");
+              }}
             />
             <FilterSelect
               label="Division / Section"
@@ -925,7 +979,14 @@ export default function TeacherTimetableScreen({
                 "All Divisions / Sections (Full Class)",
                 ...sectionOptionsForClass,
               ]}
-              onChange={setSectionFilter}
+              onChange={(option) => {
+                const nextDivision =
+                  typeof option === "string"
+                    ? { id: option, label: option }
+                    : option;
+                setSectionFilter(nextDivision.label || nextDivision.id);
+                setSectionId(String(nextDivision.id || ""));
+              }}
             />
             <View style={styles.toggleRow}>
               <Text style={styles.toggleLabel}>Show All Periods</Text>
@@ -947,8 +1008,16 @@ export default function TeacherTimetableScreen({
           </View>
 
           <View style={styles.matrixWrap}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <View style={styles.matrixTable}>
+            {!loading && !refreshError && !filteredRecords.length ? (
+              <View style={styles.emptyState}>
+                <Icon name="calendar-outline" size={28} color={colors.muted} />
+                <Text style={styles.emptyStateTitle}>
+                  No timetable available for the selected class and division.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+                <View style={styles.matrixTable}>
                 <View style={styles.headerRow}>
                   <View style={styles.periodHeaderCell}>
                     <Text style={styles.headerText}>Period</Text>
@@ -1013,8 +1082,9 @@ export default function TeacherTimetableScreen({
                     })}
                   </View>
                 ))}
-              </View>
-            </ScrollView>
+                </View>
+              </ScrollView>
+            )}
           </View>
         </>
       ) : (

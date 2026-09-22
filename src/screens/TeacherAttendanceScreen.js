@@ -460,7 +460,7 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         current.includes(submissionKey) ? current : [...current, submissionKey],
       );
       addHistoryEntry();
-      Alert.alert("Attendance submitted successfully!");
+      Alert.alert("Success", "Attendance submitted successfully!");
       await loadAttendance();
       await loadHistory();
     } catch (requestError) {

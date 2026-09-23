@@ -544,7 +544,7 @@ export default function TeacherGatePassScreen({ session }) {
     }
   };
   const issuePass = async (newForm) => {
-    console.log("[GATE PASS SCREEN] issuePass called", newForm);
+    if (actionLoading) return;
     setActionLoading(true);
     try {
       const classRecord = classes.find(
@@ -556,6 +556,8 @@ export default function TeacherGatePassScreen({ session }) {
           ...newForm,
           classId: classRecord?.id || student?.classId,
           divisionId: student?.divisionId,
+          isOneWay: newForm.passType === "ONE_WAY",
+          outTime: `${newForm.date}T${newForm.issueTime}`,
           expectedReturnTime: newForm.returnRequired
             ? `${newForm.date}T${newForm.expectedReturnTime || "17:00"}`
             : null,
@@ -894,6 +896,7 @@ export default function TeacherGatePassScreen({ session }) {
         visible={showForm}
         students={students}
         classes={classOptions}
+        loading={actionLoading}
         onClose={() => setShowForm(false)}
         onSubmit={issuePass}
       />

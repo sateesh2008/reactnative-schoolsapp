@@ -2,16 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Modal,
+    Pressable,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import TeacherBiometricSuite from "../components/TeacherBiometricSuite";
 import { ApiError } from "../services/api";
@@ -42,7 +42,7 @@ const tabs = [
   "Export",
   "Submit Attendance",
 ];
-const statuses = ["Present", "Absent", "Late", "Unmarked"];
+const statuses = ["Present", "Absent", "Late", "Half Day", "Unmarked"];
 const emptyData = { records: [], classes: [], sections: [], subjects: [] };
 const formatDate = (date) =>
   `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
@@ -175,6 +175,13 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   const section = sectionSelection?.label || "Select an option";
   const classId = classSelection?.id;
   const divisionId = sectionSelection?.id;
+  const academicYearId =
+    data?.academic_year_id ||
+    data?.academicYearId ||
+    session?.academicYearId ||
+    session?.academic_year_id ||
+    session?.user?.tenant?.current_academic_year_id ||
+    session?.tenant?.current_academic_year_id;
 
   const context = {
     date: formatDate(date),
@@ -433,14 +440,16 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   };
 
   const completeSubmit = async () => {
+    if (actionLoading) return;
     setActionLoading(true);
     try {
-      const result = await teacherAttendanceApi.submitAttendance(
+      await teacherAttendanceApi.submitAttendance(
         {
+          academic_year_id: academicYearId,
           date: context.date,
           class_id: classId,
           division_id: divisionId,
-          records: data.records.map((record) => ({
+          attendanceData: data.records.map((record) => ({
             student_id: record.studentId || record.id,
             status: record.status,
           })),
@@ -451,22 +460,15 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
         current.includes(submissionKey) ? current : [...current, submissionKey],
       );
       addHistoryEntry();
-      Alert.alert(
-        result?.available === false
-          ? "Attendance saved locally"
-          : "Attendance submitted successfully.",
-        result?.available === false
-          ? "The backend endpoint is not connected; this submission is available in History Log for this session."
-          : "Attendance has been submitted.",
-      );
-      if (result?.available !== false) {
-        await loadAttendance();
-        await loadHistory();
-      }
-    } catch {
+      Alert.alert("Success", "Attendance submitted successfully!");
+      await loadAttendance();
+      await loadHistory();
+    } catch (requestError) {
       Alert.alert(
         "Submission error",
-        "Unable to submit attendance. Please try again.",
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Failed to submit attendance. Please try again.",
       );
     } finally {
       setActionLoading(false);
@@ -474,6 +476,21 @@ export default function TeacherAttendanceScreen({ session, onBack }) {
   };
 
   const submit = () => {
+    if (actionLoading) return;
+    if (!academicYearId || !classId || !divisionId) {
+      Alert.alert(
+        "Missing attendance details",
+        "Select an academic year, class, and division before submitting attendance.",
+      );
+      return;
+    }
+    if (!data.records.length) {
+      Alert.alert(
+        "No students",
+        "There are no students to submit attendance for.",
+      );
+      return;
+    }
     if (submittedKeys.includes(submissionKey)) {
       Alert.alert(
         "Already submitted",

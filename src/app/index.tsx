@@ -11,6 +11,7 @@ export default function Index() {
     id?: string | number;
     name?: string;
     schoolName?: string;
+    academicYearId?: string | number;
   } | null>(null);
 
   if (!session) {

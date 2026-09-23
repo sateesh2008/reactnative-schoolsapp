@@ -18,7 +18,10 @@ import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { announcementsApi } from "../services/announcementsApi";
 import { teacherApi } from "../services/teacherApi";
+import BroadcastLedgerScreen from "./BroadcastLedgerScreen";
+import AnnouncementDetailsScreen from "./AnnouncementDetailsScreen";
 import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
 import TeacherExamsMarksScreen from "./TeacherExamsMarksScreen";
@@ -62,7 +65,7 @@ const moreNavItems = ["Exams / Marks", "Messages", "OMR System"];
 
 const moreModuleIcons = {
   "Exams / Marks": "ribbon-outline",
-  "Messages": "mail-outline",
+  Messages: "mail-outline",
   "OMR System": "scan-outline",
 };
 
@@ -129,6 +132,28 @@ const buildFallbackTeacher = (session) => {
     role: session?.role || "Teacher",
     school: session?.schoolName || session?.tenant?.school_name || "",
   };
+};
+
+const getAnnouncementCount = (announcements) => {
+  if (!Array.isArray(announcements)) return 0;
+
+  const hasReadState = announcements.some((announcement) =>
+    ["is_read", "read", "isRead", "read_status", "status"].some((field) =>
+      Object.prototype.hasOwnProperty.call(announcement || {}, field),
+    ),
+  );
+
+  if (!hasReadState) return announcements.length;
+
+  return announcements.filter((announcement) => {
+    const readStatus =
+      announcement?.is_read === true ||
+      announcement?.read === true ||
+      announcement?.isRead === true ||
+      announcement?.read_status === true ||
+      String(announcement?.status || "").toLowerCase() === "read";
+    return !readStatus;
+  }).length;
 };
 
 function Icon({ name, size = 20, color = colors.ink }) {
@@ -576,34 +601,30 @@ export default function TeacherPortalScreen({ session, onLogout }) {
   const [timetableSubmodule, setTimetableSubmodule] =
     useState("Class Timetable");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+
+  const loadAnnouncementCount = useCallback(async () => {
+    try {
+      const announcements = await announcementsApi.getAnnouncements(session);
+      setUnreadNotifications(getAnnouncementCount(announcements));
+    } catch (requestError) {
+      setUnreadNotifications(0);
+      if (__DEV__) {
+        console.warn("[API] Unable to load announcement count", requestError);
+      }
+    }
+  }, [session]);
 
   const loadDashboard = useCallback(
     async (isRefresh = false) => {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError("");
+      void loadAnnouncementCount();
 
       try {
         const data = await teacherApi.getDashboard(session);
         setDashboardData(data);
-
-        try {
-          const notifications = await teacherApi.getNotifications(session);
-          const nextNotifications = Array.isArray(notifications)
-            ? notifications
-            : [];
-          const unreadCount = nextNotifications.filter((item) => {
-            const readStatus =
-              item?.read === true ||
-              item?.isRead === true ||
-              item?.read_status === true ||
-              item?.status === "read";
-            return !readStatus;
-          }).length;
-          setUnreadNotifications(unreadCount);
-        } catch {
-          setUnreadNotifications(0);
-        }
       } catch {
         setError("Unable to load dashboard data from the API.");
         setDashboardData({
@@ -620,7 +641,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         setRefreshing(false);
       }
     },
-    [session],
+    [loadAnnouncementCount, session],
   );
 
   useEffect(() => {
@@ -687,6 +708,34 @@ export default function TeacherPortalScreen({ session, onLogout }) {
         <TeacherMessagesScreen
           session={session}
           onBack={() => setActiveModule("Home")}
+          onAnnouncementsChanged={loadAnnouncementCount}
+          onViewAllAnnouncements={() => setActiveModule("Broadcast Ledger")}
+        />
+      );
+    }
+
+    if (activeModule === "Broadcast Ledger") {
+      return (
+        <BroadcastLedgerScreen
+          session={session}
+          onBack={() => setActiveModule("Messages")}
+          onOpenAnnouncement={(announcement) => {
+            setSelectedAnnouncement(announcement);
+            setActiveModule("Announcement Details");
+          }}
+        />
+      );
+    }
+
+    if (activeModule === "Announcement Details") {
+      return (
+        <AnnouncementDetailsScreen
+          session={session}
+          announcement={selectedAnnouncement}
+          onBack={() => {
+            setSelectedAnnouncement(null);
+            setActiveModule("Broadcast Ledger");
+          }}
         />
       );
     }
@@ -837,7 +886,8 @@ export default function TeacherPortalScreen({ session, onLogout }) {
 
       {activeModule !== "Home" &&
       activeModule !== "Attendance" &&
-      activeModule !== "Homework Evaluation" ? (
+      activeModule !== "Homework Evaluation" &&
+      activeModule !== "Announcement Details" ? (
         <View style={styles.pageHeading}>
           <Pressable onPress={() => setActiveModule("Home")}>
             <Icon name="arrow-back" color={colors.ink} size={23} />

@@ -1,4 +1,4 @@
-import { apiRequest } from "./api";
+import { apiRequest } from "./api.js";
 
 const arrayFromPayload = (payload, keys = []) => {
   const candidates = [
@@ -42,7 +42,7 @@ const dateTimeForApi = (value) => {
   // YYYY-MM-DD HH:mm
   // YYYY-MM-DDTHH:mm
   if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}$/.test(raw)) {
-    return raw.replace("T", " ") + ":00";
+    return raw.replace(/\s*T\s*|\s+/, "T");
   }
 
   // DD-MM-YYYY HH:mm
@@ -347,32 +347,44 @@ export const gatePassApi = {
   async create(input, session) {
     const body = {
       student_id: firstValue(input?.studentId, input?.student_id),
-
+      class_id: firstValue(input?.classId, input?.class_id),
+      division_id: firstValue(input?.divisionId, input?.division_id),
+      reason_type: firstValue(input?.reason, input?.reason_type, "Other"),
       reason: firstValue(input?.reason, input?.reason_type, "Other"),
-
+      reason_details: firstValue(
+        input?.reasonDetails,
+        input?.reason_details,
+        input?.notes,
+      ) ?? "",
+      accompanied_by: firstValue(
+        input?.accompaniedBy,
+        input?.accompanied_by,
+        input?.escortName,
+      ) ?? "",
+      relation_with_student: firstValue(
+        input?.relationWithStudent,
+        input?.relation_with_student,
+        input?.escortName?.split?.(":")[0]?.trim(),
+      ) ?? "",
+      contact_number: firstValue(
+        input?.contactNumber,
+        input?.contact_number,
+        input?.escortContact,
+      ) ?? "",
       guardian_name: firstValue(
         input?.guardianName,
         input?.guardian_name,
         input?.escortName,
+        input?.accompaniedBy,
         input?.accompanied_by,
-      ),
-
+      ) ?? "",
       guardian_mobile: firstValue(
         input?.guardianMobile,
         input?.guardian_mobile,
         input?.escortContact,
+        input?.contactNumber,
         input?.contact_number,
-      ),
-
-      /*
-       * IMPORTANT:
-       *
-       * UI gives:
-       * 22-09-2026 15:53
-       *
-       * API receives:
-       * 2026-09-22 15:53:00
-       */
+      ) ?? "",
       out_time: dateTimeForApi(
         firstValue(
           input?.outTime,
@@ -381,9 +393,16 @@ export const gatePassApi = {
           input?.issueTime,
         ),
       ),
+      is_one_way: Boolean(input?.isOneWay ?? input?.is_one_way ?? input?.passType === "ONE_WAY"),
+      expected_return_time: (input?.isOneWay ?? input?.is_one_way ?? input?.passType === "ONE_WAY")
+        ? null
+        : dateTimeForApi(input?.expectedReturnTime ?? input?.expected_return_time),
+      approved_by: firstValue(input?.approvedBy, input?.approved_by) ?? "",
+      security_remarks: firstValue(
+        input?.securityRemarks,
+        input?.security_remarks,
+      ) ?? "",
     };
-
-    console.log("[GATE PASS API] request body:", body);
 
     const payload = await apiRequest("/gate-passes", {
       method: "POST",

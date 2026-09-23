@@ -308,12 +308,14 @@ export default function TeacherTimetableScreen({
         const [defaultClasses, liveTimetable, liveSessions] = await Promise.all(
           [
             teacherAttendanceApi.getAcademicClasses(session),
-            tab === "Class Timetable" && classId && sectionId && academicSession
-              ? teacherApi.getClassTimetable(session, {
-                  academic_year_id: academicSession,
-                  class_id: classId,
-                  division_id: sectionId,
-                })
+            tab === "Class Timetable"
+              ? classId && sectionId && academicSession
+                ? teacherApi.getClassTimetable(session, {
+                    academic_year_id: academicSession,
+                    class_id: classId,
+                    division_id: sectionId,
+                  })
+                : Promise.resolve([])
               : teacherApi.getTimetable(session, {
                   academic_year_id: academicSession,
                 }),

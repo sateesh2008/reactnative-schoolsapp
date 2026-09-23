@@ -550,7 +550,9 @@ export default function TeacherGatePassScreen({ session }) {
       const classRecord = classes.find(
         (item) => (item.name || item.label) === newForm.className,
       );
-      const student = students.find((item) => item.id === newForm.studentId);
+      const student = students.find(
+        (item) => String(item.id) === String(newForm.studentId),
+      );
       await gatePassApi.create(
         {
           ...newForm,

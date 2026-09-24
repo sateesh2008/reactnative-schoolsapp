@@ -50,30 +50,35 @@ export default function TeacherMessagesScreen({
   onBack,
   onAnnouncementsChanged,
   onViewAllAnnouncements,
+  onOpenAnnouncement,
 }) {
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
-  const loadMessages = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError("");
-    try {
-      const result = await announcementsApi.getAnnouncements(session);
-      setMessages(Array.isArray(result) ? result : []);
-      await onAnnouncementsChanged?.();
-    } catch (requestError) {
-      setError(
-        requestError?.message || "Unable to load messages. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [onAnnouncementsChanged, session]);
+  const loadMessages = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError("");
+      try {
+        const result = await announcementsApi.getAnnouncements(session);
+        setMessages(Array.isArray(result) ? result : []);
+        await onAnnouncementsChanged?.();
+      } catch (requestError) {
+        setError(
+          requestError?.message || "Unable to load messages. Please try again.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [onAnnouncementsChanged, session],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -83,20 +88,31 @@ export default function TeacherMessagesScreen({
   }, [loadMessages]);
 
   const unreadCount = useMemo(
-    () =>
-      messages.filter((message) => {
-        const readStatus =
-          message?.read === true ||
-          message?.isRead === true ||
-          message?.read_status === true ||
-          message?.status === "read";
-        return !readStatus;
-      }).length,
+    () => announcementsApi.getUnreadCount(messages),
     [messages],
   );
 
   const openMessage = (message) => {
+    if (onOpenAnnouncement && message?.id) {
+      onOpenAnnouncement(message);
+      return;
+    }
     setSelectedMessage(message);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!messages.length || unreadCount === 0) return;
+    setMarkingAllRead(true);
+    try {
+      await announcementsApi.markAllAsRead(session);
+      await loadMessages(true);
+    } catch (requestError) {
+      setError(
+        requestError?.message || "Unable to mark announcements as read.",
+      );
+    } finally {
+      setMarkingAllRead(false);
+    }
   };
 
   return (
@@ -185,7 +201,6 @@ export default function TeacherMessagesScreen({
                   pressed && styles.pressed,
                 ]}
                 onPress={async () => {
-                  openMessage(message);
                   if (message?.id) {
                     try {
                       await announcementsApi.markAsRead(session, message.id);
@@ -199,6 +214,7 @@ export default function TeacherMessagesScreen({
                       }
                     }
                   }
+                  openMessage(message);
                 }}
               >
                 <View style={styles.messageBadgeWrap}>
@@ -226,6 +242,26 @@ export default function TeacherMessagesScreen({
               </Pressable>
             );
           })}
+          {unreadCount > 0 ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.markAllButton,
+                pressed && styles.pressed,
+                markingAllRead && styles.markAllButtonDisabled,
+              ]}
+              onPress={() => void handleMarkAllAsRead()}
+              disabled={markingAllRead}
+            >
+              <Icon
+                name="checkmark-done-outline"
+                size={17}
+                color={colors.blue}
+              />
+              <Text style={styles.markAllButtonText}>
+                {markingAllRead ? "Marking all as read..." : "Mark all as read"}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             style={({ pressed }) => [
               styles.viewAllButton,
@@ -387,6 +423,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   listWrap: { paddingBottom: 20 },
+  markAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.blue,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  markAllButtonDisabled: { opacity: 0.7 },
+  markAllButtonText: { color: colors.blue, fontSize: 13, fontWeight: "900" },
   viewAllButton: {
     flexDirection: "row",
     alignItems: "center",

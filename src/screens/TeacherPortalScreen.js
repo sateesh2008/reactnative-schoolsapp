@@ -20,8 +20,8 @@ import {
 } from "react-native-safe-area-context";
 import { announcementsApi } from "../services/announcementsApi";
 import { teacherApi } from "../services/teacherApi";
-import BroadcastLedgerScreen from "./BroadcastLedgerScreen";
 import AnnouncementDetailsScreen from "./AnnouncementDetailsScreen";
+import BroadcastLedgerScreen from "./BroadcastLedgerScreen";
 import OMRSystemScreen from "./OMRSystemScreen";
 import TeacherAttendanceScreen from "./TeacherAttendanceScreen";
 import TeacherExamsMarksScreen from "./TeacherExamsMarksScreen";
@@ -602,11 +602,12 @@ export default function TeacherPortalScreen({ session, onLogout }) {
     useState("Class Timetable");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [announcementSource, setAnnouncementSource] = useState("Messages");
 
   const loadAnnouncementCount = useCallback(async () => {
     try {
       const announcements = await announcementsApi.getAnnouncements(session);
-      setUnreadNotifications(getAnnouncementCount(announcements));
+      setUnreadNotifications(announcementsApi.getUnreadCount(announcements));
     } catch (requestError) {
       setUnreadNotifications(0);
       if (__DEV__) {
@@ -710,6 +711,11 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           onBack={() => setActiveModule("Home")}
           onAnnouncementsChanged={loadAnnouncementCount}
           onViewAllAnnouncements={() => setActiveModule("Broadcast Ledger")}
+          onOpenAnnouncement={(announcement) => {
+            setSelectedAnnouncement(announcement);
+            setAnnouncementSource("Messages");
+            setActiveModule("Announcement Details");
+          }}
         />
       );
     }
@@ -721,6 +727,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           onBack={() => setActiveModule("Messages")}
           onOpenAnnouncement={(announcement) => {
             setSelectedAnnouncement(announcement);
+            setAnnouncementSource("Broadcast Ledger");
             setActiveModule("Announcement Details");
           }}
         />
@@ -734,7 +741,7 @@ export default function TeacherPortalScreen({ session, onLogout }) {
           announcement={selectedAnnouncement}
           onBack={() => {
             setSelectedAnnouncement(null);
-            setActiveModule("Broadcast Ledger");
+            setActiveModule(announcementSource || "Messages");
           }}
         />
       );

@@ -61,6 +61,32 @@ test("login retries the backend fallback route when /auth/login returns 404", as
   }
 });
 
+test("announcement fetch sorts newest items first for teacher notifications", async () => {
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => "application/json" },
+    text: async () =>
+      JSON.stringify([
+        { id: 1, title: "Older notice", created_at: "2026-07-01T08:00:00Z" },
+        { id: 2, title: "Newest notice", created_at: "2026-07-20T08:00:00Z" },
+      ]),
+  });
+
+  try {
+    const { announcementsApi } = await import(
+      `../src/services/announcementsApi.js?test=${Date.now()}`
+    );
+    const records = await announcementsApi.getAnnouncements({ token: "abc" });
+
+    assert.equal(records[0].id, 2);
+    assert.equal(records[0].title, "Newest notice");
+    assert.equal(records[1].id, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("login wraps invalid JSON auth failures as ApiError instead of crashing", async () => {
   delete process.env.EXPO_PUBLIC_LOGIN_PATH;
   global.fetch = async () => ({

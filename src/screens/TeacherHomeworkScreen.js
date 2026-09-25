@@ -17,14 +17,14 @@ import {
 import { teacherApi } from "../services/teacherApi";
 
 const colors = {
-  ink: "#17343B",
-  muted: "#6A7F83",
-  line: "#D9E7E4",
-  canvas: "#F4F8F6",
+  ink: "#17175F",
+  muted: "#596080",
+  line: "#D9DDF2",
+  canvas: "#F7F8FF",
   white: "#FFFFFF",
-  blue: "#0D8B82",
-  pale: "#E5F4F0",
-  green: "#168A7C",
+  blue: "#1E32CC",
+  pale: "#EEF0FC",
+  green: "#334BD6",
   orange: "#D9822B",
   red: "#C65353",
 };
@@ -522,7 +522,7 @@ export default function TeacherHomeworkScreen({ session }) {
             label="Classes"
             value={counts.classes}
             icon="people-outline"
-            tint="#E2F4EE"
+            tint={colors.pale}
             accent={colors.green}
           />
         </View>

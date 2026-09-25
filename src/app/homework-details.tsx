@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, SafeAreaView, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { homeworkApi } from '../services/homeworkApi';
 
-const colors = { ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF', canvas: '#F4F8F6', blue: '#0D8B82', paleBlue: '#E5F4F0', green: '#1E8E5E', paleGreen: '#E8F8F1', orange: '#A76E00', paleOrange: '#FFF7DF', red: '#B94E4E' };
+const colors = { ink: '#17175F', muted: '#596080', line: '#D9DDF2', white: '#FFFFFF', canvas: '#F7F8FF', blue: '#1E32CC', paleBlue: '#EEF0FC', green: '#1E8056', paleGreen: '#E6F6EE', orange: '#9A6500', paleOrange: '#FFF5D9', red: '#B74755' };
 
 type HomeworkAssignment = {
   id?: number;

@@ -23,14 +23,14 @@ export default function SharedHomeworkRoute() {
     return () => { active = false; };
   }, [id, router]);
 
-  return <SafeAreaView style={styles.safe}><View style={styles.container}>{error ? <><Text style={styles.title}>{error}</Text><Pressable style={styles.button} onPress={() => router.back()}><Text style={styles.buttonText}>Go back</Text></Pressable></> : <><ActivityIndicator color="#0D8B82" /><Text style={styles.message}>Loading homework...</Text></>}</View></SafeAreaView>;
+  return <SafeAreaView style={styles.safe}><View style={styles.container}>{error ? <><Text style={styles.title}>{error}</Text><Pressable style={styles.button} onPress={() => router.back()}><Text style={styles.buttonText}>Go back</Text></Pressable></> : <><ActivityIndicator color="#1E32CC" /><Text style={styles.message}>Loading homework...</Text></>}</View></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F4F8F6' },
+  safe: { flex: 1, backgroundColor: '#F7F8FF' },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { color: '#17343B', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  message: { color: '#6A7F83', fontSize: 12, marginTop: 10 },
-  button: { backgroundColor: '#0D8B82', borderRadius: 8, marginTop: 16, paddingHorizontal: 18, paddingVertical: 11 },
+  title: { color: '#17175F', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  message: { color: '#596080', fontSize: 12, marginTop: 10 },
+  button: { backgroundColor: '#1E32CC', borderRadius: 8, marginTop: 16, paddingHorizontal: 18, paddingVertical: 11 },
   buttonText: { color: '#FFFFFF', fontWeight: '800' },
 });

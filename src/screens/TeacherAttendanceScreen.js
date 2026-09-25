@@ -18,14 +18,14 @@ import { ApiError } from "../services/api";
 import { teacherAttendanceApi } from "../services/teacherApi";
 
 const colors = {
-  ink: "#17343B",
-  muted: "#6A7F83",
-  line: "#D9E7E4",
+  ink: "#17175F",
+  muted: "#596080",
+  line: "#D9DDF2",
   white: "#FFFFFF",
-  canvas: "#F4F8F6",
-  navy: "#123B43",
-  blue: "#0D8B82",
-  paleBlue: "#E5F4F0",
+  canvas: "#F7F8FF",
+  navy: "#13137F",
+  blue: "#1E32CC",
+  paleBlue: "#EEF0FC",
   green: "#1E8E5E",
   paleGreen: "#E8F8F1",
   red: "#B94E4E",

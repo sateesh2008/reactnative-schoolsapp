@@ -32,22 +32,7 @@ import ParentHomeworkScreen from "./ParentHomeworkScreen";
 import ParentLeaveScreen from "./ParentLeaveScreen";
 import ParentTimetableScreen from "./ParentTimetableScreen";
 import ParentTransportScreen from "./ParentTransportScreen";
-
-const colors = {
-  ink: "#17343B",
-  muted: "#6A7F83",
-  line: "#D9E7E4",
-  canvas: "#F4F8F6",
-  white: "#FFFFFF",
-  navy: "#123B43",
-  blue: "#0D8B82",
-  paleBlue: "#E5F4F0",
-  teal: "#168A7C",
-  paleTeal: "#E2F4EE",
-  orange: "#D9822B",
-  paleOrange: "#FFF1DF",
-  red: "#C65353",
-};
+import { AppColors as colors } from "../constants/theme";
 
 const navItems = [
   { label: "Home", icon: "home-outline" },
@@ -80,8 +65,8 @@ const additionalModules = [
     title: "Timetable",
     icon: "time-outline",
     tab: "Timetable",
-    tint: "#E5F4F0",
-    accent: "#168A7C",
+    tint: colors.paleBlue,
+    accent: colors.teal,
   },
   {
     title: "Student Profile",

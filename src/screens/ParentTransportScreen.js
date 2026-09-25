@@ -15,11 +15,11 @@ import { transportApi } from "../services/transportApi";
 const colors = {
   ink: Colors.light.text,
   muted: Colors.light.textSecondary,
-  line: "#D9E7E4",
+  line: "#D9DDF2",
   white: "#FFFFFF",
-  canvas: "#F4F8F6",
-  blue: "#0D8B82",
-  paleBlue: "#E5F4F0",
+  canvas: "#F7F8FF",
+  blue: "#1E32CC",
+  paleBlue: "#EEF0FC",
   red: "#C65353",
   paleRed: "#FDECEC",
 };

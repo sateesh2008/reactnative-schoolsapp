@@ -21,15 +21,15 @@ import { dateKey, gatePassApi } from "../services/gatePassApi";
 import TeacherGatePassForm from "./TeacherGatePassForm";
 
 const colors = {
-  ink: "#17343B",
-  muted: "#6A7F83",
-  line: "#D9E7E4",
-  canvas: "#F4F8F6",
+  ink: "#17175F",
+  muted: "#596080",
+  line: "#D9DDF2",
+  canvas: "#F7F8FF",
   white: "#FFFFFF",
-  navy: "#123B43",
-  blue: "#0D8B82",
-  paleBlue: "#E5F4F0",
-  teal: "#168A7C",
+  navy: "#13137F",
+  blue: "#1E32CC",
+  paleBlue: "#EEF0FC",
+  teal: "#334BD6",
   orange: "#D9822B",
   red: "#C65353",
 };
@@ -623,7 +623,7 @@ export default function TeacherGatePassScreen({ session }) {
     }
   };
   const slipHtml = (items) =>
-    `<html><head><style>body{font-family:Arial;color:#17343B;margin:24px}.slip{border:1px solid #D9E7E4;border-radius:10px;padding:18px;margin-bottom:18px;page-break-inside:avoid}.brand{font-size:12px;color:#0D8B82;font-weight:bold}.title{font-size:20px;font-weight:bold;margin:8px 0 16px}.row{margin:7px 0;font-size:12px}.key{font-weight:bold;color:#6A7F83}.status{margin-top:14px;padding:9px;background:#E5F4F0;font-weight:bold}</style></head><body>${items.map((record) => `<section class="slip"><div class="brand">EduCampus360</div><div class="title">Student Gate Pass</div><div class="row"><span class="key">Pass Number:</span> ${htmlEscape(record.passNumber)}</div><div class="row"><span class="key">Student:</span> ${htmlEscape(record.studentName)}</div><div class="row"><span class="key">Class & Section:</span> ${htmlEscape(record.className)}-${htmlEscape(record.section)}</div><div class="row"><span class="key">Roll Number:</span> ${htmlEscape(record.rollNumber || "N/A")}</div><div class="row"><span class="key">Date / Issue Time:</span> ${htmlEscape(formatDate(record.date))} / ${htmlEscape(formatTime(record.issueTime))}</div><div class="row"><span class="key">Reason:</span> ${htmlEscape(record.reason)}</div><div class="row"><span class="key">Escort:</span> ${htmlEscape(record.escortType)}: ${htmlEscape(record.escortName)}</div><div class="row"><span class="key">Pass Type:</span> ${record.passType === "ONE_WAY" ? "One-Way Exit" : "Returnable"}</div><div class="row"><span class="key">Return:</span> ${record.returnRequired ? htmlEscape(formatTime(record.expectedReturnTime)) : "No return expected"}</div><div class="status">${htmlEscape(statusLabels[record.status] || record.status)}</div></section>`).join("")}</body></html>`;
+    `<html><head><style>body{font-family:Arial;color:#17175F;margin:24px}.slip{border:1px solid #D9DDF2;border-radius:10px;padding:18px;margin-bottom:18px;page-break-inside:avoid}.brand{font-size:12px;color:#1E32CC;font-weight:bold}.title{font-size:20px;font-weight:bold;margin:8px 0 16px}.row{margin:7px 0;font-size:12px}.key{font-weight:bold;color:#596080}.status{margin-top:14px;padding:9px;background:#EEF0FC;font-weight:bold}</style></head><body>${items.map((record) => `<section class="slip"><div class="brand">EduCampus360</div><div class="title">Student Gate Pass</div><div class="row"><span class="key">Pass Number:</span> ${htmlEscape(record.passNumber)}</div><div class="row"><span class="key">Student:</span> ${htmlEscape(record.studentName)}</div><div class="row"><span class="key">Class & Section:</span> ${htmlEscape(record.className)}-${htmlEscape(record.section)}</div><div class="row"><span class="key">Roll Number:</span> ${htmlEscape(record.rollNumber || "N/A")}</div><div class="row"><span class="key">Date / Issue Time:</span> ${htmlEscape(formatDate(record.date))} / ${htmlEscape(formatTime(record.issueTime))}</div><div class="row"><span class="key">Reason:</span> ${htmlEscape(record.reason)}</div><div class="row"><span class="key">Escort:</span> ${htmlEscape(record.escortType)}: ${htmlEscape(record.escortName)}</div><div class="row"><span class="key">Pass Type:</span> ${record.passType === "ONE_WAY" ? "One-Way Exit" : "Returnable"}</div><div class="row"><span class="key">Return:</span> ${record.returnRequired ? htmlEscape(formatTime(record.expectedReturnTime)) : "No return expected"}</div><div class="status">${htmlEscape(statusLabels[record.status] || record.status)}</div></section>`).join("")}</body></html>`;
   const printPdf = async (items, title) => {
     if (!items.length) {
       Alert.alert(
@@ -720,7 +720,7 @@ export default function TeacherGatePassScreen({ session }) {
             label="Returned Safely"
             value={counts.returned}
             icon="checkmark-circle-outline"
-            tint="#E2F4EE"
+            tint={colors.paleTeal}
             accent={colors.teal}
           />
         </View>
@@ -1185,7 +1185,7 @@ const styles = StyleSheet.create({
     maxWidth: 145,
   },
   outBadge: { backgroundColor: "#FDECEC" },
-  returnedBadge: { backgroundColor: "#E2F4EE" },
+  returnedBadge: { backgroundColor: colors.paleTeal },
   statusText: {
     color: colors.ink,
     fontSize: 8,

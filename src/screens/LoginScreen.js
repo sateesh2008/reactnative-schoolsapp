@@ -17,18 +17,7 @@ import {
 } from "react-native";
 import { isApiConfigured } from "../services/api";
 import { login } from "../services/authApi";
-
-const colors = {
-  navy: "#123B43",
-  blue: "#0D8B82",
-  ink: "#17343B",
-  muted: "#6A7F83",
-  line: "#D9E7E4",
-  canvas: "#F4F8F6",
-  white: "#FFFFFF",
-  paleBlue: "#E5F4F0",
-  red: "#C65353",
-};
+import { AppColors as colors } from "../constants/theme";
 
 export default function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");

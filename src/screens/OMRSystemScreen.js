@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-const colors = { ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', white: '#FFFFFF', canvas: '#F4F8F6', blue: '#0D8B82', paleBlue: '#E5F4F0' };
+const colors = { ink: '#17175F', muted: '#596080', line: '#D9DDF2', white: '#FFFFFF', canvas: '#F7F8FF', blue: '#1E32CC', paleBlue: '#EEF0FC' };
 const items = [
   ['OMR Dashboard', 'Scanner and evaluation overview', 'speedometer-outline', 'OMR Dashboard'],
   ['Exam Sessions', 'Manage OMR examination sessions', 'calendar-outline', 'Exam Sessions'],

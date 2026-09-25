@@ -3,7 +3,7 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 
-const colors = { ink: '#17343B', muted: '#6A7F83', line: '#D9E7E4', canvas: '#F4F8F6', white: '#FFFFFF', blue: '#0D8B82', paleBlue: '#E5F4F0' };
+const colors = { ink: '#17175F', muted: '#596080', line: '#D9DDF2', canvas: '#F7F8FF', white: '#FFFFFF', blue: '#1E32CC', paleBlue: '#EEF0FC' };
 const reasons = ['Medical / Sickness', 'Emergency', 'Family Function', 'Personal Work', 'Other'];
 const passTypes = ['One-Way (Day Departure)', 'Returnable'];
 const pad = (value) => String(value).padStart(2, '0');

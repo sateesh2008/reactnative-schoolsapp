@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
     Alert,
+  KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -467,10 +468,147 @@ function NoticesContent() {
   );
 }
 
-function ProfileModal({ visible, onClose, session }) {
-  const [name, setName] = useState(
-    session?.name || session?.email?.split("@")[0] || "",
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+const getProfileValue = (profile, ...keys) => {
+  for (const key of keys) {
+    if (profile?.[key] !== undefined && profile?.[key] !== null) {
+      return String(profile[key]);
+    }
+  }
+  return "";
+};
+
+const profileFormFromStudent = (student) => ({
+  mobile_number: getProfileValue(student, "mobile_number", "mobile"),
+  email: getProfileValue(student, "email"),
+  blood_group: getProfileValue(student, "blood_group", "bloodGroup"),
+  mother_tongue: getProfileValue(student, "mother_tongue", "motherTongue"),
+  street_address: getProfileValue(
+    student,
+    "street_address",
+    "streetAddress",
+    "address",
+  ),
+  city: getProfileValue(student, "city"),
+  pincode: getProfileValue(student, "pincode", "pin_code", "postal_code"),
+  state: getProfileValue(student, "state"),
+  religion: getProfileValue(student, "religion"),
+});
+
+function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
+  const [form, setForm] = useState(() => profileFormFromStudent(selectedStudent));
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [bloodGroupOpen, setBloodGroupOpen] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    const loadProfile = async () => {
+      setForm(profileFormFromStudent(selectedStudent));
+      setError("");
+      setFieldErrors({});
+      if (!selectedStudent?.id) return;
+      setLoadingProfile(true);
+      try {
+        const profile = await parentApi.getChildProfile(selectedStudent.id, session);
+        if (active && profile) {
+          setForm(profileFormFromStudent({ ...selectedStudent, ...profile }));
+        }
+      } catch (requestError) {
+        if (active && requestError?.status !== 404) {
+          setError(requestError?.message || "Unable to load ward profile.");
+        }
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    };
+    void loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [visible, selectedStudent, session]);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: "" }));
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+    if (!/^\d{10}$/.test(form.mobile_number)) {
+      nextErrors.mobile_number = "Enter a valid 10-digit mobile number.";
+    }
+    if (!/^\S+@\S+\.\S+$/.test(form.email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+    if (!BLOOD_GROUPS.includes(form.blood_group)) {
+      nextErrors.blood_group = "Select a blood group.";
+    }
+    if (!/^\d{6}$/.test(form.pincode)) {
+      nextErrors.pincode = "Enter a valid 6-digit pincode.";
+    }
+    ["mother_tongue", "street_address", "city", "state", "religion"].forEach(
+      (field) => {
+        if (!form[field].trim()) nextErrors[field] = "This field is required.";
+      },
+    );
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const saveProfile = async () => {
+    if (saving || !validate()) return;
+    setError("");
+    setSaving(true);
+    try {
+      const updatedProfile = await parentApi.updateChildProfile(
+        selectedStudent?.id,
+        form,
+        session,
+      );
+      onSaved({ ...selectedStudent, ...form, ...(updatedProfile || {}) });
+      Alert.alert("Profile updated successfully", "Ward profile changes were saved.", [
+        { text: "OK", onPress: onClose },
+      ]);
+    } catch (requestError) {
+      setError(requestError?.message || "Unable to update profile. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label, name, options = {}) => (
+    <View style={styles.profileField}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TextInput
+        value={form[name]}
+        onChangeText={(value) => {
+          if (name === "mobile_number") {
+            updateField(
+              name,
+              value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "").slice(0, 10),
+            );
+          } else if (name === "pincode") {
+            updateField(name, value.replace(/\D/g, "").slice(0, 6));
+          } else {
+            updateField(name, value);
+          }
+        }}
+        style={[styles.input, options.multiline && styles.multilineInput]}
+        placeholderTextColor={colors.muted}
+        keyboardType={options.keyboardType}
+        autoCapitalize={options.autoCapitalize || "sentences"}
+        multiline={options.multiline}
+        numberOfLines={options.multiline ? 3 : 1}
+      />
+      {fieldErrors[name] ? <Text style={styles.fieldError}>{fieldErrors[name]}</Text> : null}
+    </View>
   );
+
   return (
     <Modal
       visible={visible}
@@ -479,31 +617,96 @@ function ProfileModal({ visible, onClose, session }) {
       onRequestClose={onClose}
     >
       <View style={styles.modalBackdrop}>
-        <View style={styles.modal}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.profileModal}
+        >
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit profile</Text>
+            <Text style={styles.modalTitle}>
+              Update Ward Profile: {selectedStudent?.name || "Ward"}
+            </Text>
             <Pressable onPress={onClose}>
               <Icon name="close" size={22} color={colors.ink} />
             </Pressable>
           </View>
-          <Text style={styles.inputLabel}>Parent name</Text>
-          <TextInput value={name} onChangeText={setName} style={styles.input} />
-          <Text style={styles.inputLabel}>Email address</Text>
-          <TextInput
-            value={session?.email || ""}
-            editable={false}
-            style={[styles.input, styles.disabledInput]}
-          />
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => {
-              onClose();
-              Alert.alert("Profile updated", `Welcome, ${name}.`);
-            }}
+          <ScrollView
+            style={styles.formScroll}
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.primaryButtonText}>Update profile</Text>
-          </Pressable>
-        </View>
+            {loadingProfile ? (
+              <Text style={styles.loadingText}>Loading existing profile...</Text>
+            ) : null}
+            {field("Mobile Number", "mobile_number", { keyboardType: "phone-pad" })}
+            {field("Email Address", "email", {
+              keyboardType: "email-address",
+              autoCapitalize: "none",
+            })}
+            <View style={styles.profileField}>
+              <Text style={styles.inputLabel}>Blood Group</Text>
+              <Pressable
+                style={styles.selectInput}
+                onPress={() => setBloodGroupOpen(true)}
+              >
+                <Text style={form.blood_group ? styles.selectText : styles.placeholderText}>
+                  {form.blood_group || "Select blood group"}
+                </Text>
+                <Icon name="chevron-down" size={18} color={colors.muted} />
+              </Pressable>
+              {fieldErrors.blood_group ? (
+                <Text style={styles.fieldError}>{fieldErrors.blood_group}</Text>
+              ) : null}
+            </View>
+            {field("Mother Tongue", "mother_tongue")}
+            {field("Street Address", "street_address", { multiline: true })}
+            {field("City", "city")}
+            {field("Pincode", "pincode", { keyboardType: "numeric" })}
+            {field("State", "state")}
+            {field("Religion", "religion")}
+            {error ? <Text style={styles.formError}>{error}</Text> : null}
+            <View style={styles.profileButtonRow}>
+              <Pressable style={styles.secondaryButton} onPress={onClose} disabled={saving}>
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryButton, saving && styles.disabledButton]}
+                onPress={saveProfile}
+                disabled={saving || loadingProfile}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {saving ? "Saving..." : "Save Changes"}
+                </Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+          <Modal
+            visible={bloodGroupOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setBloodGroupOpen(false)}
+          >
+            <Pressable
+              style={styles.dropdownBackdrop}
+              onPress={() => setBloodGroupOpen(false)}
+            >
+              <View style={styles.dropdownCard}>
+                {BLOOD_GROUPS.map((option) => (
+                  <Pressable
+                    key={option}
+                    style={styles.dropdownOption}
+                    onPress={() => {
+                      updateField("blood_group", option);
+                      setBloodGroupOpen(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownOptionText}>{option}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Pressable>
+          </Modal>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -670,6 +873,15 @@ export default function ParentPortalScreen({ onLogout, session }) {
       name: "Student",
       className: "",
     };
+  const updateSelectedStudent = useCallback((updatedStudent) => {
+    setStudents((current) =>
+      current.map((student) =>
+        String(student.id) === String(updatedStudent?.id)
+          ? { ...student, ...updatedStudent }
+          : student,
+      ),
+    );
+  }, []);
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
@@ -812,6 +1024,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
         visible={profileOpen}
         onClose={() => setProfileOpen(false)}
         session={session}
+        selectedStudent={selectedStudent}
+        onSaved={updateSelectedStudent}
       />
     </SafeAreaView>
   );
@@ -1250,7 +1464,7 @@ const styles = StyleSheet.create({
   weekDayActiveText: { color: colors.white },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(9, 25, 44, 0.5)",
+    backgroundColor: "rgba(19, 19, 127, 0.5)",
     justifyContent: "flex-end",
   },
   modal: {
@@ -1266,6 +1480,65 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   modalTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+  profileModal: {
+    backgroundColor: colors.white,
+    maxHeight: "92%",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  formScroll: { flexGrow: 0 },
+  formContent: { paddingHorizontal: 22, paddingBottom: 22 },
+  profileField: { marginBottom: 5 },
+  multilineInput: { minHeight: 82, textAlignVertical: "top" },
+  loadingText: { color: colors.muted, fontSize: 12, marginBottom: 8 },
+  fieldError: { color: colors.red, fontSize: 11, marginTop: 4 },
+  formError: {
+    color: colors.red,
+    backgroundColor: colors.paleRed,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  profileButtonRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  secondaryButtonText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
+  disabledButton: { opacity: 0.6 },
+  selectInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 9,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  selectText: { color: colors.ink, fontSize: 14 },
+  placeholderText: { color: colors.muted, fontSize: 14 },
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(19, 19, 127, 0.35)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  dropdownCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    paddingVertical: 6,
+  },
+  dropdownOption: { paddingHorizontal: 18, paddingVertical: 14 },
+  dropdownOptionText: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   inputLabel: {
     color: colors.muted,
     fontSize: 11,
@@ -1275,14 +1548,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: colors.line,
     borderRadius: 9,
     paddingHorizontal: 13,
     paddingVertical: 12,
     color: colors.ink,
     fontSize: 14,
   },
-  disabledInput: { backgroundColor: "#F1F4F7", color: colors.muted },
+  disabledInput: { backgroundColor: colors.paleBlue, color: colors.muted },
 });
 
 const dashboardStyles = StyleSheet.create({

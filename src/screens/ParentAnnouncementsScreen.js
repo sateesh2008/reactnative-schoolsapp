@@ -66,6 +66,8 @@ export default function ParentAnnouncementsScreen({
   session,
   selectedStudentId,
   onSessionExpired,
+  onAnnouncementsLoaded,
+  onAnnouncementRead,
   title = "Announcements",
   eventOnly = false,
 }) {
@@ -83,6 +85,7 @@ export default function ParentAnnouncementsScreen({
         session,
         selectedStudentId,
       );
+      if (!eventOnly) onAnnouncementsLoaded?.(records);
       setAnnouncements(
         eventOnly
           ? records.filter((record) =>
@@ -107,6 +110,39 @@ export default function ParentAnnouncementsScreen({
     const timer = setTimeout(() => loadAnnouncements(), 0);
     return () => clearTimeout(timer);
   }, [session, selectedStudentId]);
+
+  const handleMarkAsRead = async (announcement) => {
+    if (
+      !announcement?.id ||
+      announcementsApi.isAnnouncementRead(announcement)
+    ) {
+      return;
+    }
+
+    setAnnouncements((current) =>
+      current.map((item) =>
+        item.id === announcement.id ? { ...item, is_read: true } : item,
+      ),
+    );
+    onAnnouncementRead?.(announcement.id, true);
+
+    try {
+      await announcementsApi.markAsRead(session, announcement.id);
+    } catch (requestError) {
+      setAnnouncements((current) =>
+        current.map((item) =>
+          item.id === announcement.id ? { ...item, is_read: false } : item,
+        ),
+      );
+      onAnnouncementRead?.(announcement.id, false);
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Unable to mark notification as read.",
+      );
+      if (requestError.status === 401) onSessionExpired?.();
+    }
+  };
 
   return (
     <ScrollView
@@ -168,9 +204,11 @@ export default function ParentAnnouncementsScreen({
               key={announcement.id || `${announcement.title}-${index}`}
               style={[
                 styles.card,
+                announcementsApi.isAnnouncementRead(announcement) &&
+                  styles.cardRead,
                 { backgroundColor: cardBackground, borderColor: cardAccent },
               ]}
-              onPress={() => announcement.id && announcementsApi.markAsRead(session, announcement.id)}
+              onPress={() => handleMarkAsRead(announcement)}
             >
               <View style={styles.cardHeader}>
                 <View style={styles.typeRow}>
@@ -241,6 +279,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
+  cardRead: { opacity: 0.82 },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",

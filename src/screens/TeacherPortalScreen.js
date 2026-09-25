@@ -864,27 +864,45 @@ export default function TeacherPortalScreen({ session, onLogout }) {
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
 
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.brand}>{session?.schoolName || ""}</Text>
-          <Text style={styles.portal}>
+          <Text style={styles.portal} numberOfLines={1} ellipsizeMode="tail">
             Teacher portal{" "}
             <Text style={styles.year}>{session?.academicYear || ""}</Text>
           </Text>
         </View>
         <View style={styles.headerActions}>
           <Pressable
-            accessibilityLabel="Open teacher notifications"
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
             onPress={() => setActiveModule("Messages")}
-            style={styles.headerIconButton}
+            style={styles.headerAction}
           >
-            <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            {unreadNotifications > 0 ? (
-              <Text style={styles.unreadBadge}>
-                {unreadNotifications > 99 ? "99+" : unreadNotifications}
-              </Text>
-            ) : null}
+            <Icon name="mail-outline" size={19} color="#C8DBF2" />
           </Pressable>
-          <Pressable onPress={signOut} style={styles.logout}>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+            onPress={() => setActiveModule("Messages")}
+            style={styles.headerAction}
+          >
+            <View style={styles.headerIconContainer}>
+              <Icon name="notifications-outline" size={19} color="#C8DBF2" />
+              {unreadNotifications > 0 ? (
+                <Text pointerEvents="none" style={styles.unreadBadge}>
+                  {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Logout"
+            onPress={signOut}
+            style={styles.logout}
+          >
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
@@ -1224,12 +1242,17 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   header: {
     backgroundColor: colors.navy,
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
   },
   brand: {
     color: "#A9C6E8",
@@ -1242,17 +1265,38 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     marginTop: 4,
+    maxWidth: "100%",
   },
   year: { color: "#8EB7E8", fontSize: 13, fontWeight: "600" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 13 },
-  headerIconButton: { position: "relative", padding: 3 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexShrink: 0,
+  },
+  headerAction: {
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
+  headerIconContainer: {
+    position: "relative",
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   unreadBadge: {
     position: "absolute",
-    top: -5,
-    right: -6,
-    minWidth: 15,
-    height: 15,
-    paddingHorizontal: 3,
+    top: -8,
+    right: -12,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
     borderRadius: 8,
     backgroundColor: colors.red,
     color: colors.white,
@@ -1260,8 +1304,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
     lineHeight: 15,
+    overflow: "hidden",
+    pointerEvents: "none",
   },
-  logout: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logout: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginLeft: 4,
+    gap: 6,
+  },
   logoutText: { color: "#C8DBF2", fontSize: 13, fontWeight: "700" },
   pageHeading: {
     paddingHorizontal: 20,

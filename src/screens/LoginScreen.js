@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
     Image,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -11,6 +12,7 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { isApiConfigured } from "../services/api";
@@ -123,94 +125,105 @@ export default function LoginScreen({ onLogin }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <View style={styles.brandMark}>
-            <Image
-              source={require("../../assets/logo.png")}
-              resizeMode="contain"
-              style={styles.logo}
-            />
-          </View>
-          <Text style={styles.title}>Welcome to</Text>
-          <Text style={styles.appName}>EduCampus360 ERP</Text>
-          <Text style={styles.subtitle}>
-            Transforming education through smart technology.{`\n`}
-            Login to explore your personalized dashboard.
-          </Text>
-
-          <View style={styles.form}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={19} color={colors.muted} />
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email address"
-                placeholderTextColor="#9AA7B7"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-              />
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.brandHeader}>
+              <View style={styles.brandMark}>
+                <Image
+                  source={require("../../assets/logo.png")}
+                  resizeMode="contain"
+                  style={styles.logo}
+                />
+              </View>
+              <View style={styles.brandCopy}>
+                <Text style={styles.title}>Welcome to</Text>
+                <View style={styles.appNameRow}>
+                  <Text
+                    style={styles.appName}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    EduCampus360 ERP
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrap}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={19}
-                color={colors.muted}
-              />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                placeholderTextColor="#9AA7B7"
-                secureTextEntry={!showPassword}
-                style={styles.input}
-              />
-              <Pressable onPress={() => setShowPassword((value) => !value)}>
+            <View style={styles.form}>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="mail-outline" size={19} color={colors.muted} />
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email address"
+                  placeholderTextColor="#9AA7B7"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.input}
+                />
+              </View>
+
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrap}>
                 <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
+                  name="lock-closed-outline"
+                  size={19}
                   color={colors.muted}
                 />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#9AA7B7"
+                  secureTextEntry={!showPassword}
+                  style={styles.input}
+                />
+                <Pressable onPress={() => setShowPassword((value) => !value)}>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              </View>
+
+              {message ? <Text style={styles.error}>{message}</Text> : null}
+              <Pressable
+                style={styles.forgotButton}
+                onPress={() =>
+                  setMessage("Password recovery is not included in this demo.")
+                }
+              >
+                <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.button,
+                  (pressed || loading) && styles.pressed,
+                ]}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Signing in..." : "Sign in to Account"}
+                </Text>
+                {!loading ? (
+                  <Ionicons name="arrow-forward" size={19} color={colors.white} />
+                ) : null}
               </Pressable>
             </View>
-
-            {message ? <Text style={styles.error}>{message}</Text> : null}
-            <Pressable
-              style={styles.forgotButton}
-              onPress={() =>
-                setMessage("Password recovery is not included in this demo.")
-              }
-            >
-              <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleLogin}
-              disabled={loading}
-              style={({ pressed }) => [
-                styles.button,
-                (pressed || loading) && styles.pressed,
-              ]}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? "Signing in..." : "Sign in to Account"}
-              </Text>
-              {!loading ? (
-                <Ionicons name="arrow-forward" size={19} color={colors.white} />
-              ) : null}
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
@@ -219,6 +232,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   content: { flexGrow: 1, padding: 24, justifyContent: "center" },
+  brandHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
   brandMark: {
     width: 72,
     height: 72,
@@ -229,20 +248,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    marginBottom: 18,
+    flexShrink: 0,
   },
   logo: { width: 72, height: 72 },
+  brandCopy: { flex: 1, minWidth: 0 },
   title: { color: colors.ink, fontSize: 31, fontWeight: "900", marginTop: 7 },
   appName: {
     color: colors.blue,
     fontSize: 25,
     fontWeight: "900",
-    marginTop: 4,
+    flexShrink: 1,
   },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 14,
-    marginTop: 7,
+  appNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    marginTop: 4,
     marginBottom: 28,
   },
   form: {

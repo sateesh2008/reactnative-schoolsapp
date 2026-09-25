@@ -6,7 +6,6 @@ import {
     Platform,
     Pressable,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -14,6 +13,10 @@ import {
     TextInput,
     View,
 } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { announcementsApi } from "../services/announcementsApi";
 import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
@@ -222,6 +225,7 @@ function HomeContent({
   students,
   onSelectStudent,
   onRefresh,
+  onAnnouncementRead,
 }) {
   const classes = dashboard.classes.length ? dashboard.classes : [];
   return (
@@ -330,7 +334,10 @@ function HomeContent({
                 <Pressable
                   key={announcement.id || announcement.title}
                   style={dashboardStyles.notificationRow}
-                  onPress={() => goTo("Messaging / Notifications")}
+                  onPress={() => {
+                    onAnnouncementRead?.(announcement.id, true);
+                    goTo("Messaging / Notifications");
+                  }}
                 >
                   <View style={dashboardStyles.notificationCopy}>
                     <Text style={dashboardStyles.notificationTitle}>
@@ -365,6 +372,8 @@ function DetailContent({
   onSessionExpired,
   selectedStudentId,
   selectedStudent,
+  onAnnouncementsLoaded,
+  onAnnouncementRead,
 }) {
   if (section === "Attendance")
     return (
@@ -412,6 +421,8 @@ function DetailContent({
         session={session}
         selectedStudentId={selectedStudentId}
         onSessionExpired={onSessionExpired}
+        onAnnouncementsLoaded={onAnnouncementsLoaded}
+        onAnnouncementRead={onAnnouncementRead}
       />
     );
   if (section === "Events")
@@ -514,6 +525,7 @@ function ProfileModal({ visible, onClose, session }) {
 }
 
 export default function ParentPortalScreen({ onLogout, session }) {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState("Home");
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -525,11 +537,37 @@ export default function ParentPortalScreen({ onLogout, session }) {
     homeworkDetail: "No data available",
     classes: [],
     announcements: [],
+    unreadAnnouncementCount: 0,
     schoolName: session?.schoolName || "",
     studentCount: students.length,
   });
   const [profileOpen, setProfileOpen] = useState(false);
   const isHome = activeTab === "Home";
+  const syncAnnouncements = useCallback((announcements) => {
+    setDashboard((current) => ({
+      ...current,
+      announcements,
+      unreadAnnouncementCount: announcementsApi.getUnreadCount(announcements),
+    }));
+  }, []);
+  const updateAnnouncementReadState = useCallback((announcementId, isRead) => {
+    if (!announcementId) return;
+    setDashboard((current) => ({
+      ...current,
+      announcements: current.announcements.map((announcement) =>
+        String(announcement.id) === String(announcementId)
+          ? { ...announcement, is_read: isRead }
+          : announcement,
+      ),
+      unreadAnnouncementCount: announcementsApi.getUnreadCount(
+        current.announcements.map((announcement) =>
+          String(announcement.id) === String(announcementId)
+            ? { ...announcement, is_read: isRead }
+            : announcement,
+        ),
+      ),
+    }));
+  }, []);
   const handleLogout = () => {
     if (Platform.OS === "web") {
       onLogout();
@@ -615,7 +653,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
           ? `${homework.length} available`
           : "No data available",
         classes: [],
-        announcements: announcements.slice(0, 3),
+        announcements,
+        unreadAnnouncementCount: announcementsApi.getUnreadCount(announcements),
         schoolName: session?.schoolName || "",
         studentCount: nextStudents.length,
         examCount: exams.length,
@@ -647,48 +686,67 @@ export default function ParentPortalScreen({ onLogout, session }) {
       className: "",
     };
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.brand}>{session?.schoolName || ""}</Text>
-          <Text style={styles.portal}>
+          <Text style={styles.portal} numberOfLines={1} ellipsizeMode="tail">
             Parent portal{" "}
             <Text style={styles.year}>{session?.academicYear || ""}</Text>
           </Text>
         </View>
         <View style={styles.headerActions}>
           <Pressable
-            accessibilityLabel="Open announcements"
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
             onPress={() => setActiveTab("Messaging / Notifications")}
-            style={styles.headerIconButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.headerAction}
           >
-            <Icon
-              name="chatbubble-ellipses-outline"
-              size={19}
-              color="#C8DBF2"
-            />
-            <Text style={styles.unreadBadge}>
-              {dashboard.announcements.length}
-            </Text>
+            <View style={styles.headerIconContainer}>
+              <Icon
+                name="chatbubble-ellipses-outline"
+                size={19}
+                color="#C8DBF2"
+              />
+              {dashboard.announcements.length ? (
+                <Text pointerEvents="none" style={styles.unreadBadge}>
+                  {dashboard.unreadAnnouncementCount}
+                </Text>
+              ) : null}
+            </View>
           </Pressable>
           <Pressable
-            accessibilityLabel="Open notifications"
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
             onPress={() => setActiveTab("Messaging / Notifications")}
-            style={styles.headerIconButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.headerAction}
           >
-            <Icon name="notifications-outline" size={19} color="#C8DBF2" />
-            <Text style={styles.unreadBadge}>
-              {dashboard.announcements.length}
-            </Text>
+            <View style={styles.headerIconContainer}>
+              <Icon name="notifications-outline" size={19} color="#C8DBF2" />
+              {dashboard.announcements.length ? (
+                <Text pointerEvents="none" style={styles.unreadBadge}>
+                  {dashboard.unreadAnnouncementCount}
+                </Text>
+              ) : null}
+            </View>
           </Pressable>
-          <Pressable onPress={handleLogout} style={styles.logout}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Logout"
+            onPress={handleLogout}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.logout}
+          >
             <Icon name="log-out-outline" size={18} color="#C8DBF2" />
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </View>
       </View>
       <ScrollView
+        style={styles.scroll}
         refreshControl={
           <RefreshControl
             refreshing={isHome && dashboard.loading}
@@ -707,6 +765,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
             students={students}
             onSelectStudent={setSelectedStudentId}
             onRefresh={loadDashboard}
+            onAnnouncementRead={updateAnnouncementReadState}
           />
         ) : (
           <>
@@ -726,11 +785,18 @@ export default function ParentPortalScreen({ onLogout, session }) {
               selectedStudentId={selectedStudentId}
               selectedStudent={selectedStudent}
               onSessionExpired={onLogout}
+              onAnnouncementsLoaded={syncAnnouncements}
+              onAnnouncementRead={updateAnnouncementReadState}
             />
           </>
         )}
       </ScrollView>
-      <View style={styles.bottomNav}>
+      <View
+        style={[
+          styles.bottomNav,
+          { paddingBottom: Math.max(insets.bottom, 8) },
+        ]}
+      >
         {navItems.map((item) => (
           <Pressable
             key={item.label}
@@ -768,14 +834,20 @@ export default function ParentPortalScreen({ onLogout, session }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  scroll: { flex: 1 },
   header: {
     backgroundColor: colors.navy,
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
   },
   brand: {
     color: "#A9C6E8",
@@ -788,17 +860,38 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     marginTop: 4,
+    maxWidth: "100%",
   },
   year: { color: "#8EB7E8", fontSize: 13, fontWeight: "600" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 13 },
-  headerIconButton: { position: "relative", padding: 3 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexShrink: 0,
+  },
+  headerAction: {
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
+  headerIconContainer: {
+    position: "relative",
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   unreadBadge: {
     position: "absolute",
-    top: -5,
-    right: -6,
-    minWidth: 15,
-    height: 15,
-    paddingHorizontal: 3,
+    top: -8,
+    right: -12,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
     borderRadius: 8,
     backgroundColor: colors.red,
     color: colors.white,
@@ -806,8 +899,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
     lineHeight: 15,
+    overflow: "hidden",
+    pointerEvents: "none",
   },
-  logout: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logout: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginLeft: 4,
+    gap: 6,
+  },
   logoutText: { color: "#C8DBF2", fontSize: 13, fontWeight: "700" },
   content: { padding: 20, paddingBottom: 30 },
   greetingRow: {

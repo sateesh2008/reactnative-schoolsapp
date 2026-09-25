@@ -1,6 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Colors } from "../constants/theme";
 import { ApiError } from "../services/api";
 import { attendanceApi } from "../services/attendanceApi";
@@ -37,6 +44,63 @@ const colors = {
   logRowPurpleAccent: "#6C63A8",
 };
 
+const monthOptions = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+].map((label, index) => ({ label, value: index + 1 }));
+
+const currentDate = new Date();
+const currentMonth = currentDate.getMonth() + 1;
+const currentYear = currentDate.getFullYear();
+const yearOptions = Array.from({ length: 5 }, (_, index) => {
+  const value = currentYear - 2 + index;
+  return { label: String(value), value };
+});
+
+const getAttendanceDate = (value) => {
+  const dateValue = String(value || "").split("T")[0];
+  const [year, month, day] = dateValue.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+};
+
+const formatAttendanceDate = (value) => {
+  const dateParts = getAttendanceDate(value);
+  if (!dateParts) return "Date unavailable";
+  const date = new Date(dateParts.year, dateParts.month - 1, dateParts.day);
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatAttendanceDay = (value) => {
+  const dateParts = getAttendanceDate(value);
+  if (!dateParts) return "";
+  return new Date(
+    dateParts.year,
+    dateParts.month - 1,
+    dateParts.day,
+  ).toLocaleDateString("en-US", { weekday: "long" });
+};
+
+const filterAttendanceByMonth = (records, month, year) =>
+  records.filter((record) => {
+    const dateParts = getAttendanceDate(record.date);
+    return dateParts?.month === month && dateParts?.year === year;
+  });
+
 const statusStyle = (status) => {
   if (status === "Present")
     return [styles.statusBadge, styles.presentBadge, styles.presentText];
@@ -53,10 +117,6 @@ const messageForError = (error) =>
   error instanceof ApiError
     ? error.message
     : "Something went wrong. Please try again later.";
-
-function Icon({ name, size = 18, color = colors.ink }) {
-  return <Ionicons name={name} size={size} color={color} />;
-}
 
 function Loading({ label = "Loading..." }) {
   return (
@@ -88,6 +148,59 @@ function MetricCard({ title, value, label, backgroundColor, accentColor }) {
   );
 }
 
+function PeriodSelector({ label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const selectedOption = options.find((option) => option.value === value);
+
+  return (
+    <View style={styles.selectorWrap}>
+      <Text style={styles.selectorLabel}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${label}`}
+        onPress={() => setOpen(true)}
+        style={styles.selectorButton}
+      >
+        <Text style={styles.selectorValue}>{selectedOption?.label}</Text>
+        <Ionicons name="chevron-down" size={17} color={colors.muted} />
+      </Pressable>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <Pressable style={styles.selectorBackdrop} onPress={() => setOpen(false)}>
+          <View style={styles.selectorMenu}>
+            {options.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                style={[
+                  styles.selectorOption,
+                  option.value === value && styles.selectorOptionActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.selectorOptionText,
+                    option.value === value && styles.selectorOptionTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 function AttendanceLog({ record, index, isFirst, isLast }) {
   const [badge, badgeBackground, badgeText] = statusStyle(record.status);
   const rowColors = [
@@ -108,9 +221,11 @@ function AttendanceLog({ record, index, isFirst, isLast }) {
     >
       <View style={styles.logDate}>
         <Text style={[styles.logDateText, { color: rowAccent }]}>
-          {record.date}
+            {formatAttendanceDate(record.date)}
         </Text>
-        <Text style={[styles.logDay, { color: rowAccent }]}>{record.day}</Text>
+          <Text style={[styles.logDay, { color: rowAccent }]}>
+            {formatAttendanceDay(record.date)}
+          </Text>
       </View>
       <View style={styles.logDivider} />
       <View style={styles.logDetails}>
@@ -141,30 +256,39 @@ export default function ParentAttendanceScreen({
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  const loadDaily = async () => {
+  const loadDaily = useCallback(async () => {
     setLoading(true);
     setError("");
+    setMonthlyRecords([]);
+    const month = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
     try {
-      const [nextSummary, nextMonthlyRecords] = await Promise.all([
-        attendanceApi.getSummary(month, session, selectedStudentId),
-        attendanceApi.getMonthly(month, session, selectedStudentId),
-      ]);
+      const { summary: nextSummary, records: nextMonthlyRecords } =
+        await attendanceApi.getMonthlyData(month, session, selectedStudentId);
+      const filteredRecords = filterAttendanceByMonth(
+        nextMonthlyRecords,
+        selectedMonth,
+        selectedYear,
+      );
       setSummary(nextSummary);
-      setMonthlyRecords(nextMonthlyRecords);
+      setMonthlyRecords(filteredRecords);
     } catch (requestError) {
       setError(messageForError(requestError));
       if (requestError.status === 401) onSessionExpired?.();
     } finally {
       setLoading(false);
     }
-  };
-
-  const month = new Date().toISOString().slice(0, 7);
+  }, [onSessionExpired, selectedMonth, selectedStudentId, selectedYear, session]);
 
   useEffect(() => {
-    loadDaily();
-  }, [session, selectedStudentId, month]);
+    const timer = setTimeout(() => void loadDaily(), 0);
+    return () => clearTimeout(timer);
+  }, [loadDaily]);
+
+  const selectedMonthLabel =
+    monthOptions.find((option) => option.value === selectedMonth)?.label || "";
 
   return (
     <View style={styles.container}>
@@ -172,10 +296,32 @@ export default function ParentAttendanceScreen({
         <Text style={styles.heading}>Attendance</Text>
         <Text style={styles.scopeText}>Parent Mobile View</Text>
       </View>
+      <View style={styles.selectorRow}>
+        <PeriodSelector
+          label="Month"
+          value={selectedMonth}
+          options={monthOptions}
+          onChange={setSelectedMonth}
+        />
+        <PeriodSelector
+          label="Academic Year"
+          value={selectedYear}
+          options={yearOptions}
+          onChange={setSelectedYear}
+        />
+      </View>
+      {error ? (
+        <View style={styles.errorState}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable onPress={() => void loadDaily()}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View style={styles.summaryHeading}>
         <Text style={styles.sectionTitle}>Attendance Summary</Text>
         <Text style={styles.sectionSubtitle}>
-          September 2026 academic presence
+          {selectedMonthLabel} {selectedYear} academic presence
         </Text>
       </View>
       <View style={styles.summaryGrid}>
@@ -211,12 +357,14 @@ export default function ParentAttendanceScreen({
       <View style={styles.logsHeading}>
         <Text style={styles.sectionTitle}>Attendance Logs</Text>
         <Text style={styles.sectionSubtitle}>Monthly Academic Presence</Text>
-        <Text style={styles.monthLabel}>September 2026</Text>
+        <Text style={styles.monthLabel}>
+          {selectedMonthLabel} {selectedYear}
+        </Text>
       </View>
       {loading ? (
         <Loading label="Loading attendance..." />
       ) : monthlyRecords.length === 0 ? (
-        <EmptyState />
+        <EmptyState message="No attendance records found for this month." />
       ) : (
         <View style={[styles.logsCard, { borderColor: colors.logsAccent }]}>
           {monthlyRecords.map((record, index) => (
@@ -239,6 +387,52 @@ const styles = StyleSheet.create({
   headingRow: { marginBottom: 14 },
   heading: { color: colors.ink, fontSize: 22, fontWeight: "900" },
   scopeText: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  selectorRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 18,
+  },
+  selectorWrap: { flex: 1, minWidth: 0 },
+  selectorLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  selectorButton: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  selectorValue: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  selectorBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(23, 52, 59, 0.28)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  selectorMenu: {
+    maxHeight: "80%",
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 8,
+    elevation: 5,
+  },
+  selectorOption: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  selectorOptionActive: { backgroundColor: colors.paleBlue },
+  selectorOptionText: { color: colors.ink, fontSize: 14 },
+  selectorOptionTextActive: { color: colors.blue, fontWeight: "800" },
   backHome: {
     alignSelf: "flex-start",
     flexDirection: "row",

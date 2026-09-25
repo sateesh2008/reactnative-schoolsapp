@@ -29,25 +29,42 @@ const summaryFrom = (summary = {}, records = []) => {
   const present = Number(summary.present ?? summary.days_present ?? records.filter((record) => record.status === 'Present').length);
   const absent = Number(summary.absent ?? summary.days_absent ?? records.filter((record) => record.status === 'Absent').length);
   const late = Number(summary.late ?? summary.late_entries ?? records.filter((record) => record.status === 'Late').length);
+  const providedRate = summary.attendanceRate ?? summary.attendance_rate ?? summary.rate;
   return {
     ...emptySummary,
     ...summary,
     daysPresent: present,
     daysAbsent: absent,
     lateEntries: late,
-    attendanceRate: total ? Math.round((present / total) * 100) : 0,
+    attendanceRate:
+      providedRate == null
+        ? total
+          ? Math.round((present / total) * 100)
+          : 0
+        : Number(providedRate),
+  };
+};
+
+const getMonthlyData = async (month, session, studentId) => {
+  if (!isApiConfigured || !studentId) {
+    return { records: [], summary: emptySummary };
+  }
+
+  const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
+    token: session?.token,
+    query: { month },
+  });
+  const records = recordsFrom(payload);
+  return {
+    records,
+    summary: summaryFrom(payload?.data?.summary || payload?.summary, records),
   };
 };
 
 export const attendanceApi = {
   async getSummary(date, session, studentId) {
-    if (!isApiConfigured || !studentId) return emptySummary;
     const dateValue = String(date || '');
-    const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
-      token: session?.token,
-      query: { month: dateValue.slice(0, 7) },
-    });
-    return summaryFrom(payload?.data?.summary || payload?.summary, recordsFrom(payload));
+    return (await getMonthlyData(dateValue.slice(0, 7), session, studentId)).summary;
   },
 
   async getByDate(date, search, session) {
@@ -60,12 +77,11 @@ export const attendanceApi = {
   },
 
   async getMonthly(month, session, studentId) {
-    if (!isApiConfigured || !studentId) return [];
-    const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
-      token: session?.token,
-      query: { month },
-    });
-    return recordsFrom(payload);
+    return (await getMonthlyData(month, session, studentId)).records;
+  },
+
+  async getMonthlyData(month, session, studentId) {
+    return getMonthlyData(month, session, studentId);
   },
 
   async getHistory(params, session) {

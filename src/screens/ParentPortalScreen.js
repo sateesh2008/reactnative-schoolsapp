@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
     Alert,
-  KeyboardAvoidingView,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -15,9 +15,11 @@ import {
     View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import AcademicHealthPresenceCard from "../components/AcademicHealthPresenceCard";
+import { AppColors as colors } from "../constants/theme";
 import { announcementsApi } from "../services/announcementsApi";
 import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
@@ -33,7 +35,6 @@ import ParentHomeworkScreen from "./ParentHomeworkScreen";
 import ParentLeaveScreen from "./ParentLeaveScreen";
 import ParentTimetableScreen from "./ParentTimetableScreen";
 import ParentTransportScreen from "./ParentTransportScreen";
-import { AppColors as colors } from "../constants/theme";
 
 const navItems = [
   { label: "Home", icon: "home-outline" },
@@ -253,16 +254,13 @@ function HomeContent({
               </Pressable>
             </View>
           ) : null}
+          <AcademicHealthPresenceCard
+            percentage={dashboard.attendancePercentage}
+            daysPresent={dashboard.daysPresent}
+            daysAbsent={dashboard.daysAbsent}
+            onPress={() => goTo("Attendance")}
+          />
           <View style={dashboardStyles.summaryGrid}>
-            <DashboardCard
-              icon="pie-chart-outline"
-              label="Attendance"
-              value={dashboard.attendance}
-              detail="Current summary"
-              tint="#F2ECFB"
-              iconColor="#7A5AA6"
-              onPress={() => goTo("Attendance")}
-            />
             <DashboardCard
               icon="wallet-outline"
               label="Fees & Dues"
@@ -374,6 +372,7 @@ function DetailContent({
       <ParentFeesScreen
         session={session}
         selectedStudentId={selectedStudentId}
+        selectedStudent={selectedStudent}
         onSessionExpired={onSessionExpired}
       />
     );
@@ -497,7 +496,9 @@ const profileFormFromStudent = (student) => ({
 });
 
 function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
-  const [form, setForm] = useState(() => profileFormFromStudent(selectedStudent));
+  const [form, setForm] = useState(() =>
+    profileFormFromStudent(selectedStudent),
+  );
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -514,7 +515,10 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
       if (!selectedStudent?.id) return;
       setLoadingProfile(true);
       try {
-        const profile = await parentApi.getChildProfile(selectedStudent.id, session);
+        const profile = await parentApi.getChildProfile(
+          selectedStudent.id,
+          session,
+        );
         if (active && profile) {
           setForm(profileFormFromStudent({ ...selectedStudent, ...profile }));
         }
@@ -571,11 +575,15 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
         session,
       );
       onSaved({ ...selectedStudent, ...form, ...(updatedProfile || {}) });
-      Alert.alert("Profile updated successfully", "Ward profile changes were saved.", [
-        { text: "OK", onPress: onClose },
-      ]);
+      Alert.alert(
+        "Profile updated successfully",
+        "Ward profile changes were saved.",
+        [{ text: "OK", onPress: onClose }],
+      );
     } catch (requestError) {
-      setError(requestError?.message || "Unable to update profile. Please try again.");
+      setError(
+        requestError?.message || "Unable to update profile. Please try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -590,7 +598,10 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
           if (name === "mobile_number") {
             updateField(
               name,
-              value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "").slice(0, 10),
+              value
+                .replace(/[^\d+]/g, "")
+                .replace(/(?!^)\+/g, "")
+                .slice(0, 10),
             );
           } else if (name === "pincode") {
             updateField(name, value.replace(/\D/g, "").slice(0, 6));
@@ -605,7 +616,9 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
         multiline={options.multiline}
         numberOfLines={options.multiline ? 3 : 1}
       />
-      {fieldErrors[name] ? <Text style={styles.fieldError}>{fieldErrors[name]}</Text> : null}
+      {fieldErrors[name] ? (
+        <Text style={styles.fieldError}>{fieldErrors[name]}</Text>
+      ) : null}
     </View>
   );
 
@@ -636,9 +649,13 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
             showsVerticalScrollIndicator={false}
           >
             {loadingProfile ? (
-              <Text style={styles.loadingText}>Loading existing profile...</Text>
+              <Text style={styles.loadingText}>
+                Loading existing profile...
+              </Text>
             ) : null}
-            {field("Mobile Number", "mobile_number", { keyboardType: "phone-pad" })}
+            {field("Mobile Number", "mobile_number", {
+              keyboardType: "phone-pad",
+            })}
             {field("Email Address", "email", {
               keyboardType: "email-address",
               autoCapitalize: "none",
@@ -649,7 +666,13 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
                 style={styles.selectInput}
                 onPress={() => setBloodGroupOpen(true)}
               >
-                <Text style={form.blood_group ? styles.selectText : styles.placeholderText}>
+                <Text
+                  style={
+                    form.blood_group
+                      ? styles.selectText
+                      : styles.placeholderText
+                  }
+                >
                   {form.blood_group || "Select blood group"}
                 </Text>
                 <Icon name="chevron-down" size={18} color={colors.muted} />
@@ -666,7 +689,11 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
             {field("Religion", "religion")}
             {error ? <Text style={styles.formError}>{error}</Text> : null}
             <View style={styles.profileButtonRow}>
-              <Pressable style={styles.secondaryButton} onPress={onClose} disabled={saving}>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={onClose}
+                disabled={saving}
+              >
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
@@ -721,6 +748,9 @@ export default function ParentPortalScreen({ onLogout, session }) {
     loading: true,
     error: "",
     attendance: "0%",
+    attendancePercentage: 0,
+    daysPresent: 0,
+    daysAbsent: 0,
     fees: "₹0",
     homeworkDetail: "No data available",
     classes: [],
@@ -836,6 +866,9 @@ export default function ParentPortalScreen({ onLogout, session }) {
       setDashboard({
         loading: false,
         attendance: `${attendance?.attendanceRate ?? 0}%`,
+        attendancePercentage: attendance?.attendanceRate ?? 0,
+        daysPresent: attendance?.daysPresent ?? 0,
+        daysAbsent: attendance?.daysAbsent ?? 0,
         fees: `₹${Number(fees?.institutionalDues || 0).toLocaleString("en-IN")}`,
         homeworkDetail: homework?.length
           ? `${homework.length} available`

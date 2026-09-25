@@ -18,6 +18,7 @@ import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { AppColors as colors } from "../constants/theme";
 import { announcementsApi } from "../services/announcementsApi";
 import { teacherApi } from "../services/teacherApi";
 import AnnouncementDetailsScreen from "./AnnouncementDetailsScreen";
@@ -32,7 +33,6 @@ import TeacherLeaveManagementScreen from "./TeacherLeaveManagementScreen";
 import TeacherMessagesScreen from "./TeacherMessagesScreen";
 import TeacherOMRScreen from "./TeacherOMRScreen";
 import TeacherTimetableScreen from "./TeacherTimetableScreen";
-import { AppColors as colors } from "../constants/theme";
 
 const primaryNavItems = [
   { label: "Home", icon: "home-outline" },

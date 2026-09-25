@@ -15,9 +15,9 @@ import {
     TouchableWithoutFeedback,
     View,
 } from "react-native";
+import { AppColors as colors } from "../constants/theme";
 import { isApiConfigured } from "../services/api";
 import { login } from "../services/authApi";
-import { AppColors as colors } from "../constants/theme";
 
 export default function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -206,7 +206,11 @@ export default function LoginScreen({ onLogin }) {
                   {loading ? "Signing in..." : "Sign in to Account"}
                 </Text>
                 {!loading ? (
-                  <Ionicons name="arrow-forward" size={19} color={colors.white} />
+                  <Ionicons
+                    name="arrow-forward"
+                    size={19}
+                    color={colors.white}
+                  />
                 ) : null}
               </Pressable>
             </View>

@@ -92,7 +92,11 @@ function StatCard({ label, value, description, icon, tint }) {
   );
 }
 
-export default function BroadcastLedgerScreen({ session, onBack, onOpenAnnouncement }) {
+export default function BroadcastLedgerScreen({
+  session,
+  onBack,
+  onOpenAnnouncement,
+}) {
   const [announcements, setAnnouncements] = useState([]);
   const [query, setQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
@@ -101,25 +105,28 @@ export default function BroadcastLedgerScreen({ session, onBack, onOpenAnnouncem
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadAnnouncements = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError("");
-    try {
-      const result = await announcementsApi.getAnnouncements(session);
-      setAnnouncements(
-        (Array.isArray(result) ? result : []).map(normalizeAnnouncement),
-      );
-    } catch (requestError) {
-      setError(
-        requestError?.message ||
-          "Unable to load announcements. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [session]);
+  const loadAnnouncements = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError("");
+      try {
+        const result = await announcementsApi.getAnnouncements(session);
+        setAnnouncements(
+          (Array.isArray(result) ? result : []).map(normalizeAnnouncement),
+        );
+      } catch (requestError) {
+        setError(
+          requestError?.message ||
+            "Unable to load announcements. Please try again.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [session],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -242,9 +249,11 @@ export default function BroadcastLedgerScreen({ session, onBack, onOpenAnnouncem
           />
           <StatCard
             label="High Priority"
-            value={announcements.filter((announcement) =>
-              String(announcement.priority).toLowerCase().includes("high"),
-            ).length}
+            value={
+              announcements.filter((announcement) =>
+                String(announcement.priority).toLowerCase().includes("high"),
+              ).length
+            }
             description="Critical alerts"
             icon="warning-outline"
             tint={colors.paleOrange}
@@ -363,16 +372,13 @@ export default function BroadcastLedgerScreen({ session, onBack, onOpenAnnouncem
                   style={styles.noticeButton}
                   onPress={() => onOpenAnnouncement?.(announcement)}
                 >
-                  <Text style={styles.noticeButtonText}>
-                    View Notice Page
-                  </Text>
+                  <Text style={styles.noticeButtonText}>View Notice Page</Text>
                   <Icon name="arrow-forward" size={14} color={colors.white} />
                 </Pressable>
               </View>
             </View>
           ))}
       </ScrollView>
-
     </View>
   );
 }

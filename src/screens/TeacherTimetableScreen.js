@@ -162,7 +162,9 @@ function getDisplayEntries(entries) {
 }
 
 const normalizeDayName = (value) => {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "Monday";
   const map = {
     mon: "Monday",
@@ -178,7 +180,9 @@ const normalizeDayName = (value) => {
     sat: "Saturday",
     saturday: "Saturday",
   };
-  return map[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return (
+    map[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1)
+  );
 };
 
 const normalizePeriodKey = (value) =>
@@ -190,9 +194,15 @@ const normalizePeriodKey = (value) =>
 const normalizeTimetableRecords = (items) => {
   const source = Array.isArray(items) ? items : [];
   return source.map((entry, index) => {
-    const dayName = normalizeDayName(entry.day || entry.day_name || entry.dayName);
+    const dayName = normalizeDayName(
+      entry.day || entry.day_name || entry.dayName,
+    );
     const periodName =
-      entry.period || entry.period_name || entry.slot || entry.periodName || "Period_1";
+      entry.period ||
+      entry.period_name ||
+      entry.slot ||
+      entry.periodName ||
+      "Period_1";
     const periodKey = normalizePeriodKey(periodName);
     return {
       ...entry,
@@ -354,9 +364,7 @@ export default function TeacherTimetableScreen({
             availableDivisions = divisions.length
               ? divisions.map((division) => ({
                   id: String(division.id),
-                  label: String(
-                    division.label || division.name || division.id,
-                  ),
+                  label: String(division.label || division.name || division.id),
                 }))
               : Array.from(
                   new Set(
@@ -405,7 +413,8 @@ export default function TeacherTimetableScreen({
           );
 
           const displayRecords =
-            tab === "Class Timetable" && (!classId || !sectionId || !academicSession)
+            tab === "Class Timetable" &&
+            (!classId || !sectionId || !academicSession)
               ? []
               : nextRecords;
           setRecords(displayRecords);
@@ -413,13 +422,14 @@ export default function TeacherTimetableScreen({
           setPeriodSlots(
             (liveSessions || []).length
               ? (liveSessions || [])
-              .map((item, index) => ({
-                id: item.id || item.session_name || `session-${index}`,
-                name: item.session_name || item.name || `Period ${index + 1}`,
-                startTime: item.start_time || item.startTime || "",
-                endTime: item.end_time || item.endTime || "",
-              }))
-              .filter((item) => item.startTime && item.endTime)
+                  .map((item, index) => ({
+                    id: item.id || item.session_name || `session-${index}`,
+                    name:
+                      item.session_name || item.name || `Period ${index + 1}`,
+                    startTime: item.start_time || item.startTime || "",
+                    endTime: item.end_time || item.endTime || "",
+                  }))
+                  .filter((item) => item.startTime && item.endTime)
               : nextRecords.map((item, index) => ({
                   id: item.periodKey || `period-${index}`,
                   name: item.period,
@@ -450,7 +460,9 @@ export default function TeacherTimetableScreen({
           if (selectedDivision) {
             setSectionId(String(selectedDivision.id));
             setSectionFilter(
-              selectedDivision.label || selectedDivision.name || String(selectedDivision.id),
+              selectedDivision.label ||
+                selectedDivision.name ||
+                String(selectedDivision.id),
             );
           } else if (availableDivisions.length) {
             setSectionId(String(availableDivisions[0].id));
@@ -479,7 +491,15 @@ export default function TeacherTimetableScreen({
     return () => {
       active = false;
     };
-  }, [academicSession, classId, sectionId, className, sectionFilter, session, tab]);
+  }, [
+    academicSession,
+    classId,
+    sectionId,
+    className,
+    sectionFilter,
+    session,
+    tab,
+  ]);
 
   const availableAcademicSessions = useMemo(
     () =>
@@ -498,7 +518,11 @@ export default function TeacherTimetableScreen({
 
     const pushPeriod = (entry) => {
       const rawLabel =
-        entry?.label || entry?.name || entry?.period || entry?.slot || "Period_1";
+        entry?.label ||
+        entry?.name ||
+        entry?.period ||
+        entry?.slot ||
+        "Period_1";
       const id = normalizePeriodKey(rawLabel);
       if (!periods.has(id)) {
         periods.set(id, {
@@ -627,12 +651,17 @@ export default function TeacherTimetableScreen({
   const teacherFilteredRecords = useMemo(() => {
     const sessionRecords = teacherRecords.filter((item) => {
       const recordSession = String(item.academicSession ?? "").trim();
-      return !recordSession || recordSession === String(effectiveAcademicSession || "");
+      return (
+        !recordSession ||
+        recordSession === String(effectiveAcademicSession || "")
+      );
     });
 
     if (assignedOnly) {
       return sessionRecords.filter((item) => {
-        const facultyName = String(item.facultyName || item.teacher || "").trim();
+        const facultyName = String(
+          item.facultyName || item.teacher || "",
+        ).trim();
         const staffId = String(
           item.staffId || item.facultyId || item.teacherId || "",
         );
@@ -1020,70 +1049,72 @@ export default function TeacherTimetableScreen({
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                 <View style={styles.matrixTable}>
-                <View style={styles.headerRow}>
-                  <View style={styles.periodHeaderCell}>
-                    <Text style={styles.headerText}>Period</Text>
+                  <View style={styles.headerRow}>
+                    <View style={styles.periodHeaderCell}>
+                      <Text style={styles.headerText}>Period</Text>
+                    </View>
+                    {days.map((day) => (
+                      <View key={day} style={styles.dayHeaderCell}>
+                        <Text style={styles.headerText}>{day}</Text>
+                      </View>
+                    ))}
                   </View>
-                  {days.map((day) => (
-                    <View key={day} style={styles.dayHeaderCell}>
-                      <Text style={styles.headerText}>{day}</Text>
+
+                  {periodList.map((period) => (
+                    <View key={period.id} style={styles.periodRow}>
+                      <View style={styles.periodCell}>
+                        <Text style={styles.periodName}>{period.name}</Text>
+                        <Text style={styles.periodTime}>
+                          {period.startTime} - {period.endTime}
+                        </Text>
+                      </View>
+                      {days.map((day) => {
+                        const entries = getDisplayEntries(
+                          columnEntries[day]?.[period.id] || [],
+                        );
+                        return (
+                          <Pressable
+                            key={`${day}-${period.id}`}
+                            style={[
+                              styles.dayCell,
+                              !entries.length && styles.dayCellEmpty,
+                            ]}
+                            onPress={() =>
+                              entries.length &&
+                              setSelectedCell({ day, period, entries })
+                            }
+                          >
+                            {entries.length ? (
+                              <>
+                                <Text style={styles.cellCount}>
+                                  {entries.length}{" "}
+                                  {entries.length === 1
+                                    ? "Section"
+                                    : "Sections"}
+                                </Text>
+                                {entries.slice(0, 2).map((entry) => (
+                                  <Text
+                                    key={entry.id}
+                                    style={styles.cellSubject}
+                                    numberOfLines={2}
+                                  >
+                                    {entry.subject}
+                                  </Text>
+                                ))}
+                                {entries.length > 2 ? (
+                                  <Text style={styles.cellSubjectMuted}>
+                                    +{entries.length - 2} more
+                                  </Text>
+                                ) : null}
+                              </>
+                            ) : (
+                              <Text style={styles.emptyCellText}>-</Text>
+                            )}
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   ))}
-                </View>
-
-                {periodList.map((period) => (
-                  <View key={period.id} style={styles.periodRow}>
-                    <View style={styles.periodCell}>
-                      <Text style={styles.periodName}>{period.name}</Text>
-                      <Text style={styles.periodTime}>
-                        {period.startTime} - {period.endTime}
-                      </Text>
-                    </View>
-                    {days.map((day) => {
-                      const entries = getDisplayEntries(
-                        columnEntries[day]?.[period.id] || [],
-                      );
-                      return (
-                        <Pressable
-                          key={`${day}-${period.id}`}
-                          style={[
-                            styles.dayCell,
-                            !entries.length && styles.dayCellEmpty,
-                          ]}
-                          onPress={() =>
-                            entries.length &&
-                            setSelectedCell({ day, period, entries })
-                          }
-                        >
-                          {entries.length ? (
-                            <>
-                              <Text style={styles.cellCount}>
-                                {entries.length}{" "}
-                                {entries.length === 1 ? "Section" : "Sections"}
-                              </Text>
-                              {entries.slice(0, 2).map((entry) => (
-                                <Text
-                                  key={entry.id}
-                                  style={styles.cellSubject}
-                                  numberOfLines={2}
-                                >
-                                  {entry.subject}
-                                </Text>
-                              ))}
-                              {entries.length > 2 ? (
-                                <Text style={styles.cellSubjectMuted}>
-                                  +{entries.length - 2} more
-                                </Text>
-                              ) : null}
-                            </>
-                          ) : (
-                            <Text style={styles.emptyCellText}>-</Text>
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
                 </View>
               </ScrollView>
             )}

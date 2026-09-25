@@ -164,7 +164,9 @@ export default function ParentAnnouncementsScreen({
           <View>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>
-              {eventOnly ? "School events and activities" : "School messages and notifications"}
+              {eventOnly
+                ? "School events and activities"
+                : "School messages and notifications"}
             </Text>
           </View>
         </View>

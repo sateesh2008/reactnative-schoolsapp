@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { Colors } from "../constants/theme";
 import { ApiError } from "../services/api";
@@ -170,7 +170,10 @@ function PeriodSelector({ label, value, options, onChange }) {
         animationType="fade"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={styles.selectorBackdrop} onPress={() => setOpen(false)}>
+        <Pressable
+          style={styles.selectorBackdrop}
+          onPress={() => setOpen(false)}
+        >
           <View style={styles.selectorMenu}>
             {options.map((option) => (
               <Pressable
@@ -221,11 +224,11 @@ function AttendanceLog({ record, index, isFirst, isLast }) {
     >
       <View style={styles.logDate}>
         <Text style={[styles.logDateText, { color: rowAccent }]}>
-            {formatAttendanceDate(record.date)}
+          {formatAttendanceDate(record.date)}
         </Text>
-          <Text style={[styles.logDay, { color: rowAccent }]}>
-            {formatAttendanceDay(record.date)}
-          </Text>
+        <Text style={[styles.logDay, { color: rowAccent }]}>
+          {formatAttendanceDay(record.date)}
+        </Text>
       </View>
       <View style={styles.logDivider} />
       <View style={styles.logDetails}>
@@ -280,7 +283,13 @@ export default function ParentAttendanceScreen({
     } finally {
       setLoading(false);
     }
-  }, [onSessionExpired, selectedMonth, selectedStudentId, selectedYear, session]);
+  }, [
+    onSessionExpired,
+    selectedMonth,
+    selectedStudentId,
+    selectedYear,
+    session,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => void loadDaily(), 0);

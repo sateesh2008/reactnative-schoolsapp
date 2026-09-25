@@ -1,12 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { Colors } from "../constants/theme";
 import { ApiError } from "../services/api";
@@ -152,11 +155,45 @@ function FeeTransaction({ transaction, index }) {
 }
 
 function ReceiptTransaction({ receipt, index }) {
-  const handleReceipt = () =>
-    Alert.alert(
-      "Receipt unavailable",
-      "Receipt viewing will be connected when the payment service provides a receipt file.",
-    );
+  const [generating, setGenerating] = useState(false);
+
+  const handleReceipt = async () => {
+    setGenerating(true);
+    try {
+      if (receipt.receiptUrl) {
+        await Linking.openURL(receipt.receiptUrl);
+        return;
+      }
+
+      const html = `
+        <html>
+          <body style="font-family: Arial; padding: 32px; color: #172A28;">
+            <h1>Fee Payment Receipt</h1>
+            <p><strong>Receipt No:</strong> ${receipt.receiptNo}</p>
+            <p><strong>Date:</strong> ${receipt.date}</p>
+            <p><strong>Payment Mode:</strong> ${receipt.mode}</p>
+            <h2>Amount Paid: ₹${Number(receipt.amount || 0).toLocaleString("en-IN")}</h2>
+          </body>
+        </html>`;
+      const result = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(result.uri, {
+          mimeType: "application/pdf",
+          dialogTitle: `Receipt ${receipt.receiptNo}`,
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        Alert.alert("Receipt generated", `PDF saved at ${result.uri}`);
+      }
+    } catch {
+      Alert.alert(
+        "Receipt error",
+        "Unable to generate the receipt. Please try again.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
   const [backgroundColor, accentColor] =
     feeBoxColors[(index + 4) % feeBoxColors.length];
 
@@ -180,16 +217,30 @@ function ReceiptTransaction({ receipt, index }) {
           <Text style={styles.detailLabel}>Mode</Text>
           <Text style={styles.detailValue}>{receipt.mode}</Text>
         </View>
-        <Pressable style={styles.receiptButton} onPress={handleReceipt}>
-          <Icon name="receipt-outline" size={15} color={colors.blue} />
-          <Text style={styles.receiptButtonText}>Receipt</Text>
+        <Pressable
+          style={[styles.receiptButton, generating && styles.disabled]}
+          onPress={handleReceipt}
+          disabled={generating}
+        >
+          <Icon
+            name={generating ? "hourglass-outline" : "receipt-outline"}
+            size={15}
+            color={colors.blue}
+          />
+          <Text style={styles.receiptButtonText}>
+            {generating ? "Generating..." : "Receipt"}
+          </Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-export default function ParentFeesScreen({ session, selectedStudentId, onSessionExpired }) {
+export default function ParentFeesScreen({
+  session,
+  selectedStudentId,
+  onSessionExpired,
+}) {
   const [summary, setSummary] = useState({});
   const [pendingFees, setPendingFees] = useState([]);
   const [transactionHistory, setTransactionHistory] = useState([]);
@@ -202,12 +253,18 @@ export default function ParentFeesScreen({ session, selectedStudentId, onSession
     try {
       const nextSummary = await feesApi.getSummary(session, selectedStudentId);
       const nextPendingFees = nextSummary?.fees || [];
-      const nextTransactionHistory = await feesApi.getTransactionHistory(
-        { ...session, studentId: selectedStudentId },
-      );
       setSummary(nextSummary || {});
       setPendingFees(nextPendingFees || []);
-      setTransactionHistory(nextTransactionHistory || []);
+      try {
+        const nextTransactionHistory = await feesApi.getTransactionHistory({
+          ...session,
+          studentId: selectedStudentId,
+        });
+        setTransactionHistory(nextTransactionHistory || []);
+      } catch (transactionError) {
+        if (transactionError.status === 401) onSessionExpired?.();
+        setTransactionHistory([]);
+      }
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
@@ -504,6 +561,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
+  disabled: { opacity: 0.55 },
   receiptButtonText: { color: colors.blue, fontSize: 10, fontWeight: "900" },
   payButton: {
     backgroundColor: colors.blue,

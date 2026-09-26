@@ -1,4 +1,4 @@
-import { apiRequest, isApiConfigured } from "./api";
+import { apiRequest, isApiConfigured, resolveApiUrl } from "./api";
 import {
     parentFeesSummary,
     parentPendingFees,
@@ -43,10 +43,47 @@ const transactionsFrom = (payload) => {
     payload?.transactions ||
     payload?.data?.transactions ||
     payload?.data?.payments ||
+    payload?.data?.results ||
+    payload?.data?.items ||
+    payload?.data?.data?.transactions ||
+    payload?.data?.data?.payments ||
+    payload?.data?.data?.results ||
+    payload?.result?.transactions ||
+    payload?.result?.payments ||
+    payload?.results ||
+    payload?.items ||
     payload?.data?.data ||
     payload?.data ||
     [];
   return Array.isArray(transactions) ? transactions : [];
+};
+
+const receiptUrlFrom = (receipt) => {
+  const nestedReceipt =
+    receipt.receipt && typeof receipt.receipt === "object"
+      ? receipt.receipt
+      : {};
+  const value =
+    receipt.receiptUrl ||
+    receipt.receipt_url ||
+    receipt.receipt_download_url ||
+    receipt.receipt_path ||
+    receipt.receipt_file_path ||
+    receipt.receipt_file ||
+    receipt.receipt_file_url ||
+    receipt.document_url ||
+    receipt.download_path ||
+    receipt.file_url ||
+    receipt.file_path ||
+    receipt.download_url ||
+    receipt.url ||
+    nestedReceipt.url ||
+    nestedReceipt.path ||
+    nestedReceipt.file_url ||
+    nestedReceipt.download_url ||
+    (typeof receipt.receipt === "string" ? receipt.receipt : "") ||
+    "";
+  return value ? resolveApiUrl(value) : "";
 };
 
 const normalizeTransaction = (receipt, index) => ({
@@ -70,15 +107,7 @@ const normalizeTransaction = (receipt, index) => ({
     receipt.receipt_number ||
     receipt.receipt_id ||
     "-",
-  receiptUrl:
-    receipt.receiptUrl ||
-    receipt.receipt_url ||
-    receipt.receipt_file ||
-    receipt.receipt_file_url ||
-    receipt.file_url ||
-    receipt.download_url ||
-    receipt.url ||
-    "",
+  receiptUrl: receiptUrlFrom(receipt),
   mode:
     receipt.mode ||
     receipt.payment_mode ||
@@ -236,11 +265,11 @@ export const feesApi = {
       query: { student_id: session?.studentId },
     };
     try {
-      const payload = await apiRequest("/fees/transactions", request);
+      const payload = await apiRequest("/finance/transactions", request);
       return transactionsFrom(payload).map(normalizeTransaction);
     } catch (error) {
       if (error?.status !== 404) throw error;
-      const payload = await apiRequest("/finance/transactions", request);
+      const payload = await apiRequest("/fees/transactions", request);
       return transactionsFrom(payload).map(normalizeTransaction);
     }
   },

@@ -483,13 +483,18 @@ export default function ParentFeesScreen({
     try {
       const nextSummary = await feesApi.getSummary(session, selectedStudentId);
       const nextPendingFees = nextSummary?.fees || [];
-      const nextTransactionHistory = await feesApi.getTransactionHistory({
-        ...session,
-        studentId: selectedStudentId,
-      });
       setSummary(nextSummary || {});
       setPendingFees(nextPendingFees || []);
-      setTransactionHistory(nextTransactionHistory || []);
+      try {
+        const nextTransactionHistory = await feesApi.getTransactionHistory({
+          ...session,
+          studentId: selectedStudentId,
+        });
+        setTransactionHistory(nextTransactionHistory || []);
+      } catch (transactionError) {
+        if (transactionError.status === 401) onSessionExpired?.();
+        setTransactionHistory([]);
+      }
     } catch (requestError) {
       setError(
         requestError instanceof ApiError

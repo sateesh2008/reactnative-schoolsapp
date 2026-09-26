@@ -7,6 +7,7 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -518,17 +519,21 @@ export default function ParentFeesScreen({
       const logoUri = Image.resolveAssetSource(
         require("../../assets/logo.png"),
       )?.uri;
+      const receiptHtml = buildReceiptHtml({
+        logoUri,
+        session,
+        selectedStudent,
+        summary,
+        transaction: receipt,
+      });
+      if (Platform.OS === "web") {
+        await Print.printAsync({ html: receiptHtml });
+        return;
+      }
       const { localUri, mimeType } = await getLocalReceiptFile({
         receipt,
         session,
-        generatePdf: () =>
-          buildReceiptHtml({
-            logoUri,
-            session,
-            selectedStudent,
-            summary,
-            transaction: receipt,
-          }),
+        generatePdf: () => receiptHtml,
       });
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert(

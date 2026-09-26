@@ -191,6 +191,28 @@ const normalizePeriodKey = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "") || "period1";
 
+const getEntryPeriodKey = (entry) =>
+  normalizePeriodKey(
+    entry?.periodKey ||
+      entry?.period ||
+      entry?.period_name ||
+      entry?.slot ||
+      entry?.name ||
+      entry?.id ||
+      "Period_1",
+  );
+
+const getPeriodSlotKey = (slot) =>
+  normalizePeriodKey(
+    slot?.id ||
+      slot?.periodKey ||
+      slot?.name ||
+      slot?.label ||
+      slot?.session_name ||
+      slot?.period ||
+      "Period_1",
+  );
+
 const normalizeTimetableRecords = (items) => {
   const source = Array.isArray(items) ? items : [];
   return source.map((entry, index) => {
@@ -606,23 +628,49 @@ export default function TeacherTimetableScreen({
     });
   }, [effectiveAcademicSession, effectiveClassName, records, sectionFilter]);
 
-  const periodList = useMemo(() => {
+  const normalizedPeriodSlots = useMemo(() => {
     const sourcePeriods = periodSlots.length ? periodSlots : [];
-    if (showAllPeriods) {
-      return sourcePeriods;
+    if (!sourcePeriods.length) {
+      return periodTemplates.map((slot) => ({
+        ...slot,
+        id: normalizePeriodKey(slot.name),
+        periodKey: normalizePeriodKey(slot.name),
+        name: slot.name,
+      }));
     }
-    return sourcePeriods.filter((period) =>
-      filteredRecords.some((item) => item.period === period.id),
+
+    return sourcePeriods.map((slot) => {
+      const periodKey = getPeriodSlotKey(slot);
+      return {
+        ...slot,
+        id: periodKey,
+        periodKey,
+        name: slot.name || slot.session_name || slot.label || slot.id || "Period_1",
+      };
+    });
+  }, [periodSlots]);
+
+  const periodList = useMemo(() => {
+    if (showAllPeriods) {
+      return normalizedPeriodSlots;
+    }
+    return normalizedPeriodSlots.filter((period) =>
+      filteredRecords.some(
+        (item) => getEntryPeriodKey(item) === period.periodKey,
+      ),
     );
-  }, [filteredRecords, periodSlots, showAllPeriods]);
+  }, [filteredRecords, normalizedPeriodSlots, showAllPeriods]);
 
   const columnEntries = useMemo(() => {
     const map = {};
     days.forEach((day) => {
       map[day] = {};
       periodList.forEach((period) => {
-        map[day][period.id] = filteredRecords.filter(
-          (item) => item.day === day && item.period === period.id,
+        const key = period.periodKey || period.id;
+        map[day][key] = filteredRecords.filter(
+          (item) =>
+            normalizeDayName(item.day) === day &&
+            getEntryPeriodKey(item) === key,
         );
       });
     });
@@ -1069,12 +1117,13 @@ export default function TeacherTimetableScreen({
                         </Text>
                       </View>
                       {days.map((day) => {
+                        const periodKey = period.periodKey || period.id;
                         const entries = getDisplayEntries(
-                          columnEntries[day]?.[period.id] || [],
+                          columnEntries[day]?.[periodKey] || [],
                         );
                         return (
                           <Pressable
-                            key={`${day}-${period.id}`}
+                            key={`${day}-${periodKey}`}
                             style={[
                               styles.dayCell,
                               !entries.length && styles.dayCellEmpty,

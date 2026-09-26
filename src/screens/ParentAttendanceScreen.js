@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Modal,
@@ -261,27 +261,61 @@ export default function ParentAttendanceScreen({
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [loadedKey, setLoadedKey] = useState("");
+  const requestId = useRef(0);
+  const filtersKey = `${selectedStudentId}:${selectedYear}:${selectedMonth}`;
 
   const loadDaily = useCallback(async () => {
+    const requestKey = `${selectedStudentId}:${selectedYear}:${selectedMonth}`;
+    const requestNumber = ++requestId.current;
     setLoading(true);
     setError("");
     setMonthlyRecords([]);
-    const month = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
+    setSummary({});
+    setLoadedKey("");
+    if (!selectedStudentId) {
+      setLoadedKey(requestKey);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { summary: nextSummary, records: nextMonthlyRecords } =
-        await attendanceApi.getMonthlyData(month, session, selectedStudentId);
+        await attendanceApi.getMonthlyData(
+          selectedMonth,
+          session,
+          selectedStudentId,
+          selectedYear,
+        );
+      if (requestNumber !== requestId.current) return;
       const filteredRecords = filterAttendanceByMonth(
-        nextMonthlyRecords,
+        Array.isArray(nextMonthlyRecords) ? nextMonthlyRecords : [],
         selectedMonth,
         selectedYear,
-      );
+      ).sort((left, right) => {
+        const leftDate = getAttendanceDate(left.date);
+        const rightDate = getAttendanceDate(right.date);
+        if (!leftDate || !rightDate) return 0;
+        return (
+          Date.UTC(leftDate.year, leftDate.month - 1, leftDate.day) -
+          Date.UTC(rightDate.year, rightDate.month - 1, rightDate.day)
+        );
+      });
       setSummary(nextSummary);
       setMonthlyRecords(filteredRecords);
+      setLoadedKey(requestKey);
     } catch (requestError) {
-      setError(messageForError(requestError));
-      if (requestError.status === 401) onSessionExpired?.();
+      if (requestNumber === requestId.current) {
+        setSummary({});
+        setMonthlyRecords([]);
+        setError(messageForError(requestError));
+        setLoadedKey(requestKey);
+        if (requestError.status === 401) onSessionExpired?.();
+      }
     } finally {
-      setLoading(false);
+      if (requestNumber === requestId.current) {
+        setLoading(false);
+      }
     }
   }, [
     onSessionExpired,
@@ -293,11 +327,19 @@ export default function ParentAttendanceScreen({
 
   useEffect(() => {
     const timer = setTimeout(() => void loadDaily(), 0);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      requestId.current += 1;
+    };
   }, [loadDaily]);
 
   const selectedMonthLabel =
     monthOptions.find((option) => option.value === selectedMonth)?.label || "";
+  const resultIsCurrent = loadedKey === filtersKey;
+  const displayedSummary = resultIsCurrent ? summary : {};
+  const displayedRecords = resultIsCurrent ? monthlyRecords : [];
+  const displayedError = resultIsCurrent ? error : "";
+  const isLoading = Boolean(selectedStudentId) && (loading || !resultIsCurrent);
 
   return (
     <View style={styles.container}>
@@ -319,9 +361,9 @@ export default function ParentAttendanceScreen({
           onChange={setSelectedYear}
         />
       </View>
-      {error ? (
+      {displayedError ? (
         <View style={styles.errorState}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>{displayedError}</Text>
           <Pressable onPress={() => void loadDaily()}>
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
@@ -335,29 +377,29 @@ export default function ParentAttendanceScreen({
       </View>
       <View style={styles.summaryGrid}>
         <MetricCard
-          title="Attendance Rate"
-          value={`${summary.attendanceRate ?? 0}%`}
-          label="MONTHLY RATE"
+          title="Total"
+          value={displayedSummary.total ?? 0}
+          label="TOTAL DAYS"
           backgroundColor={colors.attendanceRateTint}
           accentColor={colors.attendanceRateAccent}
         />
         <MetricCard
-          title="Days Present"
-          value={summary.daysPresent ?? 0}
+          title="Present"
+          value={displayedSummary.present ?? 0}
           label="PRESENT"
           backgroundColor={colors.daysPresentTint}
           accentColor={colors.daysPresentAccent}
         />
         <MetricCard
-          title="Days Absent"
-          value={summary.daysAbsent ?? 0}
+          title="Absent"
+          value={displayedSummary.absent ?? 0}
           label="ABSENT"
           backgroundColor={colors.daysAbsentTint}
           accentColor={colors.daysAbsentAccent}
         />
         <MetricCard
-          title="Late Entries"
-          value={summary.lateEntries ?? 0}
+          title="Late"
+          value={displayedSummary.late ?? 0}
           label="LATE"
           backgroundColor={colors.lateEntriesTint}
           accentColor={colors.lateEntriesAccent}
@@ -370,19 +412,19 @@ export default function ParentAttendanceScreen({
           {selectedMonthLabel} {selectedYear}
         </Text>
       </View>
-      {loading ? (
+      {isLoading ? (
         <Loading label="Loading attendance..." />
-      ) : monthlyRecords.length === 0 ? (
-        <EmptyState message="No attendance records found for this month." />
+      ) : displayedRecords.length === 0 ? (
+        <EmptyState message="No attendance data is available for this child during the selected month." />
       ) : (
         <View style={[styles.logsCard, { borderColor: colors.logsAccent }]}>
-          {monthlyRecords.map((record, index) => (
+          {displayedRecords.map((record, index) => (
             <AttendanceLog
               key={record.id || index}
               record={record}
               index={index}
               isFirst={index === 0}
-              isLast={index === monthlyRecords.length - 1}
+              isLast={index === displayedRecords.length - 1}
             />
           ))}
         </View>

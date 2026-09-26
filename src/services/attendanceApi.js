@@ -1,4 +1,4 @@
-import { apiRequest, isApiConfigured } from './api';
+import { ApiError, apiRequest, isApiConfigured } from './api';
 
 const emptySummary = {
   totalEnrolled: 0,
@@ -33,6 +33,10 @@ const summaryFrom = (summary = {}, records = []) => {
   return {
     ...emptySummary,
     ...summary,
+    total,
+    present,
+    absent,
+    late,
     daysPresent: present,
     daysAbsent: absent,
     lateEntries: late,
@@ -45,15 +49,35 @@ const summaryFrom = (summary = {}, records = []) => {
   };
 };
 
-const getMonthlyData = async (month, session, studentId) => {
+const getMonthlyData = async (month, session, studentId, year) => {
   if (!isApiConfigured || !studentId) {
     return { records: [], summary: emptySummary };
   }
 
-  const payload = await apiRequest(`/parents/child/${studentId}/attendance`, {
+  const monthValue = String(month ?? "");
+  const monthMatch = monthValue.match(/^(\d{4})-(\d{1,2})$/);
+  const requestMonth = monthMatch ? Number(monthMatch[2]) : Number(monthValue);
+  const requestYear = monthMatch ? Number(monthMatch[1]) : Number(year);
+  if (
+    !Number.isInteger(requestMonth) ||
+    requestMonth < 1 ||
+    requestMonth > 12 ||
+    !Number.isInteger(requestYear)
+  ) {
+    throw new ApiError("Select a valid attendance month and year.", 400);
+  }
+
+  const payload = await apiRequest(`/parents/child/${encodeURIComponent(String(studentId))}/attendance`, {
     token: session?.token,
-    query: { month },
+    query: { month: requestMonth, year: requestYear },
   });
+  if (payload?.success === false) {
+    const message =
+      typeof payload.message === "string"
+        ? payload.message
+        : "Unable to load attendance for the selected month.";
+    throw new ApiError(message, 200, payload);
+  }
   const records = recordsFrom(payload);
   return {
     records,

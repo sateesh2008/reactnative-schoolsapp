@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Image,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -123,8 +123,8 @@ const transactionDetails = (transaction) => ({
     transaction?.txnId,
   ),
   receiptUrl: firstValue(
-    transaction?.receipt_url,
     transaction?.receiptUrl,
+    transaction?.receipt_url,
     transaction?.download_url,
     transaction?.downloadUrl,
     transaction?.file_url,
@@ -149,6 +149,17 @@ const transactionDetails = (transaction) => ({
 
 const isRemoteUri = (uri) => /^https?:\/\//i.test(String(uri || ""));
 const isLocalUri = (uri) => /^(file|content):\/\//i.test(String(uri || ""));
+
+const downloadBlobOnWeb = (blob, fileName) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const downloadLink = document.createElement("a");
+  downloadLink.href = objectUrl;
+  downloadLink.download = fileName;
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  downloadLink.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+};
 
 const mimeTypeFrom = (uri, providedMimeType) => {
   if (providedMimeType) return providedMimeType;
@@ -294,29 +305,68 @@ const buildReceiptHtml = ({
 const getLocalReceiptFile = async ({ receipt, session, generatePdf }) => {
   const details = transactionDetails(receipt);
   const receiptUrl = String(details.receiptUrl || "").trim();
-  const mimeType = mimeTypeFrom(receiptUrl, details.mimeType);
+  let mimeType = mimeTypeFrom(receiptUrl, details.mimeType);
   let localUri = receiptUrl;
+  let generatedFromPayment = false;
 
-  if (!receiptUrl) {
+  const generateReceiptCopy = async () => {
     const generated = await Print.printToFileAsync({ html: generatePdf() });
     localUri = generated?.uri;
+    mimeType = "application/pdf";
+    generatedFromPayment = true;
+  };
+
+  if (!receiptUrl) {
+    await generateReceiptCopy();
   } else if (isRemoteUri(receiptUrl)) {
-    if (!FileSystem.cacheDirectory) {
-      throw new Error("A local receipt directory is unavailable.");
+    try {
+      if (!FileSystem.cacheDirectory) {
+        throw new Error("A local receipt directory is unavailable.");
+      }
+      const destination = `${FileSystem.cacheDirectory}${receiptFileName(
+        receipt,
+        receiptUrl,
+        mimeType,
+      )}`;
+      const downloadResult = await FileSystem.downloadAsync(
+        receiptUrl,
+        destination,
+        session?.token
+          ? { headers: { Authorization: `Bearer ${session.token}` } }
+          : undefined,
+      );
+      const status = Number(downloadResult?.status);
+      if (!Number.isFinite(status) || status < 200 || status >= 300) {
+        throw new Error(
+          `Receipt download failed (HTTP ${status || "unknown"}).`,
+        );
+      }
+      const responseMimeType = String(
+        downloadResult.mimeType ||
+          Object.entries(downloadResult.headers || {}).find(
+            ([name]) => name.toLowerCase() === "content-type",
+          )?.[1] ||
+          "",
+      )
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+      if (
+        /^(text\/|application\/(json|problem\+json))/.test(responseMimeType)
+      ) {
+        throw new Error("The receipt URL returned a non-document response.");
+      }
+      localUri = downloadResult?.uri;
+      if (!localUri || !isLocalUri(localUri)) {
+        throw new Error("The receipt download did not return a local file.");
+      }
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (!fileInfo?.exists || fileInfo.size === 0) {
+        throw new Error("The downloaded receipt file could not be found.");
+      }
+    } catch {
+      await generateReceiptCopy();
     }
-    const destination = `${FileSystem.cacheDirectory}${receiptFileName(
-      receipt,
-      receiptUrl,
-      mimeType,
-    )}`;
-    const downloadResult = await FileSystem.downloadAsync(
-      receiptUrl,
-      destination,
-      session?.token
-        ? { headers: { Authorization: `Bearer ${session.token}` } }
-        : undefined,
-    );
-    localUri = downloadResult?.uri;
   }
 
   if (!localUri || isRemoteUri(localUri) || !isLocalUri(localUri)) {
@@ -328,7 +378,7 @@ const getLocalReceiptFile = async ({ receipt, session, generatePdf }) => {
     throw new Error("The receipt file could not be found.");
   }
 
-  return { localUri, mimeType };
+  return { localUri, mimeType, generatedFromPayment };
 };
 
 function Icon({ name, size = 18, color = colors.ink }) {
@@ -515,21 +565,107 @@ export default function ParentFeesScreen({
     if (downloadingReceiptId || !receipt) return;
     setDownloadingReceiptId(receipt.id);
     try {
-      const logoUri = Image.resolveAssetSource(
-        require("../../assets/logo.png"),
-      )?.uri;
-      const { localUri, mimeType } = await getLocalReceiptFile({
-        receipt,
+      const receiptHtml = buildReceiptHtml({
+        logoUri: null,
         session,
-        generatePdf: () =>
-          buildReceiptHtml({
-            logoUri,
-            session,
-            selectedStudent,
-            summary,
-            transaction: receipt,
-          }),
+        selectedStudent,
+        summary,
+        transaction: receipt,
       });
+      if (Platform.OS === "web") {
+        const receiptUrl = String(
+          transactionDetails(receipt).receiptUrl || "",
+        ).trim();
+        let downloadedOfficialReceipt = false;
+        let receiptApiError = "";
+        if (isRemoteUri(receiptUrl)) {
+          try {
+            const response = await fetch(receiptUrl, {
+              headers: session?.token
+                ? { Authorization: `Bearer ${session.token}` }
+                : undefined,
+            });
+            if (!response.ok) {
+              throw new Error(
+                `Receipt request failed (HTTP ${response.status}).`,
+              );
+            }
+            const blob = await response.blob();
+            if (
+              !blob.size ||
+              /^(text\/|application\/(json|problem\+json))/.test(blob.type)
+            ) {
+              throw new Error("The API did not return a receipt document.");
+            }
+            downloadBlobOnWeb(
+              blob,
+              receiptFileName(
+                receipt,
+                receiptUrl,
+                blob.type || "application/pdf",
+              ),
+            );
+            downloadedOfficialReceipt = true;
+          } catch (downloadError) {
+            receiptApiError =
+              downloadError?.message || "The API request failed.";
+            downloadedOfficialReceipt = false;
+          }
+        }
+        if (downloadedOfficialReceipt) return;
+
+        const copyFileName = receiptFileName(
+          receipt,
+          "fee-receipt.html",
+          "text/html",
+        ).replace(/\.pdf$/i, "_copy.html");
+        downloadBlobOnWeb(
+          new Blob([receiptHtml], { type: "text/html;charset=utf-8" }),
+          copyFileName,
+        );
+        const reason = receiptApiError
+          ? ` The official receipt request failed: ${receiptApiError}.`
+          : " No official receipt file URL was returned by the transaction API.";
+        window.alert(
+          `A payment-details receipt copy was downloaded as HTML.${reason}`,
+        );
+        return;
+      }
+      const { localUri, mimeType, generatedFromPayment } =
+        await getLocalReceiptFile({
+          receipt,
+          session,
+          generatePdf: () => receiptHtml,
+        });
+      if (Platform.OS === "android") {
+        const permission =
+          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permission.granted) return;
+
+        const fileName = receiptFileName(receipt, localUri, mimeType);
+        const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          permission.directoryUri,
+          fileName.slice(0, fileName.lastIndexOf(".")),
+          mimeType,
+        );
+        const contents = await FileSystem.readAsStringAsync(localUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await FileSystem.StorageAccessFramework.writeAsStringAsync(
+          fileUri,
+          contents,
+          { encoding: FileSystem.EncodingType.Base64 },
+        );
+        Alert.alert(
+          generatedFromPayment
+            ? "Receipt copy saved"
+            : "Fee receipt downloaded successfully.",
+          generatedFromPayment
+            ? "The official receipt file was unavailable. This copy was generated from the transaction details."
+            : undefined,
+        );
+        return;
+      }
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert(
           "Receipt generated",
@@ -542,12 +678,19 @@ export default function ParentFeesScreen({
         dialogTitle: "Download Fee Receipt",
         ...(mimeType === "application/pdf" ? { UTI: "com.adobe.pdf" } : {}),
       });
-      Alert.alert("Fee receipt downloaded successfully.");
-    } catch (requestError) {
       Alert.alert(
-        "Unable to generate the fee receipt",
-        requestError?.message || "Please try again.",
+        generatedFromPayment
+          ? "Receipt copy ready"
+          : "Fee receipt downloaded successfully.",
+        generatedFromPayment
+          ? "The official receipt file was unavailable. This copy was generated from the transaction details."
+          : undefined,
       );
+    } catch (requestError) {
+      const message =
+        requestError?.message || "Unable to generate the fee receipt.";
+      if (Platform.OS === "web") window.alert(message);
+      else Alert.alert("Unable to generate the fee receipt", message);
     } finally {
       setDownloadingReceiptId(null);
     }

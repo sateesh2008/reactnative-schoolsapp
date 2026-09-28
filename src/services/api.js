@@ -12,6 +12,17 @@ export class ApiError extends Error {
 }
 export const isApiConfigured = Boolean(API_BASE_URL);
 
+export function resolveApiUrl(path) {
+  const value = String(path ?? "").trim();
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const baseOrigin = new URL(API_BASE_URL).origin;
+  return new URL(
+    value.startsWith("/") ? value : `/${value}`,
+    baseOrigin,
+  ).toString();
+}
+
 const errorMessageForStatus = (status) => {
   if (status === 401) return "Your session has expired. Please login again.";
   if (status === 403)

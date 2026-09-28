@@ -1,4 +1,5 @@
 import { apiRequest, isApiConfigured } from "./api";
+import { normalizeParentChildren } from "./parentNormalization";
 
 export const parentApi = {
   async getChildren(session) {
@@ -6,8 +7,29 @@ export const parentApi = {
     const payload = await apiRequest("/parents/children", {
       token: session?.token,
     });
-    const children = payload?.data || payload?.children || [];
-    return Array.isArray(children) ? children : children?.data || [];
+    const children = normalizeParentChildren(payload);
+    if (__DEV__) {
+      console.info(
+        "[Parent] child ID mapping",
+        children.map((child) => ({
+          selectedId: child.id,
+          parentChildId: child.parentChildId,
+          student_id: child.student_id,
+          studentId: child.studentId,
+          child_id: child.child_id,
+          childId: child.childId,
+          nestedStudentId:
+            child.student?.student_id ??
+            child.student?.studentId ??
+            child.student?.id,
+          nestedChildId:
+            child.child?.student_id ??
+            child.child?.studentId ??
+            child.child?.id,
+        })),
+      );
+    }
+    return children;
   },
 
   async getChildProfile(studentId, session) {

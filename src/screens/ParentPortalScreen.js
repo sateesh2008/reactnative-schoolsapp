@@ -814,8 +814,14 @@ export default function ParentPortalScreen({ onLogout, session }) {
         section: student.division_name || student.section || "",
       }));
       setStudents(nextStudents);
-      const activeStudentId =
-        selectedStudentId || String(nextStudents[0]?.id || "");
+      const selectedStudent = nextStudents.find(
+        (student) =>
+          String(student.id) === String(selectedStudentId) ||
+          String(student.parentChildId) === String(selectedStudentId),
+      );
+      const activeStudentId = String(
+        selectedStudent?.id || nextStudents[0]?.id || "",
+      );
       if (!activeStudentId) {
         setDashboard((current) => ({
           ...current,

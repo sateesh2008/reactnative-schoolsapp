@@ -44,6 +44,16 @@ export default function LoginScreen({ onLogin }) {
       const payload = await login(trimmedEmail, password);
       const result = payload?.data || payload;
       const user = result?.user || result?.profile || {};
+      const academicYear =
+        result?.academic_year_name ||
+        result?.academicYear ||
+        result?.academic_year ||
+        user?.academic_year_name ||
+        user?.academicYear ||
+        user?.academic_year ||
+        user?.tenant?.current_academic_year_name ||
+        user?.tenant?.currentAcademicYearName ||
+        "";
       const token =
         result?.token ||
         result?.access_token ||
@@ -97,6 +107,7 @@ export default function LoginScreen({ onLogin }) {
         id: teacherId,
         name: user.name || user.full_name || user.fullName,
         schoolName: user.tenant?.name || user.school?.name || user.school_name,
+        academicYear: academicYear,
         academicYearId:
           result?.academic_year_id ||
           result?.academicYearId ||

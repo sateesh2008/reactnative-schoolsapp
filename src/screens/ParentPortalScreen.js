@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
     Alert,
+    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -18,14 +20,15 @@ import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import AcademicHealthPresenceCard from "../components/AcademicHealthPresenceCard";
 import { AppColors as colors } from "../constants/theme";
+import { resolveApiUrl } from "../services/api";
 import { announcementsApi } from "../services/announcementsApi";
 import { attendanceApi } from "../services/attendanceApi";
 import { examsApi } from "../services/examsApi";
 import { feesApi } from "../services/feesApi";
 import { homeworkApi } from "../services/homeworkApi";
 import { parentApi } from "../services/parentApi";
+import ChangePhotoScreen from "./ChangePhotoScreen";
 import ParentAdditionalModuleScreen from "./ParentAdditionalModuleScreen";
 import ParentAnnouncementsScreen from "./ParentAnnouncementsScreen";
 import ParentAttendanceScreen from "./ParentAttendanceScreen";
@@ -179,7 +182,75 @@ function ModuleCard({ module, onPress }) {
   );
 }
 
+const getStudentPhotoSource = (student) => {
+  const candidate = student?.profile_image_url !== undefined
+    ? student.profile_image_url
+    : student?.photo ||
+      student?.photoUrl ||
+      student?.photo_url ||
+      student?.profile_photo ||
+      student?.profilePhoto ||
+      student?.profile_image ||
+      student?.profileImage ||
+      student?.image_url ||
+      student?.imageUrl ||
+      student?.avatar_url ||
+      student?.avatarUrl ||
+      "";
+
+  if (!candidate || typeof candidate !== "string") return null;
+
+  const value = candidate.trim();
+  if (!value) return null;
+  if (/^file:\/\//i.test(value)) return { uri: value };
+
+  try {
+    const imageUrl = /^https?:\/\//i.test(value)
+      ? new URL(value)
+      : new URL(resolveApiUrl(value));
+    if (!["http:", "https:"].includes(imageUrl.protocol)) return null;
+    return { uri: imageUrl.toString() };
+  } catch {
+    return null;
+  }
+};
+
+function ProfileAvatar({ student }) {
+  const photoSource = getStudentPhotoSource(student);
+  const [loadedUri, setLoadedUri] = useState("");
+  const [failedUri, setFailedUri] = useState("");
+  const photoAvailable = photoSource && failedUri !== photoSource.uri;
+
+  return (
+    <View style={dashboardStyles.profileAvatar}>
+      {photoAvailable ? (
+        <>
+          {loadedUri !== photoSource.uri ? (
+            <ActivityIndicator size="small" color={colors.blue} />
+          ) : null}
+          <Image
+            source={photoSource}
+            style={[
+              dashboardStyles.profileAvatarImage,
+              { opacity: loadedUri === photoSource.uri ? 1 : 0 },
+            ]}
+            onLoad={() => setLoadedUri(photoSource.uri)}
+            onError={() => setFailedUri(photoSource.uri)}
+            accessibilityLabel={`${student?.name || "Student"} profile photo`}
+          />
+        </>
+      ) : (
+        <Text style={dashboardStyles.profileAvatarText}>
+          {(student?.name || "S").charAt(0).toUpperCase()}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 function StudentCard({ student, selected, onPress }) {
+  const studentPhotoSource = getStudentPhotoSource(student);
+
   return (
     <Pressable
       onPress={onPress}
@@ -189,7 +260,14 @@ function StudentCard({ student, selected, onPress }) {
       ]}
     >
       <View style={dashboardStyles.studentAvatar}>
-        <Text style={dashboardStyles.studentAvatarText}>{student.initial}</Text>
+        {studentPhotoSource ? (
+          <Image
+            source={studentPhotoSource}
+            style={dashboardStyles.studentAvatarImage}
+          />
+        ) : (
+          <Text style={dashboardStyles.studentAvatarText}>{student.initial}</Text>
+        )}
       </View>
       <View style={dashboardStyles.studentCardCopy}>
         <Text style={dashboardStyles.studentCardName}>{student.name}</Text>
@@ -206,6 +284,7 @@ function StudentCard({ student, selected, onPress }) {
 }
 
 function HomeContent({
+  session,
   goTo,
   dashboard,
   selectedStudent,
@@ -213,8 +292,70 @@ function HomeContent({
   onSelectStudent,
   onRefresh,
   onAnnouncementRead,
+  onEditProfile,
+  onChangePhoto,
 }) {
-  const classes = dashboard.classes.length ? dashboard.classes : [];
+  const attendanceValue = Number.isFinite(Number(dashboard.attendancePercentage))
+    ? Math.round(Number(dashboard.attendancePercentage))
+    : 0;
+  const selectedWard = selectedStudent || students[0] || null;
+  const wardName = selectedWard?.name || "Student";
+  const wardClass =
+    selectedWard?.className ||
+    selectedWard?.class_name ||
+    selectedWard?.class ||
+    "N/A";
+  const wardSection =
+    selectedWard?.section ||
+    selectedWard?.division_name ||
+    selectedWard?.division ||
+    "N/A";
+  const profileFields = [
+    {
+      label: "Admission Number",
+      value:
+        selectedWard?.admission_number ||
+        selectedWard?.admissionNumber ||
+        selectedWard?.admission_no ||
+        "N/A",
+    },
+    {
+      label: "Roll Number",
+      value:
+        selectedWard?.roll_number ||
+        selectedWard?.rollNo ||
+        selectedWard?.roll_number_value ||
+        "N/A",
+    },
+    { label: "Class", value: wardClass },
+    { label: "Section", value: wardSection },
+    { label: "Gender", value: selectedWard?.gender || "N/A" },
+    {
+      label: "Blood Group",
+      value:
+        selectedWard?.blood_group ||
+        selectedWard?.bloodGroup ||
+        selectedWard?.blood_group_name ||
+        "N/A",
+    },
+    {
+      label: "Date of Birth",
+      value:
+        selectedWard?.dob ||
+        selectedWard?.date_of_birth ||
+        selectedWard?.dateOfBirth ||
+        "N/A",
+    },
+    {
+      label: "Bus Route",
+      value:
+        selectedWard?.bus_route ||
+        selectedWard?.busRoute ||
+        selectedWard?.transport_route ||
+        "N/A",
+    },
+  ];
+
   return (
     <View>
       <View style={dashboardStyles.headingRow}>
@@ -224,22 +365,45 @@ function HomeContent({
         </View>
         <View style={dashboardStyles.accountBadge}>
           <Text style={dashboardStyles.accountName}>Parent Account</Text>
-          <Text style={dashboardStyles.accountCount}>
-            {dashboard.studentCount}
-          </Text>
+          <Text style={dashboardStyles.accountCount}>{dashboard.studentCount}</Text>
         </View>
       </View>
-      <Text style={dashboardStyles.studentsLabel}>STUDENT:</Text>
+
+      <View style={dashboardStyles.dashboardHeaderCard}>
+        <Text style={dashboardStyles.dashboardTitle}>
+          Parent Portal & Ward Dashboard
+        </Text>
+        <Text style={dashboardStyles.dashboardSubtitle}>
+          {dashboard.schoolName || "Demo School"} — Real-time academic performance, attendance & dues
+        </Text>
+        <Text style={dashboardStyles.sessionMeta}>
+          Session: {session?.academicYear || "2026-2027"}
+        </Text>
+      </View>
+
+      <Text style={dashboardStyles.studentsLabel}>SELECT WARD:</Text>
       <View style={dashboardStyles.studentList}>
         {students.map((student) => (
           <StudentCard
             key={student.id}
             student={student}
-            selected={student.id === selectedStudent.id}
+            selected={student.id === selectedWard?.id}
             onPress={() => onSelectStudent(student.id)}
           />
         ))}
       </View>
+
+      <View style={dashboardStyles.summaryBanner}>
+        <View style={{ flex: 1 }}>
+          <Text style={dashboardStyles.summaryBannerTitle}>
+            {wardName} ({wardClass})
+          </Text>
+        </View>
+        <Pressable style={dashboardStyles.editProfileButton} onPress={onEditProfile}>
+          <Text style={dashboardStyles.editProfileText}>Edit Profile</Text>
+        </Pressable>
+      </View>
+
       {dashboard.loading ? (
         <View style={dashboardStyles.state}>
           <Text style={dashboardStyles.stateText}>Loading dashboard...</Text>
@@ -254,32 +418,95 @@ function HomeContent({
               </Pressable>
             </View>
           ) : null}
-          <AcademicHealthPresenceCard
-            percentage={dashboard.attendancePercentage}
-            daysPresent={dashboard.daysPresent}
-            daysAbsent={dashboard.daysAbsent}
-            onPress={() => goTo("Attendance")}
-          />
+
           <View style={dashboardStyles.summaryGrid}>
             <DashboardCard
-              icon="wallet-outline"
-              label="Fees & Dues"
-              value={dashboard.fees}
-              detail="Outstanding"
+              icon="calendar-outline"
+              label="Attendance Rate"
+              value={`${attendanceValue}%`}
+              detail={`${dashboard.daysPresent || 0} Present / ${dashboard.daysAbsent || 0} Absent`}
               tint="#EAF5FB"
               iconColor="#3284A8"
+              onPress={() => goTo("Attendance")}
+            />
+            <DashboardCard
+              icon="wallet-outline"
+              label="Fee Balance"
+              value={dashboard.fees}
+              detail="Outstanding"
+              tint="#F3E8FF"
+              iconColor="#7A5AA6"
               onPress={() => goTo("Fees")}
             />
             <DashboardCard
-              icon="book-outline"
-              label="Homework"
-              value="Tasks"
-              detail={dashboard.homeworkDetail}
+              icon="ribbon-outline"
+              label="Published Exams"
+              value={`${dashboard.examCount ?? 0}`}
+              detail="Exams"
               tint="#FFF1DF"
               iconColor="#D9822B"
-              onPress={() => goTo("Homework")}
+              onPress={() => goTo("Exams")}
+            />
+            <DashboardCard
+              icon="megaphone-outline"
+              label="Active Notices"
+              value={`${dashboard.noticeCount ?? dashboard.announcements.length ?? 0}`}
+              detail="Updates"
+              tint="#EAF5FB"
+              iconColor="#1D7A8C"
+              onPress={() => goTo("Messaging / Notifications")}
             />
           </View>
+
+          <SectionTitle title="Ward Profile & Details" />
+          <View style={dashboardStyles.profileCard}>
+            <View style={dashboardStyles.profileHeader}>
+              <ProfileAvatar student={selectedWard} />
+              <View style={{ flex: 1 }}>
+                <Text style={dashboardStyles.profileName}>{wardName}</Text>
+                <Text style={dashboardStyles.profileMeta}>
+                  {wardClass} • {wardSection}
+                </Text>
+              </View>
+              <Pressable style={dashboardStyles.photoButton} onPress={onChangePhoto}>
+                <Text style={dashboardStyles.photoButtonText}>Change Photo</Text>
+              </Pressable>
+            </View>
+            <View style={dashboardStyles.profileGrid}>
+              {profileFields.map((field) => (
+                <View key={field.label} style={dashboardStyles.profileField}>
+                  <Text style={dashboardStyles.profileFieldLabel}>{field.label}</Text>
+                  <Text style={dashboardStyles.profileFieldValue}>{field.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <SectionTitle title="Academic Attendance Progress" />
+          <View style={dashboardStyles.progressCard}>
+            <View style={dashboardStyles.progressHeader}>
+              <Text style={dashboardStyles.progressTitle}>
+                {attendanceValue}% Overall Presence
+              </Text>
+              <Text style={dashboardStyles.progressHint}>
+                {dashboard.daysPresent || 0} present • {dashboard.daysAbsent || 0} absent • {dashboard.lateEntries || 0} late
+              </Text>
+            </View>
+            <View style={dashboardStyles.progressTrack}>
+              <View
+                style={[
+                  dashboardStyles.progressFill,
+                  { width: `${Math.min(Math.max(attendanceValue, 0), 100)}%` },
+                ]}
+              />
+            </View>
+            <View style={dashboardStyles.progressStats}>
+              <Text style={dashboardStyles.progressStatItem}>Days Present: {dashboard.daysPresent || 0}</Text>
+              <Text style={dashboardStyles.progressStatItem}>Days Absent: {dashboard.daysAbsent || 0}</Text>
+              <Text style={dashboardStyles.progressStatItem}>Late Arrivals: {dashboard.lateEntries || 0}</Text>
+            </View>
+          </View>
+
           <SectionTitle title="Parent Modules" />
           <View style={dashboardStyles.moduleGrid}>
             {additionalModules.map((module) => (
@@ -290,31 +517,11 @@ function HomeContent({
               />
             ))}
           </View>
-          <SectionTitle title="Today's Classes" />
-          <View style={dashboardStyles.listCard}>
-            {classes.length ? (
-              classes.map((item, index) => (
-                <View
-                  key={`${item[0]}-${index}`}
-                  style={dashboardStyles.classRow}
-                >
-                  <Text style={dashboardStyles.classTime}>{item[0]}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={dashboardStyles.classSubject}>{item[1]}</Text>
-                    <Text style={dashboardStyles.classMeta}>{item[2]}</Text>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <Text style={dashboardStyles.emptyText}>
-                No classes scheduled for today
-              </Text>
-            )}
-          </View>
-          <SectionTitle title="Latest Notifications" />
+
+          <SectionTitle title="School Notices & Feed" action={`${dashboard.noticeCount ?? dashboard.announcements.length ?? 0} Updates`} />
           <View style={dashboardStyles.listCard}>
             {dashboard.announcements.length ? (
-              dashboard.announcements.map((announcement) => (
+              dashboard.announcements.slice(0, 6).map((announcement) => (
                 <Pressable
                   key={announcement.id || announcement.title}
                   style={dashboardStyles.notificationRow}
@@ -323,24 +530,26 @@ function HomeContent({
                     goTo("Messaging / Notifications");
                   }}
                 >
-                  <View style={dashboardStyles.notificationCopy}>
+                  <View style={dashboardStyles.notificationTag}>
+                    <Text style={dashboardStyles.notificationTagText}>
+                      {announcement.type || announcement.category || "General"}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text style={dashboardStyles.notificationTitle}>
                       {announcement.title}
                     </Text>
-                    <Text
-                      style={dashboardStyles.notificationMessage}
-                      numberOfLines={1}
-                    >
-                      {announcement.message}
+                    <Text style={dashboardStyles.notificationMeta}>
+                      {announcement.date ? new Date(announcement.date).toLocaleDateString("en-GB") : "Recent"}
+                    </Text>
+                    <Text style={dashboardStyles.notificationMessage} numberOfLines={2}>
+                      {announcement.message || "No summary available."}
                     </Text>
                   </View>
-                  <Icon name="chevron-forward" size={16} color={colors.muted} />
                 </Pressable>
               ))
             ) : (
-              <Text style={dashboardStyles.emptyText}>
-                No new notifications
-              </Text>
+              <Text style={dashboardStyles.emptyText}>No notices available</Text>
             )}
           </View>
         </>
@@ -495,7 +704,7 @@ const profileFormFromStudent = (student) => ({
   religion: getProfileValue(student, "religion"),
 });
 
-function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
+function ProfileModal({ visible, onClose, onSaved, onOpenChangePhoto, session, selectedStudent }) {
   const [form, setForm] = useState(() =>
     profileFormFromStudent(selectedStudent),
   );
@@ -504,6 +713,7 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [bloodGroupOpen, setBloodGroupOpen] = useState(false);
+  const studentPhotoSource = getStudentPhotoSource(selectedStudent);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -635,7 +845,7 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
           style={styles.profileModal}
         >
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
+            <Text style={styles.profileModalTitle}>
               Update Ward Profile: {selectedStudent?.name || "Ward"}
             </Text>
             <Pressable onPress={onClose}>
@@ -648,6 +858,29 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.photoUploadSection}>
+              <View style={styles.photoUploadPreview}>
+                {studentPhotoSource ? (
+                  <Image
+                    source={studentPhotoSource}
+                    style={styles.photoUploadImage}
+                  />
+                ) : (
+                  <Text style={styles.photoUploadFallback}>
+                    {(selectedStudent?.name || "S").charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <Pressable
+                style={styles.photoUploadButton}
+                onPress={() => {
+                  onClose();
+                  if (onOpenChangePhoto) onOpenChangePhoto();
+                }}
+              >
+                <Text style={styles.photoUploadButtonText}>Change Photo</Text>
+              </Pressable>
+            </View>
             {loadingProfile ? (
               <Text style={styles.loadingText}>
                 Loading existing profile...
@@ -742,6 +975,7 @@ function ProfileModal({ visible, onClose, onSaved, session, selectedStudent }) {
 export default function ParentPortalScreen({ onLogout, session }) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState("Home");
+  const dashboardRequestIdRef = useRef(0);
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [dashboard, setDashboard] = useState({
@@ -751,40 +985,46 @@ export default function ParentPortalScreen({ onLogout, session }) {
     attendancePercentage: 0,
     daysPresent: 0,
     daysAbsent: 0,
+    lateEntries: 0,
     fees: "₹0",
+    feeBalance: 0,
     homeworkDetail: "No data available",
     classes: [],
     announcements: [],
     unreadAnnouncementCount: 0,
+    noticeCount: 0,
+    examCount: 0,
     schoolName: session?.schoolName || "",
     studentCount: students.length,
   });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [changePhotoOpen, setChangePhotoOpen] = useState(false);
+  const [changePhotoKey, setChangePhotoKey] = useState(0);
+  const [photoSuccessMessage, setPhotoSuccessMessage] = useState("");
   const isHome = activeTab === "Home";
   const syncAnnouncements = useCallback((announcements) => {
     setDashboard((current) => ({
       ...current,
       announcements,
+      noticeCount: announcements.length,
       unreadAnnouncementCount: announcementsApi.getUnreadCount(announcements),
     }));
   }, []);
   const updateAnnouncementReadState = useCallback((announcementId, isRead) => {
     if (!announcementId) return;
-    setDashboard((current) => ({
-      ...current,
-      announcements: current.announcements.map((announcement) =>
+    setDashboard((current) => {
+      const nextAnnouncements = current.announcements.map((announcement) =>
         String(announcement.id) === String(announcementId)
           ? { ...announcement, is_read: isRead }
           : announcement,
-      ),
-      unreadAnnouncementCount: announcementsApi.getUnreadCount(
-        current.announcements.map((announcement) =>
-          String(announcement.id) === String(announcementId)
-            ? { ...announcement, is_read: isRead }
-            : announcement,
-        ),
-      ),
-    }));
+      );
+      return {
+        ...current,
+        announcements: nextAnnouncements,
+        noticeCount: nextAnnouncements.length,
+        unreadAnnouncementCount: announcementsApi.getUnreadCount(nextAnnouncements),
+      };
+    });
   }, []);
   const handleLogout = () => {
     if (Platform.OS === "web") {
@@ -798,6 +1038,7 @@ export default function ParentPortalScreen({ onLogout, session }) {
   };
 
   const loadDashboard = useCallback(async () => {
+    const requestId = ++dashboardRequestIdRef.current;
     setDashboard((current) => ({ ...current, loading: true, error: "" }));
     try {
       const children = await parentApi.getChildren(session);
@@ -813,6 +1054,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
         className: student.class_name || student.className || "",
         section: student.division_name || student.section || "",
       }));
+      if (requestId !== dashboardRequestIdRef.current) return;
+
       setStudents(nextStudents);
       const selectedStudent = nextStudents.find(
         (student) =>
@@ -827,6 +1070,18 @@ export default function ParentPortalScreen({ onLogout, session }) {
           ...current,
           loading: false,
           studentCount: 0,
+          attendance: "0%",
+          attendancePercentage: 0,
+          daysPresent: 0,
+          daysAbsent: 0,
+          lateEntries: 0,
+          fees: "₹0",
+          feeBalance: 0,
+          examCount: 0,
+          noticeCount: 0,
+          announcements: [],
+          unreadAnnouncementCount: 0,
+          error: "",
         }));
         return;
       }
@@ -845,6 +1100,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
         examsApi.getResults(session, activeStudentId),
         announcementsApi.getAnnouncements(session, activeStudentId),
       ]);
+      if (requestId !== dashboardRequestIdRef.current) return;
+
       const [
         feesResult,
         attendanceResult,
@@ -872,24 +1129,28 @@ export default function ParentPortalScreen({ onLogout, session }) {
       setDashboard({
         loading: false,
         attendance: `${attendance?.attendanceRate ?? 0}%`,
-        attendancePercentage: attendance?.attendanceRate ?? 0,
+        attendancePercentage: Number(attendance?.attendanceRate ?? 0),
         daysPresent: attendance?.daysPresent ?? 0,
         daysAbsent: attendance?.daysAbsent ?? 0,
+        lateEntries: attendance?.lateEntries ?? 0,
         fees: `₹${Number(fees?.institutionalDues || 0).toLocaleString("en-IN")}`,
+        feeBalance: Number(fees?.institutionalDues || 0),
         homeworkDetail: homework?.length
           ? `${homework.length} available`
           : "No data available",
         classes: [],
         announcements,
+        noticeCount: announcements.length,
         unreadAnnouncementCount: announcementsApi.getUnreadCount(announcements),
         schoolName: session?.schoolName || "",
         studentCount: nextStudents.length,
-        examCount: exams.length,
+        examCount: Array.isArray(exams) ? exams.length : 0,
         error: failedServices.length
           ? `Some services are unavailable: ${failedServices.join(", ")}.`
           : "",
       });
     } catch (error) {
+      if (requestId !== dashboardRequestIdRef.current) return;
       setDashboard((current) => ({
         ...current,
         loading: false,
@@ -912,6 +1173,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
       name: "Student",
       className: "",
     };
+  const selectedStudentIdForProfile = selectedStudent?.id;
+  const selectedStudentPhotoUri = getStudentPhotoSource(selectedStudent)?.uri;
   const updateSelectedStudent = useCallback((updatedStudent) => {
     setStudents((current) =>
       current.map((student) =>
@@ -921,6 +1184,48 @@ export default function ParentPortalScreen({ onLogout, session }) {
       ),
     );
   }, []);
+  useEffect(() => {
+    const childId = selectedStudentIdForProfile;
+    if (!childId || selectedStudentPhotoUri) return undefined;
+
+    let active = true;
+    parentApi
+      .getChildProfile(childId, session)
+      .then((profile) => {
+        if (!active) return;
+        const imageUrl =
+          typeof profile?.profile_image_url === "string"
+            ? profile.profile_image_url.trim()
+            : null;
+        if (imageUrl) {
+          updateSelectedStudent({ id: childId, profile_image_url: imageUrl });
+        }
+      })
+      .catch((requestError) => {
+        if (active && __DEV__) {
+          console.warn("[Parent] child profile image request failed", {
+            childId,
+            kind: requestError?.kind,
+            status: requestError?.status,
+            message: requestError?.message,
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedStudentIdForProfile, selectedStudentPhotoUri, session, updateSelectedStudent]);
+  const openChangePhoto = () => {
+    setPhotoSuccessMessage("");
+    setChangePhotoKey((current) => current + 1);
+    setChangePhotoOpen(true);
+  };
+  const finishPhotoUpdate = () => {
+    setActiveTab("Home");
+    setChangePhotoOpen(false);
+    setPhotoSuccessMessage("Profile photo updated successfully.");
+  };
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.navy} />
@@ -993,8 +1298,15 @@ export default function ParentPortalScreen({ onLogout, session }) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {isHome && photoSuccessMessage ? (
+          <View style={styles.photoSuccessBanner}>
+            <Icon name="checkmark-circle" size={18} color={colors.teal} />
+            <Text style={styles.photoSuccessText}>{photoSuccessMessage}</Text>
+          </View>
+        ) : null}
         {isHome ? (
           <HomeContent
+            session={session}
             goTo={setActiveTab}
             dashboard={dashboard}
             selectedStudent={selectedStudent}
@@ -1002,6 +1314,8 @@ export default function ParentPortalScreen({ onLogout, session }) {
             onSelectStudent={setSelectedStudentId}
             onRefresh={loadDashboard}
             onAnnouncementRead={updateAnnouncementReadState}
+            onEditProfile={() => setProfileOpen(true)}
+            onChangePhoto={openChangePhoto}
           />
         ) : (
           <>
@@ -1062,6 +1376,19 @@ export default function ParentPortalScreen({ onLogout, session }) {
       <ProfileModal
         visible={profileOpen}
         onClose={() => setProfileOpen(false)}
+        onOpenChangePhoto={() => {
+          setProfileOpen(false);
+          openChangePhoto();
+        }}
+        session={session}
+        selectedStudent={selectedStudent}
+        onSaved={updateSelectedStudent}
+        onSuccess={finishPhotoUpdate}
+      />
+      <ChangePhotoScreen
+        key={changePhotoKey}
+        visible={changePhotoOpen}
+        onClose={() => setChangePhotoOpen(false)}
         session={session}
         selectedStudent={selectedStudent}
         onSaved={updateSelectedStudent}
@@ -1153,6 +1480,18 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: "#C8DBF2", fontSize: 13, fontWeight: "700" },
   content: { padding: 20, paddingBottom: 30 },
+  photoSuccessBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    marginBottom: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.teal,
+    backgroundColor: colors.paleTeal,
+  },
+  photoSuccessText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   greetingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1518,7 +1857,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
-  modalTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+  profileModalTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
   profileModal: {
     backgroundColor: colors.white,
     maxHeight: "92%",
@@ -1528,6 +1867,44 @@ const styles = StyleSheet.create({
   formScroll: { flexGrow: 0 },
   formContent: { paddingHorizontal: 22, paddingBottom: 22 },
   profileField: { marginBottom: 5 },
+  photoUploadSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  photoUploadPreview: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.paleBlue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoUploadImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  photoUploadFallback: {
+    color: colors.blue,
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  photoUploadButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: colors.navy,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoUploadButtonText: {
+    color: colors.white,
+    fontWeight: "800",
+    fontSize: 14,
+  },
   multilineInput: { minHeight: 82, textAlignVertical: "top" },
   loadingText: { color: colors.muted, fontSize: 12, marginBottom: 8 },
   fieldError: { color: colors.red, fontSize: 11, marginTop: 4 },
@@ -1611,6 +1988,31 @@ const dashboardStyles = StyleSheet.create({
     lineHeight: 18,
   },
   school: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  dashboardHeaderCard: {
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 14,
+    marginBottom: 16,
+  },
+  dashboardTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  dashboardSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  sessionMeta: {
+    color: colors.blue,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 8,
+  },
   dashboardOs: {
     color: colors.blue,
     fontSize: 10,
@@ -1650,8 +2052,14 @@ const dashboardStyles = StyleSheet.create({
     backgroundColor: "#2E5D91",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   studentAvatarText: { color: colors.white, fontSize: 18, fontWeight: "900" },
+  studentAvatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
   studentLabel: { color: "#B8D0EC", fontSize: 10, fontWeight: "800" },
   studentName: {
     color: colors.white,
@@ -1686,6 +2094,33 @@ const dashboardStyles = StyleSheet.create({
   studentCardCopy: { flex: 1 },
   studentCardName: { color: colors.ink, fontSize: 14, fontWeight: "900" },
   studentCardClass: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  summaryBanner: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  summaryBannerTitle: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  editProfileButton: {
+    backgroundColor: colors.paleBlue,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  editProfileText: {
+    color: colors.blue,
+    fontSize: 11,
+    fontWeight: "800",
+  },
   summaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1717,6 +2152,166 @@ const dashboardStyles = StyleSheet.create({
     marginTop: 6,
   },
   summaryDetail: { color: colors.muted, fontSize: 9, marginTop: 5 },
+  profileCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 14,
+    marginBottom: 18,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: colors.paleBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  profileAvatarText: {
+    color: colors.blue,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  profileAvatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+    position: "absolute",
+  },
+  profileName: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  profileMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  photoButton: {
+    backgroundColor: colors.navy,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  photoButtonText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  profileGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  profileField: {
+    width: "48%",
+    backgroundColor: colors.canvas,
+    borderRadius: 10,
+    padding: 10,
+    minHeight: 60,
+  },
+  profileFieldLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  profileFieldValue: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  progressCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 14,
+    marginBottom: 18,
+  },
+  progressHeader: {
+    marginBottom: 10,
+  },
+  progressTitle: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  progressHint: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#E9EEF4",
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+  },
+  progressStats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  progressStatItem: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  notificationTag: {
+    backgroundColor: colors.paleBlue,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginRight: 8,
+  },
+  notificationTagText: {
+    color: colors.blue,
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  notificationCopy: { flex: 1 },
+  notificationTitle: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  notificationMessage: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  notificationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  notificationMeta: {
+    color: colors.muted,
+    fontSize: 10,
+    marginTop: 4,
+  },
   moduleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1768,14 +2363,6 @@ const dashboardStyles = StyleSheet.create({
   classTime: { color: colors.blue, fontSize: 11, fontWeight: "900", width: 72 },
   classSubject: { color: colors.ink, fontSize: 13, fontWeight: "900" },
   classMeta: { color: colors.muted, fontSize: 10, marginTop: 3 },
-  notificationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
   notificationDot: { width: 8, height: 8, borderRadius: 4 },
   notificationText: {
     color: colors.ink,

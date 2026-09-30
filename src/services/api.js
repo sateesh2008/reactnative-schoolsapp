@@ -3,11 +3,12 @@ const API_BASE_URL = (
 ).replace(/\/$/, "");
 
 export class ApiError extends Error {
-  constructor(message, status, details) {
+  constructor(message, status, details, kind) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.details = details;
+    this.kind = kind || (status === 0 ? "network" : "http");
   }
 }
 export const isApiConfigured = Boolean(API_BASE_URL);
@@ -53,7 +54,16 @@ const parseResponseBody = async (response) => {
 
 export async function apiRequest(
   path,
-  { method = "GET", token, query, body, signal, headers: extraHeaders } = {},
+  {
+    method = "GET",
+    token,
+    query,
+    body,
+    signal,
+    headers: extraHeaders,
+    isMultipart,
+    suppressResponseBodyLog = false,
+  } = {},
 ) {
   if (!API_BASE_URL) {
     return null;
@@ -74,27 +84,46 @@ export async function apiRequest(
     console.info(`[API] ${method} ${requestUrl}`);
   }
 
+  const hasFormData = Boolean(isMultipart) || (typeof FormData !== "undefined" && body instanceof FormData);
+  const requestBody = hasFormData ? body : body ? JSON.stringify(body) : undefined;
+  const requestHeaders = {
+    Accept: "application/json",
+    ...(extraHeaders || {}),
+    ...(!hasFormData && body ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  if (hasFormData) {
+    Object.keys(requestHeaders)
+      .filter((headerName) => headerName.toLowerCase() === "content-type")
+      .forEach((headerName) => delete requestHeaders[headerName]);
+  }
+
   let response;
   try {
     response = await fetch(requestUrl, {
       method,
       signal,
-      headers: {
-        Accept: "application/json",
-        ...(extraHeaders || {}),
-        ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      headers: requestHeaders,
+      ...(requestBody ? { body: requestBody } : {}),
     });
   } catch (error) {
-    if (__DEV__) {
-      console.warn(`[API] ${method} ${requestUrl} failed to connect`, error);
-    }
+    const networkDetails = {
+      url: requestUrl,
+      method,
+      name: error?.name || "Error",
+      code: error?.code || null,
+      message: error?.message || "No response was received.",
+    };
+    console.warn(
+      `[API] ${method} request failed before receiving an HTTP response`,
+      networkDetails,
+    );
     throw new ApiError(
       "Unable to connect to the server. Please check your internet connection and try again.",
       0,
-      error,
+      networkDetails,
+      "network",
     );
   }
 
@@ -102,10 +131,10 @@ export async function apiRequest(
 
   if (!response.ok) {
     if (__DEV__) {
-      console.warn(
-        `[API] ${method} ${requestUrl} returned status ${response.status}`,
-        payload,
-      );
+      const statusMessage =
+        `[API] ${method} ${requestUrl} returned status ${response.status}`;
+      if (suppressResponseBodyLog) console.warn(statusMessage);
+      else console.warn(statusMessage, payload);
     }
 
     const payloadMessage =
@@ -123,14 +152,15 @@ export async function apiRequest(
         `${errorMessageForStatus(response.status)} (${method} ${path})`,
       response.status,
       payload,
+      "http",
     );
   }
 
   if (__DEV__) {
-    console.info(
-      `[API] ${method} ${requestUrl} succeeded with status ${response.status}`,
-      payload,
-    );
+    const successMessage =
+      `[API] ${method} ${requestUrl} succeeded with status ${response.status}`;
+    if (suppressResponseBodyLog) console.info(successMessage);
+    else console.info(successMessage, payload);
   }
   return payload;
 }
